@@ -1,0 +1,11 @@
+[package]
+name = "rogcat"
+version = "0.1.0"
+authors = ["Felix Obenhuber <felix.obenhuber@esrlabs.com>"]
+
+[dependencies]
+ansi_term = "0.8.0"
+clap = "2.10.0"
+regex = "0.1.73"
+term_size = "0.1.0"
+time = "0.1.35"
