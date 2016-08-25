@@ -54,13 +54,10 @@ impl Terminal {
 
     fn level_color(&self, level: &super::Level) -> ::ansi_term::Colour {
         match *level {
-            super::Level::Trace => Fixed(243),
-            super::Level::Debug => Fixed(243),
+            super::Level::Trace | super::Level::Debug => Fixed(243),
             super::Level::Info => Green,
             super::Level::Warn => Yellow,
-            super::Level::Error => Red,
-            super::Level::Fatal => Red,
-            super::Level::Assert => Red,
+            super::Level::Error | super::Level::Fatal | super::Level::Assert => Red,
         }
     }
 
@@ -69,10 +66,8 @@ impl Terminal {
             // filter some unreadable of nasty colors
             0...1 => Fixed(color + 2),
             16...21 => Fixed(color + 6),
-            52...55 => Fixed(color + 4),
-            126...129 => Fixed(color + 4),
-            163...165 => Fixed(color + 3),
-            200...201 => Fixed(color + 3),
+            52...55 | 126...129 => Fixed(color + 4),
+            163...165 | 200...201 => Fixed(color + 3),
             207 => Fixed(color + 1),
             232...240 => Fixed(color + 9),
             _ => Fixed(color),

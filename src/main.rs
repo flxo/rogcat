@@ -51,14 +51,13 @@ impl ::std::fmt::Display for Level {
 impl<'a> From<&'a str> for Level {
     fn from(s: &str) -> Self {
         match s {
-            "D" => Level::Debug,
             "T" => Level::Trace,
             "I" => Level::Info,
             "W" => Level::Warn,
             "E" => Level::Error,
             "F" => Level::Fatal,
             "A" => Level::Assert,
-            _ => Level::Debug,
+            "D" | _ => Level::Debug,
         }
     }
 }
@@ -116,16 +115,15 @@ fn main() {
     let is_level = |message: &message::Message| -> bool { message.level >= level };
 
     let prepare_filter = |opt| {
-        let r: Vec<&str> = if matches.is_present(opt) {
+        if matches.is_present(opt) {
             matches.values_of(opt).unwrap().collect()
         } else {
-            Vec::new()
-        };
-        r
+            Vec::<&str>::new()
+        }
     };
 
     let tag_filter: Vec<Regex> =
-        prepare_filter("tag").iter().map(|f| Regex::new(&format!("{}", f)).unwrap()).collect();
+        prepare_filter("tag").iter().map(|f| Regex::new(f).unwrap()).collect();
     let is_match_tag = |message: &message::Message| -> bool {
         if matches.is_present("tag") {
             for f in &tag_filter {
@@ -140,7 +138,7 @@ fn main() {
     };
 
     let message_filter: Vec<Regex> =
-        prepare_filter("msg").iter().map(|f| Regex::new(&format!("{}", f)).unwrap()).collect();
+        prepare_filter("msg").iter().map(|f| Regex::new(f).unwrap()).collect();
     let is_match_message = |message: &message::Message| -> bool {
         if matches.is_present("msg") {
             for f in &message_filter {
@@ -186,7 +184,7 @@ fn main() {
 
     loop {
         let mut buffer: Vec<u8> = Vec::new();
-        match reader.read_until('\n' as u8, &mut buffer) {
+        match reader.read_until(10, &mut buffer) {
             Ok(len) => {
                 if len == 0 {
                     break;

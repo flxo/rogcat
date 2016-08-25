@@ -180,7 +180,7 @@ impl Parser {
         }
 
         match self.parser {
-            Some(ref p) => (*p).parse(line).unwrap_or(Self::default_message(line)),
+            Some(ref p) => (*p).parse(line).unwrap_or_else(|| Self::default_message(line)),
             None => Self::default_message(line),
         }
     }
