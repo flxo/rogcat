@@ -1,9 +1,10 @@
+![](https://travis-ci.org/flxo/rogcat.svg)
 # rogcat
 
-[travis-image]: https://travis-ci.org/flxo/rogcat.png
-[travis]: https://travis-ci.org/flxo/rogcat
 
-A adb logcat wrapper.
+A ``adb logcat`` wrapper.
+
+![Screenshot](/screenshot.png)
 
 ## Usage
 
@@ -57,4 +58,4 @@ Rogcat is open source software; see ``COPYING`` for details.
 
 ## Author
 
-Rogcat was written by Felix Obenhuber <f.obenhuber@gmail.com>
+Rogcat was written by Felix Obenhuber
