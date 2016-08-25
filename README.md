@@ -1,4 +1,4 @@
-![](https://travis-ci.org/flxo/rogcat.svg)
+[![Build Status](https://travis-ci.org/flxo/rogcat.png)](https://travis-ci.org/flxo/rogcat)
 # rogcat
 
 
