@@ -145,6 +145,45 @@ impl Format for ThreadFormat {
     }
 }
 
+struct MindroidFormat {
+    regex: Regex,
+}
+
+impl MindroidFormat {
+    fn new() -> MindroidFormat {
+        MindroidFormat {
+            // D/ServiceManager(711ad700): Service MediaPlayer has been created in process main
+            regex: Regex::new(r"^(\D)/([a-zA-Z0-9-_\{\}\[\]=\\/\.]*)\(([0-9a-f]+)\): (.*)")
+                .unwrap(),
+        }
+    }
+}
+
+impl Format for MindroidFormat {
+    fn name(&self) -> &'static str {
+        "mindroid"
+    }
+
+    fn parse(&self, line: &str) -> Option<super::message::Message> {
+        match self.regex.captures(line) {
+            Some(captures) => {
+                Some(super::message::Message {
+                    timestamp: ::time::now(),
+                    level: super::Level::from(captures.at(1).unwrap_or("")),
+                    tag: captures.at(2).unwrap_or("").to_string(),
+                    process: captures.at(3).unwrap_or("").to_string(),
+                    thread: "".to_string(),
+                    message: captures.at(4).unwrap_or("").to_string().trim().to_string(),
+                })
+            }
+            None => None,
+        }
+    }
+}
+
+
+
+
 impl Parser {
     pub fn new() -> Parser {
         Parser { parser: None }
@@ -162,12 +201,14 @@ impl Parser {
     }
 
     fn detect_format(line: &str) -> Option<Box<Format>> {
-        let parsers = vec![Box::new(PrintableFormat::new()) as Box<Format>,
+        let parsers = vec![Box::new(MindroidFormat::new()) as Box<Format>,
+                           Box::new(PrintableFormat::new()) as Box<Format>,
                            Box::new(ThreadFormat::new()) as Box<Format>,
                            Box::new(TagFormat::new()) as Box<Format>];
 
         for p in parsers {
             if p.parse(line).is_some() {
+                println!("Matched parser: {}", p.name());
                 return Some(p);
             }
         }
@@ -203,4 +244,10 @@ fn test_tag() {
 fn test_thread() {
     let line = "I(  801:  815) uid=1000(system) Binder_1 expire 3 lines";
     assert!(ThreadFormat::new().parse(line).is_some());
+}
+
+#[test]
+fn test_mindroid() {
+    let line = "D/ServiceManager(711ad700): Service MediaPlayer has been created in process main";
+    assert!(MindroidFormat::new().parse(line).is_some());
 }
