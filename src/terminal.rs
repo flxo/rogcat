@@ -36,7 +36,8 @@ pub struct Terminal {
     vovels: Regex,
     beginning_of: Regex,
     tag_width: usize,
-    id_width: usize,
+    process_width: usize,
+    thread_width: usize,
 }
 
 impl Terminal {
@@ -48,7 +49,8 @@ impl Terminal {
             vovels: Regex::new(r"a|e|i|o|u").unwrap(),
             beginning_of: Regex::new(r"--------- beginning of.*").unwrap(),
             tag_width: 30,
-            id_width: 0,
+            process_width: 0,
+            thread_width: 0,
         }
     }
 
@@ -123,14 +125,18 @@ impl Terminal {
             }
         };
 
-        self.id_width = ::std::cmp::max(self.id_width, message.process.chars().count());
-        self.id_width = ::std::cmp::max(self.id_width, message.thread.chars().count());
-        let pid = format!("{:<width$}", message.process, width = self.id_width);
-        let tid = format!("{:>width$}", message.thread, width = self.id_width);
+        self.process_width = ::std::cmp::max(self.process_width, message.process.chars().count());
+        let pid = format!("{:<width$}", message.process, width = self.process_width);
+        let tid = if message.thread.is_empty() {
+            "".to_owned()
+        } else {
+            self.thread_width = ::std::cmp::max(self.thread_width, message.thread.chars().count());
+            format!("{:>width$}", message.thread, width = self.thread_width)
+        };
 
         let level = format!(" {} ", message.level);
 
-        let preamble = format!("{} {} {} ({} {}) {}", " ", timestamp, tag, pid, tid, level);
+        let preamble = format!("{} {} {} ({}{}) {}", " ", timestamp, tag, pid, tid, level);
         let preamble_width = preamble.chars().count();
 
 
@@ -138,7 +144,7 @@ impl Terminal {
             preamble
         } else {
             let level_color = self.level_color(&message.level);
-            format!("{} {} {} ({} {}) {}",
+            format!("{} {} {} ({}{}) {}",
                     " ",
                     level_color.paint(timestamp).to_string(),
                     self.hashed_color(&tag).paint(tag),
