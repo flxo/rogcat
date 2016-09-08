@@ -170,11 +170,25 @@ impl Terminal {
                 };
 
                 let chunk: String = m.chars().take(chunk_width).collect();
+                let chunk = if self.monochrome {
+                    chunk
+                } else {
+                    let msg_color = self.level_color(&message.level);
+                    msg_color.paint(chunk).to_string()
+                };
+
                 m = m.chars().skip(chunk_width).collect();
                 println!("{} {} {}", preamble, sign, chunk);
             }
         } else {
-            println!("{} {}", preamble, message.message);
+            if self.monochrome {
+                println!("{} {}", preamble, message.message);
+            } else {
+                let color = self.level_color(&message.level);
+                let msg = &message.message;
+                let msg = color.paint(msg.clone());
+                println!("{} {}", preamble, msg);
+            }
         }
 
         ::std::io::stdout().flush().ok();
