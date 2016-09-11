@@ -16,7 +16,6 @@ use std::process::{Command, Stdio};
 use std::io::{BufReader, BufRead};
 use regex::Regex;
 
-mod message;
 mod terminal;
 mod parser;
 mod filewriter;
@@ -69,8 +68,34 @@ impl std::str::FromStr for Level {
     }
 }
 
+pub struct Record {
+    pub timestamp: ::time::Tm,
+    pub message: String,
+    pub level: Level,
+    pub tag: String,
+    pub process: String,
+    pub thread: String,
+}
+
+impl Record {
+    pub fn to_csv(&self) -> String {
+        let timestamp: String = ::time::strftime("%m-%d %H:%M:%S.%f", &self.timestamp)
+            .unwrap()
+            .chars()
+            .take(18)
+            .collect();
+        format!("{},{},{},{},{},{}",
+                timestamp,
+                self.tag,
+                self.process,
+                self.thread,
+                self.level,
+                self.message)
+    }
+}
+
 pub trait Sink {
-    fn process(&mut self, message: &message::Message);
+    fn process(&mut self, record: &Record);
     fn close(&self);
 }
 
@@ -112,7 +137,7 @@ fn main() {
     }
 
     let level = value_t!(matches, "level", Level).unwrap_or(Level::Debug);
-    let is_level = |message: &message::Message| -> bool { message.level >= level };
+    let is_level = |record: &Record| -> bool { record.level >= level };
 
     let prepare_filter = |opt| {
         if matches.is_present(opt) {
@@ -124,10 +149,10 @@ fn main() {
 
     let tag_filter: Vec<Regex> =
         prepare_filter("tag").iter().map(|f| Regex::new(f).unwrap()).collect();
-    let is_match_tag = |message: &message::Message| -> bool {
+    let is_match_tag = |record: &Record| -> bool {
         if matches.is_present("tag") {
             for f in &tag_filter {
-                if f.is_match(&message.tag) {
+                if f.is_match(&record.tag) {
                     return true;
                 }
             }
@@ -137,12 +162,12 @@ fn main() {
         }
     };
 
-    let message_filter: Vec<Regex> =
+    let record_filter: Vec<Regex> =
         prepare_filter("msg").iter().map(|f| Regex::new(f).unwrap()).collect();
-    let is_match_message = |message: &message::Message| -> bool {
+    let is_match_message = |record: &Record| -> bool {
         if matches.is_present("msg") {
-            for f in &message_filter {
-                if f.is_match(&message.message) {
+            for f in &record_filter {
+                if f.is_match(&record.message) {
                     return true;
                 }
             }
@@ -190,10 +215,10 @@ fn main() {
                     break;
                 } else {
                     let line = String::from_utf8_lossy(&buffer);
-                    let message = parser.parse(&line);
-                    if is_match_message(&message) && is_match_tag(&message) && is_level(&message) {
+                    let record = parser.parse(&line);
+                    if is_match_message(&record) && is_match_tag(&record) && is_level(&record) {
                         for s in &mut sinks {
-                            s.process(&message);
+                            s.process(&record);
                         }
                     }
                 }

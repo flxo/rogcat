@@ -8,7 +8,7 @@ use regex::Regex;
 
 trait Format {
     fn name(&self) -> &'static str;
-    fn parse(&self, line: &str) -> Option<super::message::Message>;
+    fn parse(&self, line: &str) -> Option<super::Record>;
 }
 
 pub struct Parser {
@@ -34,11 +34,11 @@ impl Format for PrintableFormat {
         "printable"
     }
 
-    fn parse(&self, line: &str) -> Option<super::message::Message> {
+    fn parse(&self, line: &str) -> Option<super::Record> {
         if self.regex.is_match(line) {
             match self.regex.captures(line) {
                 Some(captures) => {
-                    Some(super::message::Message {
+                    Some(super::Record {
                         timestamp: match ::time::strptime(captures.at(1).unwrap_or("").trim(),
                                                           "%m-%d %H:%M:%S.%f") {
                             Ok(tm) => tm,
@@ -56,7 +56,7 @@ impl Format for PrintableFormat {
         } else {
             match self.old_regex.captures(line) {
                 Some(captures) => {
-                    Some(super::message::Message {
+                    Some(super::Record {
                         timestamp: match ::time::strptime(captures.at(1).unwrap_or("").trim(),
                                                           "%m-%d %H:%M:%S.%f") {
                             Ok(tm) => tm,
@@ -93,10 +93,10 @@ impl Format for TagFormat {
         "printable"
     }
 
-    fn parse(&self, line: &str) -> Option<super::message::Message> {
+    fn parse(&self, line: &str) -> Option<super::Record> {
         match self.regex.captures(line) {
             Some(captures) => {
-                Some(super::message::Message {
+                Some(super::Record {
                     timestamp: ::time::now(),
                     level: super::Level::from(captures.at(1).unwrap_or("")),
                     tag: captures.at(2).unwrap_or("").to_string().trim().to_string(),
@@ -128,10 +128,10 @@ impl Format for ThreadFormat {
         "thread"
     }
 
-    fn parse(&self, line: &str) -> Option<super::message::Message> {
+    fn parse(&self, line: &str) -> Option<super::Record> {
         match self.regex.captures(line) {
             Some(captures) => {
-                Some(super::message::Message {
+                Some(super::Record {
                     timestamp: ::time::now(),
                     level: super::Level::from(captures.at(1).unwrap_or("")),
                     tag: "".to_string(),
@@ -164,10 +164,10 @@ impl Format for MindroidFormat {
         "mindroid"
     }
 
-    fn parse(&self, line: &str) -> Option<super::message::Message> {
+    fn parse(&self, line: &str) -> Option<super::Record> {
         match self.regex.captures(line) {
             Some(captures) => {
-                Some(super::message::Message {
+                Some(super::Record {
                     timestamp: ::time::now(),
                     level: super::Level::from(captures.at(1).unwrap_or("")),
                     tag: captures.at(2).unwrap_or("").to_string(),
@@ -181,16 +181,13 @@ impl Format for MindroidFormat {
     }
 }
 
-
-
-
 impl Parser {
     pub fn new() -> Parser {
         Parser { parser: None }
     }
 
-    fn default_message(line: &str) -> super::message::Message {
-        super::message::Message {
+    fn default_record(line: &str) -> super::Record {
+        super::Record {
             timestamp: ::time::now(),
             level: super::Level::Debug,
             tag: "".to_string(),
@@ -215,14 +212,14 @@ impl Parser {
         None
     }
 
-    pub fn parse(&mut self, line: &str) -> super::message::Message {
+    pub fn parse(&mut self, line: &str) -> super::Record {
         if self.parser.is_none() {
             self.parser = Self::detect_format(line);
         }
 
         match self.parser {
-            Some(ref p) => (*p).parse(line).unwrap_or_else(|| Self::default_message(line)),
-            None => Self::default_message(line),
+            Some(ref p) => (*p).parse(line).unwrap_or_else(|| Self::default_record(line)),
+            None => Self::default_record(line),
         }
     }
 }

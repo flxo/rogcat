@@ -24,7 +24,7 @@ impl FileWriter {
 }
 
 impl super::Sink for FileWriter {
-    fn process(&mut self, message: &super::message::Message) {
+    fn process(&mut self, message: &super::Record) {
         let line = format!("{}\r\n", message.to_csv());
         match self.file.write(&line.into_bytes()) {
             Ok(_) => (),

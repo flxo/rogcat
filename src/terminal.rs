@@ -65,7 +65,7 @@ impl Terminal {
 
     fn color(&self, color: u8) -> ::ansi_term::Colour {
         match color {
-            // filter some unreadable of nasty colors
+            // filter some unreadable or nasty colors
             0...1 => Fixed(color + 2),
             16...21 => Fixed(color + 6),
             52...55 | 126...129 => Fixed(color + 4),
@@ -89,27 +89,27 @@ impl Terminal {
         }
     }
 
-    pub fn print(&mut self, message: &super::message::Message) {
+    pub fn print(&mut self, record: &super::Record) {
         // for i in 0..254 {
         //    let a = Fixed(i).paint(format!("ASDFASDF ASDFSF {}", i));
         //    println!("{}", a);
         // }
         if self.format == Format::Csv {
-            println!("{}", message.to_csv());
+            println!("{}", record.to_csv());
             return;
         }
 
-        let timestamp: String = ::time::strftime("%m-%d %H:%M:%S.%f", &message.timestamp)
+        let timestamp: String = ::time::strftime("%m-%d %H:%M:%S.%f", &record.timestamp)
             .unwrap()
             .chars()
             .take(18)
             .collect();
 
         let tag = {
-            let mut t = if self.beginning_of.is_match(&message.message) {
-                message.message.clone()
+            let mut t = if self.beginning_of.is_match(&record.message) {
+                record.message.clone()
             } else {
-                message.tag.clone()
+                record.tag.clone()
             };
 
             if self.full_tag {
@@ -125,16 +125,16 @@ impl Terminal {
             }
         };
 
-        self.process_width = ::std::cmp::max(self.process_width, message.process.chars().count());
-        let pid = format!("{:<width$}", message.process, width = self.process_width);
-        let tid = if message.thread.is_empty() {
+        self.process_width = ::std::cmp::max(self.process_width, record.process.chars().count());
+        let pid = format!("{:<width$}", record.process, width = self.process_width);
+        let tid = if record.thread.is_empty() {
             "".to_owned()
         } else {
-            self.thread_width = ::std::cmp::max(self.thread_width, message.thread.chars().count());
-            format!("{:>width$}", message.thread, width = self.thread_width)
+            self.thread_width = ::std::cmp::max(self.thread_width, record.thread.chars().count());
+            format!("{:>width$}", record.thread, width = self.thread_width)
         };
 
-        let level = format!(" {} ", message.level);
+        let level = format!(" {} ", record.level);
 
         let preamble = format!("{} {} {} ({}{}) {}", " ", timestamp, tag, pid, tid, level);
         let preamble_width = preamble.chars().count();
@@ -143,7 +143,7 @@ impl Terminal {
         let preamble = if self.monochrome {
             preamble
         } else {
-            let level_color = self.level_color(&message.level);
+            let level_color = self.level_color(&record.level);
             format!("{} {} {} ({}{}) {}",
                     " ",
                     level_color.paint(timestamp).to_string(),
@@ -153,15 +153,15 @@ impl Terminal {
                     Style::new().on(level_color).paint(Black.paint(level).to_string()))
         };
 
-        let message_length = message.message.chars().count();
+        let record_length = record.message.chars().count();
         let full_preamble_width = preamble_width + 3;
 
         let columns = Self::columns();
-        if (preamble_width + message_length) > columns {
-            let mut m = message.message.clone();
+        if (preamble_width + record_length) > columns {
+            let mut m = record.message.clone();
             while !m.is_empty() {
                 let chars_left = m.chars().count();
-                let (chunk_width, sign) = if chars_left == message_length {
+                let (chunk_width, sign) = if chars_left == record_length {
                     (columns - full_preamble_width, "┌")
                 } else if chars_left <= (columns - full_preamble_width) {
                     (chars_left, "└")
@@ -173,7 +173,7 @@ impl Terminal {
                 let chunk = if self.monochrome {
                     chunk
                 } else {
-                    let msg_color = self.level_color(&message.level);
+                    let msg_color = self.level_color(&record.level);
                     msg_color.paint(chunk).to_string()
                 };
 
@@ -182,10 +182,10 @@ impl Terminal {
             }
         } else {
             if self.monochrome {
-                println!("{} {}", preamble, message.message);
+                println!("{} {}", preamble, record.message);
             } else {
-                let color = self.level_color(&message.level);
-                let msg = &message.message;
+                let color = self.level_color(&record.level);
+                let msg = &record.message;
                 let msg = color.paint(msg.clone());
                 println!("{} {}", preamble, msg);
             }
@@ -196,8 +196,8 @@ impl Terminal {
 }
 
 impl super::Sink for Terminal {
-    fn process(&mut self, message: &super::message::Message) {
-        self.print(message)
+    fn process(&mut self, record: &super::Record) {
+        self.print(record)
     }
 
     fn close(&self) {}
