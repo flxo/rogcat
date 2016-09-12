@@ -205,7 +205,6 @@ impl Parser {
 
         for p in parsers {
             if p.parse(line).is_some() {
-                println!("Matched parser: {}", p.name());
                 return Some(p);
             }
         }
