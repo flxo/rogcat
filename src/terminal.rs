@@ -9,6 +9,10 @@ use ansi_term::Colour::*;
 use clap::ArgMatches;
 use regex::Regex;
 use std::hash::{Hash, SipHasher, Hasher};
+use termion::event::Key;
+use termion::input::TermRead;
+use termion::raw::IntoRawMode;
+use std::sync::{Arc, Mutex};
 use std::io::Write;
 
 #[derive (PartialEq)]
@@ -20,7 +24,6 @@ enum Format {
 impl ::std::str::FromStr for Format {
     type Err = &'static str;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        println!("{}", s);
         match s {
             "csv" => Ok(Format::Csv),
             "human" => Ok(Format::Human),
@@ -38,10 +41,43 @@ pub struct Terminal {
     tag_width: usize,
     process_width: usize,
     thread_width: usize,
+    shutdown: Arc<Mutex<bool>>,
 }
 
 impl Terminal {
     pub fn new(args: &ArgMatches) -> Terminal {
+        let shutdown = Arc::new(Mutex::new(false));
+        let stdout = ::std::io::stdout().into_raw_mode().unwrap();
+
+        print!("{}", ::termion::cursor::Hide);
+        ::std::io::stdout().flush().unwrap();
+
+        let b = shutdown.clone();
+        ::std::thread::spawn(move|| {
+            loop {
+                let stdin = ::std::io::stdin();
+                for c in stdin.keys() {
+                    if let Ok(c) = c {
+                        match c {
+                            Key::Char('q') | Key::Ctrl('c') => {
+                                let _l = b.lock();
+                                print!("{}", ::termion::cursor::Show);
+                                ::std::io::stdout().flush().unwrap();
+                                drop(stdout);
+                                ::std::process::exit(0);
+                            },
+                            Key::Char('\n') | Key::Char(' ') => print!("\r\n"),
+                            Key::Ctrl('l') => {
+                                print!("{}", ::termion::clear::All);
+                                ::std::io::stdout().flush().unwrap();
+                            },
+                            _ => {},
+                        }
+                    }
+                }
+            }
+        });
+
         Terminal {
             full_tag: args.is_present("DISABLE-TAG-SHORTENING"),
             format: value_t!(args, "format", Format).unwrap_or(Format::Human),
@@ -51,6 +87,7 @@ impl Terminal {
             tag_width: 30,
             process_width: 0,
             thread_width: 0,
+            shutdown: shutdown,
         }
     }
 
@@ -82,20 +119,15 @@ impl Terminal {
         self.color((hasher.finish() % 255) as u8)
     }
 
-    fn columns() -> usize {
-        match ::term_size::dimensions() {
-            Some(d) => d.0,
-            None => 80 as usize,
-        }
-    }
-
     pub fn print(&mut self, record: &super::Record) {
         // for i in 0..254 {
         //    let a = Fixed(i).paint(format!("ASDFASDF ASDFSF {}", i));
         //    println!("{}", a);
         // }
+        let _l = self.shutdown.lock();
+
         if self.format == Format::Csv {
-            println!("{}", record.to_csv());
+            println!("\r{}", record.to_csv());
             return;
         }
 
@@ -156,8 +188,14 @@ impl Terminal {
         let record_length = record.message.chars().count();
         let full_preamble_width = preamble_width + 3;
 
-        let columns = Self::columns();
-        if (preamble_width + record_length) > columns {
+        let terminal_size = if let Ok(s) = ::termion::terminal_size() {
+            Some(s)
+        } else {
+            None
+        };
+
+        if terminal_size.is_some() && ((preamble_width + record_length) > (terminal_size.unwrap().0 as usize)) {
+            let columns = terminal_size.unwrap().0 as usize;
             let mut m = record.message.clone();
             while !m.is_empty() {
                 let chars_left = m.chars().count();
@@ -178,20 +216,20 @@ impl Terminal {
                 };
 
                 m = m.chars().skip(chunk_width).collect();
-                println!("{} {} {}", preamble, sign, chunk);
+                print!("\r\n{} {} {}", preamble, sign, chunk);
             }
         } else {
             if self.monochrome {
-                println!("{} {}", preamble, record.message);
+                print!("\r\n{} {}", preamble, record.message);
             } else {
                 let color = self.level_color(&record.level);
                 let msg = &record.message;
                 let msg = color.paint(msg.clone());
-                println!("{} {}", preamble, msg);
+                print!("\r\n{} {}", preamble, msg);
             }
         }
 
-        ::std::io::stdout().flush().ok();
+        ::std::io::stdout().flush().unwrap();
     }
 }
 

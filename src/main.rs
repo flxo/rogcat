@@ -8,13 +8,13 @@ extern crate ansi_term;
 #[macro_use]
 extern crate clap;
 extern crate regex;
-extern crate term_size;
 extern crate time;
+extern crate termion;
 
 use clap::{App, Arg};
-use std::process::{Command, Stdio};
-use std::io::{BufReader, BufRead};
 use regex::Regex;
+use std::io::{BufReader, BufRead};
+use std::process::{Command, Stdio};
 
 mod terminal;
 mod parser;
@@ -118,16 +118,20 @@ fn main() {
         .arg_from_usage("-c 'Clear (flush) the entire log and exit'")
         .arg_from_usage("-g 'Get the size of the log's ring buffer and exit'")
         .arg_from_usage("-S 'Output statistics'")
+        .arg_from_usage("[COMMAND] 'Optional command to run and capture stdout'")
         .get_matches();
 
-    let binary = matches.value_of("adb").unwrap_or("adb");
+    let binary = if matches.is_present("COMMAND") {
+        matches.value_of("COMMAND").unwrap().to_owned()
+    } else {
+        format!("{} logcat", matches.value_of("adb").unwrap_or("adb"))
+    };
 
     let single_shots = ["c", "g", "S"];
     for arg in &single_shots {
         if matches.is_present(arg) {
             let arg = format!("-{}", arg);
             let mut child = Command::new(binary)
-                .arg("logcat")
                 .arg(arg)
                 .spawn()
                 .expect("failed to execute adb logcat");
@@ -189,12 +193,15 @@ fn main() {
             _ => BufReader::new(Box::new(std::io::stdin()) as Box<std::io::Read>),
         }
     } else {
-        let logcat = Command::new(binary)
-            .arg("logcat")
-            .stdout(Stdio::piped())
+        let args = binary.split(' ').filter(|s| { !s.is_empty() }).collect::<Vec<&str>>();
+        let mut application = Command::new(&args[0]);
+        for arg in args.iter().skip(1) {
+            application.arg(arg);
+        }
+        let application = application.stdout(Stdio::piped())
             .spawn()
             .expect("failed to execute adb");
-        BufReader::new(Box::new(logcat.stdout.unwrap()) as Box<std::io::Read>)
+        BufReader::new(Box::new(application.stdout.unwrap()) as Box<std::io::Read>)
     };
 
     let mut sinks: Vec<Box<Sink>> = Vec::new();
