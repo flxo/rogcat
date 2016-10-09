@@ -2,7 +2,7 @@
 # rogcat
 
 
-A ``adb logcat`` wrapper.
+A ``adb logcat`` wrapper with colored output and filter capabilities.
 
 ![Screenshot](/screenshot.png)
 
@@ -12,12 +12,12 @@ Without any argument rogcat starts up adb logcat and displays the output in a ni
 Not all errors are wrapped with a nice and readable explanation, so please be prepared to see something strange.
 
 ```
-rogcat 0.1.0
+rogcat 0.1.1
 Felix Obenhuber <f.obenhuber@gmail.com>
 A logcat wrapper
 
 USAGE:
-    rogcat [FLAGS] [OPTIONS]
+    rogcat [FLAGS] [OPTIONS] [--] [COMMAND]
 
 FLAGS:
         --disable-tag-shortening    Disable shortening of tag in human format
@@ -26,17 +26,18 @@ FLAGS:
     -c                              Clear (flush) the entire log and exit
     -g                              Get the size of the log's ring buffer and exit
     -h, --help                      Prints help information
-        --stdout                    Write to stdout (default)
     -V, --version                   Prints version information
 
 OPTIONS:
         --adb <ADB BINARY>    Path to adb
         --file <FILE>         Write to file
-        --format <FORMAT>     csv or human readable (default)
-        --input <INPUT>       Read from file or "stdin". Defaults to live log
+        --input <INPUT>       Read from file instead of command
         --level <LEVEL>       Minumum loglevel
         --msg <FILTER>...     Message filters in RE2
         --tag <FILTER>...     Tag filters in RE2
+
+ARGS:
+    <COMMAND>    Optional command to run and capture stdout
 ```
 
 ## Todos
