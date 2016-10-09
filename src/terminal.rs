@@ -15,26 +15,8 @@ use termion::raw::IntoRawMode;
 use std::sync::{Arc, Mutex};
 use std::io::Write;
 
-#[derive (PartialEq)]
-enum Format {
-    Csv,
-    Human,
-}
-
-impl ::std::str::FromStr for Format {
-    type Err = &'static str;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "csv" => Ok(Format::Csv),
-            "human" => Ok(Format::Human),
-            _ => Err("invalid format"),
-        }
-    }
-}
-
 pub struct Terminal {
     full_tag: bool,
-    format: Format,
     monochrome: bool,
     vovels: Regex,
     beginning_of: Regex,
@@ -53,7 +35,7 @@ impl Terminal {
         ::std::io::stdout().flush().unwrap();
 
         let b = shutdown.clone();
-        ::std::thread::spawn(move|| {
+        ::std::thread::spawn(move || {
             loop {
                 let stdin = ::std::io::stdin();
                 for c in stdin.keys() {
@@ -65,13 +47,13 @@ impl Terminal {
                                 ::std::io::stdout().flush().unwrap();
                                 drop(stdout);
                                 ::std::process::exit(0);
-                            },
+                            }
                             Key::Char('\n') | Key::Char(' ') => print!("\r\n"),
                             Key::Ctrl('l') => {
                                 print!("{}", ::termion::clear::All);
                                 ::std::io::stdout().flush().unwrap();
-                            },
-                            _ => {},
+                            }
+                            _ => {}
                         }
                     }
                 }
@@ -80,7 +62,6 @@ impl Terminal {
 
         Terminal {
             full_tag: args.is_present("DISABLE-TAG-SHORTENING"),
-            format: value_t!(args, "format", Format).unwrap_or(Format::Human),
             monochrome: args.is_present("DISABLE_COLOR_OUTPUT"),
             vovels: Regex::new(r"a|e|i|o|u").unwrap(),
             beginning_of: Regex::new(r"--------- beginning of.*").unwrap(),
@@ -125,11 +106,6 @@ impl Terminal {
         //    println!("{}", a);
         // }
         let _l = self.shutdown.lock();
-
-        if self.format == Format::Csv {
-            println!("\r{}", record.to_csv());
-            return;
-        }
 
         let timestamp: String = ::time::strftime("%m-%d %H:%M:%S.%f", &record.timestamp)
             .unwrap()
@@ -194,7 +170,8 @@ impl Terminal {
             None
         };
 
-        if terminal_size.is_some() && ((preamble_width + record_length) > (terminal_size.unwrap().0 as usize)) {
+        if terminal_size.is_some() &&
+           ((preamble_width + record_length) > (terminal_size.unwrap().0 as usize)) {
             let columns = terminal_size.unwrap().0 as usize;
             let mut m = record.message.clone();
             while !m.is_empty() {
@@ -234,9 +211,11 @@ impl Terminal {
 }
 
 impl super::Sink for Terminal {
+    fn open(&self) {}
+    fn close(&self) {}
+
     fn process(&mut self, record: &super::Record) {
         self.print(record)
     }
 
-    fn close(&self) {}
 }

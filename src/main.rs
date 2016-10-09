@@ -20,6 +20,23 @@ mod terminal;
 mod parser;
 mod filewriter;
 
+// #[derive (PartialEq)]
+// enum Format {
+//     Csv,
+//     Human,
+// }
+
+// impl ::std::str::FromStr for Format {
+//     type Err = &'static str;
+//     fn from_str(s: &str) -> Result<Self, Self::Err> {
+//         match s {
+//             "csv" => Ok(Format::Csv),
+//             "human" => Ok(Format::Human),
+//             _ => Err("invalid format"),
+//         }
+//     }
+// }
+
 #[derive (PartialOrd, PartialEq)]
 pub enum Level {
     Trace,
@@ -77,26 +94,41 @@ pub struct Record {
     pub thread: String,
 }
 
-impl Record {
-    pub fn to_csv(&self) -> String {
-        let timestamp: String = ::time::strftime("%m-%d %H:%M:%S.%f", &self.timestamp)
-            .unwrap()
-            .chars()
-            .take(18)
-            .collect();
-        format!("{},{},{},{},{},{}",
-                timestamp,
-                self.tag,
-                self.process,
-                self.thread,
-                self.level,
-                self.message)
-    }
+pub trait Sink {
+    fn open(&self);
+    fn close(&self);
+    fn process(&mut self, record: &Record);
 }
 
-pub trait Sink {
-    fn process(&mut self, record: &Record);
-    fn close(&self);
+struct Filter {
+    regex: Option<Vec<Regex>>,
+}
+
+impl Filter {
+    fn new(regex: Option<clap::Values>) -> Filter {
+        if let Some(values) = regex {
+            Filter {
+                regex: Some(values.map(|e| Regex::new(e).unwrap_or_else(|_| std::process::exit(0)))
+                    .collect::<Vec<Regex>>()),
+            }
+        } else {
+            Filter { regex: None }
+        }
+    }
+
+    fn is_match(&self, t: &str) -> bool {
+        match self.regex {
+            Some(ref r) => {
+                for m in r {
+                    if m.is_match(t) {
+                        return true;
+                    }
+                }
+                false
+            }
+            None => true,
+        }
+    }
 }
 
 fn main() {
@@ -108,10 +140,9 @@ fn main() {
         .arg(Arg::from_usage("--tag [FILTER] 'Tag filters in RE2'").multiple(true))
         .arg(Arg::from_usage("--msg [FILTER] 'Message filters in RE2'").multiple(true))
         .arg_from_usage("--file [FILE] 'Write to file'")
-        .arg_from_usage("--format [FORMAT] 'csv or human readable (default)'")
-        .arg_from_usage("--input [INPUT] 'Read from file or \"stdin\". Defaults to live log'")
+        .arg_from_usage("--input [INPUT] 'Read from file instead of command'")
+        //.arg_from_usage("--format [FORMAT] 'csv or human readable (default)'")
         .arg_from_usage("--level [LEVEL] 'Minumum loglevel'")
-        .arg_from_usage("--stdout 'Write to stdout (default)'")
         .arg_from_usage("[DISABLE_COLOR_OUTPUT] --disable-color-output 'Monochrome output'")
         .arg_from_usage("[DISABLE-TAG-SHORTENING] --disable-tag-shortening 'Disable shortening \
                          of tag in human format'")
@@ -134,66 +165,31 @@ fn main() {
             let mut child = Command::new(binary)
                 .arg(arg)
                 .spawn()
-                .expect("failed to execute adb logcat");
+                .expect("Failed to execute adb");
             child.wait().ok();
             return;
         }
     }
 
     let level = value_t!(matches, "level", Level).unwrap_or(Level::Debug);
-    let is_level = |record: &Record| -> bool { record.level >= level };
-
-    let prepare_filter = |opt| {
-        if matches.is_present(opt) {
-            matches.values_of(opt).unwrap().collect()
-        } else {
-            Vec::<&str>::new()
-        }
-    };
-
-    let tag_filter: Vec<Regex> =
-        prepare_filter("tag").iter().map(|f| Regex::new(f).unwrap()).collect();
-    let is_match_tag = |record: &Record| -> bool {
-        if matches.is_present("tag") {
-            for f in &tag_filter {
-                if f.is_match(&record.tag) {
-                    return true;
-                }
-            }
-            false
-        } else {
-            true
-        }
-    };
-
-    let record_filter: Vec<Regex> =
-        prepare_filter("msg").iter().map(|f| Regex::new(f).unwrap()).collect();
-    let is_match_message = |record: &Record| -> bool {
-        if matches.is_present("msg") {
-            for f in &record_filter {
-                if f.is_match(&record.message) {
-                    return true;
-                }
-            }
-            false
-        } else {
-            true
-        }
-    };
+    let level_filter = |record: &Record| -> bool { record.level >= level };
+    let tag_filter = Filter::new(matches.values_of("tag"));
+    let msg_filter = Filter::new(matches.values_of("msg"));
 
     let mut reader = if matches.is_present("input") {
-        match matches.value_of("input") {
-            Some("stdin") => BufReader::new(Box::new(std::io::stdin()) as Box<std::io::Read>),
-            Some(f) => {
-                match std::fs::File::open(f) {
-                    Ok(file) => BufReader::new(Box::new(file) as Box<std::io::Read>),
-                    Err(e) => panic!("{}", e),
-                }
+        if let Some(f) = matches.value_of("input") {
+            if let Ok(file) = std::fs::File::open(f) {
+                BufReader::new(Box::new(file) as Box<std::io::Read>)
+            } else {
+                println!("Failed to read {}", f);
+                return;
             }
-            _ => BufReader::new(Box::new(std::io::stdin()) as Box<std::io::Read>),
+        } else {
+            println!("Cannot read input");
+            return;
         }
     } else {
-        let args = binary.split(' ').filter(|s| { !s.is_empty() }).collect::<Vec<&str>>();
+        let args = binary.split(' ').filter(|s| !s.is_empty()).collect::<Vec<&str>>();
         let mut application = Command::new(&args[0]);
         for arg in args.iter().skip(1) {
             application.arg(arg);
@@ -204,37 +200,32 @@ fn main() {
         BufReader::new(Box::new(application.stdout.unwrap()) as Box<std::io::Read>)
     };
 
-    let mut sinks: Vec<Box<Sink>> = Vec::new();
-    if matches.is_present("file") {
-        sinks.push(Box::new(filewriter::FileWriter::new(&matches)) as Box<Sink>);
-    }
-    if matches.is_present("stdout") || !matches.is_present("file") {
-        sinks.push(Box::new(terminal::Terminal::new(&matches)) as Box<Sink>);
-    }
+    let mut sink = if matches.is_present("file") {
+        Box::new(filewriter::FileWriter::new(&matches)) as Box<Sink>
+    } else {
+        Box::new(terminal::Terminal::new(&matches)) as Box<Sink>
+    };
 
     let mut parser = parser::Parser::new();
 
+    sink.open();
+
     loop {
         let mut buffer: Vec<u8> = Vec::new();
-        match reader.read_until(10, &mut buffer) {
-            Ok(len) => {
-                if len == 0 {
-                    break;
-                } else {
-                    let line = String::from_utf8_lossy(&buffer);
-                    let record = parser.parse(&line);
-                    if is_match_message(&record) && is_match_tag(&record) && is_level(&record) {
-                        for s in &mut sinks {
-                            s.process(&record);
-                        }
-                    }
+        if let Ok(len) = reader.read_until(b'\n', &mut buffer) {
+            if len == 0 {
+                break;
+            } else {
+                let line = String::from_utf8_lossy(&buffer);
+                let record = parser.parse(&line);
+                if tag_filter.is_match(&record.tag) && msg_filter.is_match(&record.message) && level_filter(&record) {
+                    sink.process(&record);
                 }
             }
-            Err(e) => println!("Invalid line: {}", e),
+        } else {
+            println!("Invalid line");
         }
     }
 
-    for s in &sinks {
-        s.close();
-    }
+    sink.close();
 }

@@ -17,20 +17,41 @@ impl FileWriter {
         FileWriter {
             file: match File::create(args.value_of("file").unwrap()) {
                 Ok(f) => f,
-                Err(e) => panic!(e),
+                Err(e) => {
+                    println!("Failed to open {}", e);
+                    ::std::process::exit(0)
+                }
             },
         }
     }
 }
 
 impl super::Sink for FileWriter {
-    fn process(&mut self, message: &super::Record) {
-        let line = format!("{}\r\n", message.to_csv());
+    fn open(&self) {
+    }
+
+    fn close(&self) {
+        self.file.sync_all().ok();
+    }
+
+    fn process(&mut self, record: &super::Record) {
+
+        let timestamp: String = ::time::strftime("%m-%d %H:%M:%S.%f", &record.timestamp)
+            .unwrap()
+            .chars()
+            .take(18)
+            .collect();
+        let line = format!("\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"\r\n",
+                timestamp,
+                record.tag,
+                record.process,
+                record.thread,
+                record.level,
+                record.message);
         match self.file.write(&line.into_bytes()) {
             Ok(_) => (),
             Err(e) => panic!("{}", e),
         }
     }
 
-    fn close(&self) {}
 }
