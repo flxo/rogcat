@@ -12,29 +12,31 @@ Without any argument rogcat starts up adb logcat and displays the output in a ni
 Not all errors are wrapped with a nice and readable explanation, so please be prepared to see something strange.
 
 ```
-rogcat 0.1.1
-Felix Obenhuber <f.obenhuber@gmail.com>
+rogcat 0.1.2
+Felix Obenhuber <felix@obenhuber@esrlabs.com>
 A logcat wrapper
 
 USAGE:
     rogcat [FLAGS] [OPTIONS] [--] [COMMAND]
 
 FLAGS:
-        --disable-tag-shortening    Disable shortening of tag in human format
-        --disable-color-output      Monochrome output
-    -S                              Output statistics
-    -c                              Clear (flush) the entire log and exit
-    -g                              Get the size of the log's ring buffer and exit
-    -h, --help                      Prints help information
-    -V, --version                   Prints version information
+        --no-color             Monochrome output
+        --no-tag-shortening    Disable shortening of tag
+        --no-time-diff         Disable tag time difference
+    -S                         Output statistics
+        --show-date            Disable month and day display
+    -c                         Clear (flush) the entire log and exit
+    -g                         Get the size of the log's ring buffer and exit
+    -h, --help                 Prints help information
+    -V, --version              Prints version information
 
 OPTIONS:
-        --adb <ADB BINARY>    Path to adb
-        --file <FILE>         Write to file
-        --input <INPUT>       Read from file instead of command
-        --level <LEVEL>       Minumum loglevel
-        --msg <FILTER>...     Message filters in RE2
-        --tag <FILTER>...     Tag filters in RE2
+    -a, --adb <ADB BINARY>    Path to adb
+    -f, --file <FILE>         Write to file
+    -i, --input <INPUT>       Read from file instead of command
+    -l, --level <LEVEL>       Minumum loglevel
+    -m, --msg <FILTER>...     Message filters in RE2
+    -t, --tag <FILTER>...     Tag filters in RE2
 
 ARGS:
     <COMMAND>    Optional command to run and capture stdout
