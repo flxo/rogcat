@@ -153,7 +153,7 @@ impl MindroidFormat {
     fn new() -> MindroidFormat {
         MindroidFormat {
             // D/ServiceManager(711ad700): Service MediaPlayer has been created in process main
-            regex: Regex::new(r"^(\D)/([a-zA-Z0-9-_\{\}\[\]=\\/\.]*)\(([0-9a-f]+)\): (.*)")
+            regex: Regex::new(r"^(\D)/([a-zA-Z0-9-_\{\}\[\]=\\/\. ]*)\(([0-9a-f]+)\): (.*)")
                 .unwrap(),
         }
     }
