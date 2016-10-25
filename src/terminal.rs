@@ -4,8 +4,6 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
-use ansi_term::Colour::*;
-use ansi_term::Style;
 use regex::Regex;
 use std::collections::HashMap;
 use std::hash::{Hash, SipHasher, Hasher};
@@ -15,8 +13,9 @@ use std::sync::mpsc::channel;
 use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
+use termion::color;
 
-const DIMM_COLOR: ::ansi_term::Colour = Fixed(243);
+const DIMM_COLOR: u8 = 243;
 const STATUS_INTERVAL: u64 = 1;
 
 enum Event {
@@ -104,7 +103,7 @@ impl Terminal {
             full_tag: configuration.full_tag,
             process_width: 0,
             seperator: false,
-            status: DIMM_COLOR.paint(status_text.clone()).to_string(),
+            status: status_text.clone(),
             status_len: status_text.len(),
             tag_timestamps: HashMap::new(),
             tag_width: 20,
@@ -148,37 +147,40 @@ impl Terminal {
     }
 }
 
+impl super::Level {
+}
+
 impl<'a> TerminalImpl<'a> {
     fn reset_seperator(&mut self) {
         self.seperator = false;
     }
 
-    fn level_color(&self, level: &super::Level) -> ::ansi_term::Colour {
+    fn level_color(level: &super::Level) -> u8 {
         match *level {
             super::Level::Trace | super::Level::Debug => DIMM_COLOR,
-            super::Level::Info => Green,
-            super::Level::Warn => Yellow,
-            super::Level::Error | super::Level::Fatal | super::Level::Assert => Red,
+            super::Level::Info => 2, // green
+            super::Level::Warn => 3, // yellow
+            super::Level::Error | super::Level::Fatal | super::Level::Assert => 1, // red
         }
     }
 
-    fn color(&self, color: u8) -> ::ansi_term::Colour {
+    fn color(color: u8) -> color::AnsiValue {
         match color {
-            // filter some unreadable or nasty colors
-            0...1 => Fixed(color + 2),
-            16...21 => Fixed(color + 6),
-            52...55 | 126...129 => Fixed(color + 4),
-            163...165 | 200...201 => Fixed(color + 3),
-            207 => Fixed(color + 1),
-            232...240 => Fixed(color + 9),
-            _ => Fixed(color),
+            // filter some unreadable (on dark background) or nasty colors
+            0...1 => color::AnsiValue(color + 2),
+            16...21 => color::AnsiValue(color + 6),
+            52...55 | 126...129 => color::AnsiValue(color + 4),
+            163...165 | 200...201 => color::AnsiValue(color + 3),
+            207 => color::AnsiValue(color + 1),
+            232...240 => color::AnsiValue(color + 9),
+            _ => color::AnsiValue(color),
         }
     }
 
-    fn hashed_color(&self, item: &str) -> ::ansi_term::Colour {
+    fn hashed_color(item: &str) -> color::AnsiValue {
         let mut hasher = SipHasher::new();
         item.hash(&mut hasher);
-        self.color((hasher.finish() % 255) as u8)
+        Self::color((hasher.finish() % 255) as u8)
     }
 
     fn print_status(&self) {
@@ -190,8 +192,8 @@ impl<'a> TerminalImpl<'a> {
                     .chars()
                     .take(self.date_format.1 - 4) // XXX strip millis
                     .collect();
-        let time = DIMM_COLOR.paint(time);
-        print!("{}\r  {}{}{}",
+        print!("{}{}\r  {}{}{}",
+               ::termion::color::Fg(color::AnsiValue(DIMM_COLOR)),
                ::termion::clear::CurrentLine,
                time,
                ::termion::cursor::Goto(size.0 - 1 - self.status_len as u16, size.1),
@@ -202,8 +204,7 @@ impl<'a> TerminalImpl<'a> {
     fn print_seperator(&mut self) {
         self.seperator = true;
         let size = ::termion::terminal_size().unwrap();
-        let line =
-            ::ansi_term::Colour::Yellow.paint((0..size.0).map(|_| "─").collect::<String>());
+        let line = (0..size.0).map(|_| "─").collect::<String>();
         print!("{}\r{}\r\n", ::termion::clear::CurrentLine, line);
     }
 
@@ -269,17 +270,16 @@ impl<'a> TerminalImpl<'a> {
                                level);
         let preamble_width = preamble.chars().count();
 
+        let level_color = color::AnsiValue(Self::level_color(&record.level));
 
         let preamble = if self.color {
-            let level_color = self.level_color(&record.level);
-            format!("{} {} {} {} ({}{}) {}",
+            format!("{} {}{} {} {}{}{} ({}{}{}{}{}) {}{}{}",
                     " ",
-                    level_color.paint(timestamp).to_string(),
-                    level_color.paint(diff).to_string(),
-                    self.hashed_color(&tag).paint(tag),
-                    self.hashed_color(&pid).paint(pid),
-                    self.hashed_color(&tid).paint(tid),
-                    Style::new().on(level_color).paint(Black.paint(level).to_string()))
+                    color::Fg(color::AnsiValue(DIMM_COLOR)), timestamp, diff,
+                    color::Fg(Self::hashed_color(&tag)), tag, color::Fg(color::Reset),
+                    color::Fg(Self::hashed_color(&pid)), pid,
+                    color::Fg(Self::hashed_color(&tid)), tid, color::Fg(color::Reset),
+                    color::Bg(level_color), level, color::Bg(color::Reset))
         } else {
             preamble
         };
@@ -304,8 +304,7 @@ impl<'a> TerminalImpl<'a> {
 
                 let chunk: String = m.chars().take(chunk_width).collect();
                 let chunk = if self.color {
-                    let msg_color = self.level_color(&record.level);
-                    msg_color.paint(chunk).to_string()
+                    format!("{}{}{}", color::Fg(level_color), chunk, color::Fg(color::Reset))
                 } else {
                     chunk
                 };
@@ -319,13 +318,10 @@ impl<'a> TerminalImpl<'a> {
             }
         } else {
             if self.color {
-                let color = self.level_color(&record.level);
-                let msg = &record.message;
-                let msg = color.paint(msg.clone());
-                print!("{}\r{} {}\r\n",
+                print!("{}\r{} {}{}{}\r\n",
                        ::termion::clear::CurrentLine,
                        preamble,
-                       msg);
+                       color::Fg(level_color), record.message, color::Fg(color::Reset));
             } else {
                 print!("{}\r{} {}\r\n",
                        ::termion::clear::CurrentLine,

@@ -4,7 +4,6 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
-extern crate ansi_term;
 #[macro_use]
 extern crate clap;
 extern crate regex;
