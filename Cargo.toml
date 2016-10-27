@@ -4,7 +4,7 @@ version = "0.1.2"
 authors = ["Felix Obenhuber <felix@obenhuber@esrlabs.com>"]
 
 [dependencies]
-clap = "2.10.0"
+clap = "2.16.2"
 regex = "0.1.73"
 termion = "1.1.1"
 time = "0.1.35"

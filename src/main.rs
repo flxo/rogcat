@@ -10,7 +10,7 @@ extern crate regex;
 extern crate time;
 extern crate termion;
 
-use clap::{App, Arg, ArgMatches};
+use clap::{App, Arg, ArgMatches, Shell, SubCommand};
 use regex::Regex;
 use std::io::{BufReader, BufRead};
 use std::process::{Command, Stdio};
@@ -151,9 +151,8 @@ fn configuration<'a>(args: &'a ArgMatches) -> Configuration<'a> {
         outputs: outputs,
     }
 }
-
-fn main() {
-    let matches = App::new("rogcat")
+pub fn build_cli() -> App<'static, 'static> {
+    App::new("rogcat")
         .version(crate_version!())
         .author(crate_authors!())
         .about("A logcat wrapper")
@@ -171,7 +170,27 @@ fn main() {
         .arg_from_usage("[NO-TIME-DIFF] --no-time-diff 'Disable tag time difference'")
         .arg_from_usage("[SHOW-DATE] --show-date 'Disable month and day display'")
         .arg_from_usage("[COMMAND] 'Optional command to run and capture stdout'")
-        .get_matches();
+        .subcommand(SubCommand::with_name("completions")
+            .about("Generates completion scripts for your shell")
+            .arg(Arg::with_name("SHELL")
+                .required(true)
+                .possible_values(&["bash", "fish", "zsh"])
+                .help("The shell to generate the script for")))
+}
+
+fn main() {
+    let matches = build_cli().get_matches();
+
+    match matches.subcommand() {
+        ("completions", Some(sub_matches)) => {
+            let shell = sub_matches.value_of("SHELL").unwrap();
+            build_cli().gen_completions_to("rogcat",
+                                           shell.parse::<Shell>().unwrap(),
+                                           &mut std::io::stdout());
+            std::process::exit(0);
+        }
+        (_, _) => unimplemented!(),
+    }
 
     let configuration = configuration(&matches);
 
