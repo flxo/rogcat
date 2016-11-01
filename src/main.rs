@@ -188,8 +188,8 @@ fn main() {
                                            shell.parse::<Shell>().unwrap(),
                                            &mut std::io::stdout());
             std::process::exit(0);
-        }
-        (_, _) => unimplemented!(),
+        },
+        (_, _) => (),
     }
 
     let configuration = configuration(&matches);
