@@ -5,99 +5,87 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use regex::Regex;
-use super::Level;
+use Level;
+use Record;
 
 trait Format {
-    fn name(&self) -> &'static str;
-    fn parse(&self, line: &str) -> Option<super::Record>;
+    fn parse(&self, line: &str) -> Option<Record>;
 }
 
-pub struct Parser {
-    parser: Option<Box<Format>>,
-}
-
-struct PrintableFormat {
-    regex: Regex,
-    old_regex: Regex,
-}
-
-impl PrintableFormat {
-    fn new() -> PrintableFormat {
-        PrintableFormat {
-            regex: Regex::new(r"(\d\d-\d\d \d\d:\d\d:\d\d\.\d\d\d)\s+(\d+)\s+(\d+) (\D)\s([a-zA-Z0-9-_\{\}\[\]=\\/\.]*)\s*: (.*)").unwrap(),
-            old_regex: Regex::new(r"(\d\d-\d\d \d\d:\d\d:\d\d\.\d\d\d) \++\d\d\d\d (\D)/([a-zA-Z0-9-_\{\}\[\]=\\/\.]*)\(\s*(\d+)\): (.*)").unwrap(),
+macro_rules! parser {
+    ($v:ident, $r:expr) => (
+        struct $v {
+            regex: Regex,
         }
-    }
+
+        impl $v {
+            fn new() -> $v {
+                $v {
+                    regex: Regex::new($r).unwrap(),
+                }
+            }
+        }
+    );
 }
+
+parser!(PrintableFormat,
+        r"(\d\d-\d\d \d\d:\d\d:\d\d\.\d\d\d)\s+(\d+)\s+(\d+) (\D)\s([a-zA-Z0-9-_\{\}\[\]=\\/\.]*)\s*: (.*)");
 
 impl Format for PrintableFormat {
-    fn name(&self) -> &'static str {
-        "printable"
-    }
-
-    fn parse(&self, line: &str) -> Option<super::Record> {
-        if self.regex.is_match(line) {
-            match self.regex.captures(line) {
-                Some(captures) => {
-                    Some(super::Record {
-                        timestamp: match ::time::strptime(captures.at(1).unwrap_or("").trim(),
-                                                          "%m-%d %H:%M:%S.%f") {
-                            Ok(tm) => tm,
-                            Err(_) => panic!("failed to parse timestamp"),
-                        },
-                        level: Level::from(captures.at(4).unwrap_or("")),
-                        tag: captures.at(5).unwrap_or("").to_string().trim().to_string(),
-                        process: captures.at(2).unwrap_or("").to_string(),
-                        thread: captures.at(3).unwrap_or("").to_string(),
-                        message: captures.at(6).unwrap_or("").to_string().trim().to_string(),
-                    })
-                }
-                None => None,
-            }
-        } else {
-            match self.old_regex.captures(line) {
-                Some(captures) => {
-                    Some(super::Record {
-                        timestamp: match ::time::strptime(captures.at(1).unwrap_or("").trim(),
-                                                          "%m-%d %H:%M:%S.%f") {
-                            Ok(tm) => tm,
-                            Err(_) => panic!("failed to parse timestamp"),
-                        },
-                        level: Level::from(captures.at(2).unwrap_or("")),
-                        tag: captures.at(3).unwrap_or("").to_string().trim().to_string(),
-                        process: captures.at(4).unwrap_or("").to_string(),
-                        thread: "".to_string(),
-                        message: captures.at(5).unwrap_or("").to_string().trim().to_string(),
-                    })
-                }
-                None => None,
-            }
-        }
-    }
-}
-
-struct TagFormat {
-    regex: Regex,
-}
-
-impl TagFormat {
-    fn new() -> TagFormat {
-        TagFormat {
-            // D/ConnectivityService: notifyType CAP_CHANGED for NetworkAgentInfo [WIFI () - 145]
-            regex: Regex::new(r"^(\D)/([a-zA-Z0-9-_\{\}\[\]=\\/\.]*)\s*: (.*)").unwrap(),
-        }
-    }
-}
-
-impl Format for TagFormat {
-    fn name(&self) -> &'static str {
-        "printable"
-    }
-
-    fn parse(&self, line: &str) -> Option<super::Record> {
+    fn parse(&self, line: &str) -> Option<Record> {
         match self.regex.captures(line) {
             Some(captures) => {
-                Some(super::Record {
+                Some(Record {
+                    timestamp: match ::time::strptime(captures.at(1).unwrap_or("").trim(),
+                                                      "%m-%d %H:%M:%S.%f") {
+                        Ok(tm) => tm,
+                        Err(_) => panic!("failed to parse timestamp"),
+                    },
+                    level: Level::from(captures.at(4).unwrap_or("")),
+                    tag: captures.at(5).unwrap_or("").to_string().trim().to_string(),
+                    process: captures.at(2).unwrap_or("").to_string(),
+                    thread: captures.at(3).unwrap_or("").to_string(),
+                    message: captures.at(6).unwrap_or("").to_string().trim().to_string(),
+                })
+            }
+            None => None,
+        }
+    }
+}
+
+parser!(OldPrintableFormat,
+        r"(\d\d-\d\d \d\d:\d\d:\d\d\.\d\d\d) \++\d\d\d\d (\D)/([a-zA-Z0-9-_\{\}\[\]=\\/\.]*)\(\s*(\d+)\): (.*)");
+
+impl Format for OldPrintableFormat {
+    fn parse(&self, line: &str) -> Option<Record> {
+        match self.regex.captures(line) {
+            Some(captures) => {
+                Some(Record {
+                    timestamp: match ::time::strptime(captures.at(1).unwrap_or("").trim(),
+                                                      "%m-%d %H:%M:%S.%f") {
+                        Ok(tm) => tm,
+                        Err(_) => panic!("failed to parse timestamp"),
+                    },
+                    level: Level::from(captures.at(2).unwrap_or("")),
+                    tag: captures.at(3).unwrap_or("").to_string().trim().to_string(),
+                    process: captures.at(4).unwrap_or("").to_string(),
+                    thread: "".to_string(),
+                    message: captures.at(5).unwrap_or("").to_string().trim().to_string(),
+                })
+            }
+            None => None,
+        }
+    }
+}
+
+// D/ConnectivityService: notifyType CAP_CHANGED for NetworkAgentInfo [WIFI () - 145]
+parser!(TagFormat, r"^(\D)/([a-zA-Z0-9-_\{\}\[\]=\\/\.]*)\s*: (.*)");
+
+impl Format for TagFormat {
+    fn parse(&self, line: &str) -> Option<Record> {
+        match self.regex.captures(line) {
+            Some(captures) => {
+                Some(Record {
                     timestamp: ::time::now(),
                     level: Level::from(captures.at(1).unwrap_or("")),
                     tag: captures.at(2).unwrap_or("").to_string().trim().to_string(),
@@ -111,28 +99,14 @@ impl Format for TagFormat {
     }
 }
 
-struct ThreadFormat {
-    regex: Regex,
-}
-
-impl ThreadFormat {
-    fn new() -> ThreadFormat {
-        ThreadFormat {
-            // I(  801:  815) uid=1000(system) Binder_1 expire 3 lines
-            regex: Regex::new(r"(\D)\(\s*(\d+):\s*(\d+)\) (.*)").unwrap(),
-        }
-    }
-}
+// I(  801:  815) uid=1000(system) Binder_1 expire 3 lines
+parser!(ThreadFormat, r"(\D)\(\s*(\d+):\s*(\d+)\) (.*)");
 
 impl Format for ThreadFormat {
-    fn name(&self) -> &'static str {
-        "thread"
-    }
-
-    fn parse(&self, line: &str) -> Option<super::Record> {
+    fn parse(&self, line: &str) -> Option<Record> {
         match self.regex.captures(line) {
             Some(captures) => {
-                Some(super::Record {
+                Some(Record {
                     timestamp: ::time::now(),
                     level: Level::from(captures.at(1).unwrap_or("")),
                     tag: "".to_string(),
@@ -146,29 +120,15 @@ impl Format for ThreadFormat {
     }
 }
 
-struct MindroidFormat {
-    regex: Regex,
-}
-
-impl MindroidFormat {
-    fn new() -> MindroidFormat {
-        MindroidFormat {
-            // D/ServiceManager(711ad700): Service MediaPlayer has been created in process main
-            regex: Regex::new(r"^(\D)/([a-zA-Z0-9-_\{\}\[\]=\\/\. ]*)\(([0-9a-f]+)\): (.*)")
-                .unwrap(),
-        }
-    }
-}
+// D/ServiceManager(711ad700): Service MediaPlayer has been created in process main
+parser!(MindroidFormat,
+        r"^(\D)/([a-zA-Z0-9-_\{\}\[\]=\\/\. ]*)\(([0-9a-f]+)\): (.*)");
 
 impl Format for MindroidFormat {
-    fn name(&self) -> &'static str {
-        "mindroid"
-    }
-
-    fn parse(&self, line: &str) -> Option<super::Record> {
+    fn parse(&self, line: &str) -> Option<Record> {
         match self.regex.captures(line) {
             Some(captures) => {
-                Some(super::Record {
+                Some(Record {
                     timestamp: ::time::now(),
                     level: Level::from(captures.at(1).unwrap_or("")),
                     tag: captures.at(2).unwrap_or("").to_string(),
@@ -182,29 +142,15 @@ impl Format for MindroidFormat {
     }
 }
 
-struct SyslogFormat {
-    regex: Regex,
-}
-
-impl SyslogFormat {
-    fn new() -> SyslogFormat {
-        SyslogFormat {
-            // Nov  5 10:22:34 flap kernel: [ 1262.374536] usb 2-2: Manufacturer: motorola
-            regex: Regex::new(r"(\S+\s+\d\s\d\d:\d\d:\d\d) ([0-9a-zA-Z\.\[\]]+ [0-9a-zA-Z\.\[\]]+): (.*)")
-                .unwrap(),
-        }
-    }
-}
+// Nov  5 10:22:34 flap kernel: [ 1262.374536] usb 2-2: Manufacturer: motorola
+parser!(SyslogFormat,
+        r"(\S+\s+\d\s\d\d:\d\d:\d\d) ([_0-9a-zA-Z\.\[\]]+ [_0-9a-zA-Z\.\[\]]+): (.*)");
 
 impl Format for SyslogFormat {
-    fn name(&self) -> &'static str {
-        "syslog"
-    }
-
-    fn parse(&self, line: &str) -> Option<super::Record> {
+    fn parse(&self, line: &str) -> Option<Record> {
         match self.regex.captures(line) {
             Some(captures) => {
-                Some(super::Record {
+                Some(Record {
                     timestamp: ::time::now(),
                     level: Level::Debug,
                     tag: captures.at(2).unwrap_or("").to_string(),
@@ -218,13 +164,18 @@ impl Format for SyslogFormat {
     }
 }
 
+pub struct Parser {
+    parser: Option<Box<Format>>,
+}
+
+
 impl Parser {
     pub fn new() -> Parser {
         Parser { parser: None }
     }
 
-    fn default_record(line: &str) -> super::Record {
-        super::Record {
+    fn default_record(line: &str) -> Record {
+        Record {
             timestamp: ::time::now(),
             level: Level::Debug,
             tag: "".to_string(),
@@ -237,6 +188,7 @@ impl Parser {
     fn detect_format(line: &str) -> Option<Box<Format>> {
         let parsers = vec![Box::new(MindroidFormat::new()) as Box<Format>,
                            Box::new(PrintableFormat::new()) as Box<Format>,
+                           Box::new(OldPrintableFormat::new()) as Box<Format>,
                            Box::new(ThreadFormat::new()) as Box<Format>,
                            Box::new(TagFormat::new()) as Box<Format>,
                            Box::new(SyslogFormat::new()) as Box<Format>];
@@ -249,7 +201,7 @@ impl Parser {
         None
     }
 
-    pub fn parse(&mut self, line: &str) -> super::Record {
+    pub fn parse(&mut self, line: &str) -> Record {
         if self.parser.is_none() {
             self.parser = Self::detect_format(line);
         }
@@ -288,6 +240,9 @@ fn test_mindroid() {
 
 #[test]
 fn test_syslog() {
-    let line = "Nov  5 10:22:34 flap kernel: [ 1262.374536] usb 2-2: Manufacturer: motorola";
-    assert!(SyslogFormat::new().parse(line).is_some());
+    let lines = ["Nov  5 10:22:34 flap kernel: [ 1262.374536] usb 2-2: Manufacturer: motorola",
+                 "Nov  5 11:08:34 flap wpa_supplicant[1342]: wlp2s0: WPA: Group rekeying completed with 00:11:22:33:44:55 [GTK=CCMP]"];
+    for l in &lines {
+        assert!(SyslogFormat::new().parse(l).is_some());
+    }
 }
