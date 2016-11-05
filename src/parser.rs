@@ -5,6 +5,7 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use regex::Regex;
+use super::Level;
 
 trait Format {
     fn name(&self) -> &'static str;
@@ -44,7 +45,7 @@ impl Format for PrintableFormat {
                             Ok(tm) => tm,
                             Err(_) => panic!("failed to parse timestamp"),
                         },
-                        level: super::Level::from(captures.at(4).unwrap_or("")),
+                        level: Level::from(captures.at(4).unwrap_or("")),
                         tag: captures.at(5).unwrap_or("").to_string().trim().to_string(),
                         process: captures.at(2).unwrap_or("").to_string(),
                         thread: captures.at(3).unwrap_or("").to_string(),
@@ -62,7 +63,7 @@ impl Format for PrintableFormat {
                             Ok(tm) => tm,
                             Err(_) => panic!("failed to parse timestamp"),
                         },
-                        level: super::Level::from(captures.at(2).unwrap_or("")),
+                        level: Level::from(captures.at(2).unwrap_or("")),
                         tag: captures.at(3).unwrap_or("").to_string().trim().to_string(),
                         process: captures.at(4).unwrap_or("").to_string(),
                         thread: "".to_string(),
@@ -98,7 +99,7 @@ impl Format for TagFormat {
             Some(captures) => {
                 Some(super::Record {
                     timestamp: ::time::now(),
-                    level: super::Level::from(captures.at(1).unwrap_or("")),
+                    level: Level::from(captures.at(1).unwrap_or("")),
                     tag: captures.at(2).unwrap_or("").to_string().trim().to_string(),
                     process: "".to_string(),
                     thread: "".to_string(),
@@ -133,7 +134,7 @@ impl Format for ThreadFormat {
             Some(captures) => {
                 Some(super::Record {
                     timestamp: ::time::now(),
-                    level: super::Level::from(captures.at(1).unwrap_or("")),
+                    level: Level::from(captures.at(1).unwrap_or("")),
                     tag: "".to_string(),
                     process: captures.at(2).unwrap_or("").to_string(),
                     thread: captures.at(3).unwrap_or("").to_string(),
@@ -169,11 +170,47 @@ impl Format for MindroidFormat {
             Some(captures) => {
                 Some(super::Record {
                     timestamp: ::time::now(),
-                    level: super::Level::from(captures.at(1).unwrap_or("")),
+                    level: Level::from(captures.at(1).unwrap_or("")),
                     tag: captures.at(2).unwrap_or("").to_string(),
                     process: captures.at(3).unwrap_or("").to_string(),
                     thread: "".to_string(),
                     message: captures.at(4).unwrap_or("").to_string().trim().to_string(),
+                })
+            }
+            None => None,
+        }
+    }
+}
+
+struct SyslogFormat {
+    regex: Regex,
+}
+
+impl SyslogFormat {
+    fn new() -> SyslogFormat {
+        SyslogFormat {
+            // Nov  5 10:22:34 flap kernel: [ 1262.374536] usb 2-2: Manufacturer: motorola
+            regex: Regex::new(r"(\S+\s+\d\s\d\d:\d\d:\d\d) ([0-9a-zA-Z\.\[\]]+ [0-9a-zA-Z\.\[\]]+): (.*)")
+                .unwrap(),
+        }
+    }
+}
+
+impl Format for SyslogFormat {
+    fn name(&self) -> &'static str {
+        "syslog"
+    }
+
+    fn parse(&self, line: &str) -> Option<super::Record> {
+        match self.regex.captures(line) {
+            Some(captures) => {
+                Some(super::Record {
+                    timestamp: ::time::now(),
+                    level: Level::Debug,
+                    tag: captures.at(2).unwrap_or("").to_string(),
+                    process: "".to_string(),
+                    thread: "".to_string(),
+                    message: captures.at(3).unwrap_or("").to_string().trim().to_string(),
                 })
             }
             None => None,
@@ -189,7 +226,7 @@ impl Parser {
     fn default_record(line: &str) -> super::Record {
         super::Record {
             timestamp: ::time::now(),
-            level: super::Level::Debug,
+            level: Level::Debug,
             tag: "".to_string(),
             process: "".to_string(),
             thread: "".to_string(),
@@ -201,7 +238,8 @@ impl Parser {
         let parsers = vec![Box::new(MindroidFormat::new()) as Box<Format>,
                            Box::new(PrintableFormat::new()) as Box<Format>,
                            Box::new(ThreadFormat::new()) as Box<Format>,
-                           Box::new(TagFormat::new()) as Box<Format>];
+                           Box::new(TagFormat::new()) as Box<Format>,
+                           Box::new(SyslogFormat::new()) as Box<Format>];
 
         for p in parsers {
             if p.parse(line).is_some() {
@@ -246,4 +284,10 @@ fn test_thread() {
 fn test_mindroid() {
     let line = "D/ServiceManager(711ad700): Service MediaPlayer has been created in process main";
     assert!(MindroidFormat::new().parse(line).is_some());
+}
+
+#[test]
+fn test_syslog() {
+    let line = "Nov  5 10:22:34 flap kernel: [ 1262.374536] usb 2-2: Manufacturer: motorola";
+    assert!(SyslogFormat::new().parse(line).is_some());
 }
