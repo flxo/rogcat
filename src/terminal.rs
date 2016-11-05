@@ -196,10 +196,7 @@ impl<'a> Terminal<'a> {
                 };
 
                 m = m.chars().skip(chunk_width).collect();
-                print!("{} {} {}\r\n",
-                       preamble,
-                       sign,
-                       chunk);
+                print!("{} {} {}\r\n", preamble, sign, chunk);
             }
         } else {
             if self.color {
@@ -209,9 +206,7 @@ impl<'a> Terminal<'a> {
                        record.message,
                        color::Fg(color::Reset));
             } else {
-                print!("{} {}\r\n",
-                       preamble,
-                       record.message);
+                print!("{} {}\r\n", preamble, record.message);
             }
         }
 
