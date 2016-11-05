@@ -92,10 +92,15 @@ pub struct Record {
     pub thread: String,
 }
 
-pub trait Sink {
-    fn open(&self);
-    fn close(&self);
-    fn process(&mut self, record: &Record);
+pub enum Event {
+    Init,
+    Shutdown,
+    Record(Record),
+}
+
+
+pub trait Node {
+    fn on_event(&mut self, record: Event);
 }
 
 struct Filter {
@@ -188,7 +193,7 @@ fn main() {
                                            shell.parse::<Shell>().unwrap(),
                                            &mut std::io::stdout());
             std::process::exit(0);
-        },
+        }
         (_, _) => (),
     }
 
@@ -235,18 +240,18 @@ fn main() {
         BufReader::new(Box::new(application.stdout.unwrap()) as Box<std::io::Read>)
     };
 
-    let mut sinks = Vec::new();
+    let mut nodes = Vec::new();
     if configuration.outputs.file.is_some() {
-        sinks.push(Box::new(filewriter::FileWriter::new(&configuration)) as Box<Sink>);
+        nodes.push(Box::new(filewriter::FileWriter::new(&configuration)) as Box<Node>);
     }
     if configuration.outputs.terminal {
-        sinks.push(Box::new(terminal::Terminal::new(&configuration)) as Box<Sink>);
+        nodes.push(Box::new(terminal::Terminal::new(&configuration)) as Box<Node>);
     }
 
     let mut parser = parser::Parser::new();
 
-    for s in &sinks {
-        s.open();
+    for s in &mut nodes {
+        s.on_event(Event::Init);
     }
 
     loop {
@@ -259,8 +264,8 @@ fn main() {
                 let record = parser.parse(&line);
                 if tag_filter.is_match(&record.tag) && msg_filter.is_match(&record.message) &&
                    level_filter(&record) {
-                    for s in &mut sinks {
-                        s.process(&record);
+                    for s in &mut nodes {
+                        s.on_event(Event::Record(record.clone()));
                     }
                 }
             }
@@ -269,7 +274,7 @@ fn main() {
         }
     }
 
-    for s in &sinks {
-        s.close();
+    for s in &mut nodes {
+        s.on_event(Event::Shutdown);
     }
 }
