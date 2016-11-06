@@ -142,7 +142,7 @@ fn configuration<'a>(args: &'a ArgMatches) -> Configuration<'a> {
 
     let outputs = Output {
         terminal: true,
-        file: None, // TODO
+        file: args.value_of("file"),
     };
 
     Configuration {
