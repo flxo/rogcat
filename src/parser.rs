@@ -29,7 +29,7 @@ macro_rules! parser {
 }
 
 parser!(PrintableFormat,
-        r"(\d\d-\d\d \d\d:\d\d:\d\d\.\d\d\d)\s+(\d+)\s+(\d+) (\D)\s([a-zA-Z0-9-_\{\}\[\]=\\/\.]*)\s*: (.*)");
+        r"(\d\d-\d\d \d\d:\d\d:\d\d\.\d\d\d)\s+(\d+)\s+(\d+) (\D)\s([a-zA-Z0-9-_\{\}\[\]=\\/\.\+]*)\s*: (.*)");
 
 impl Format for PrintableFormat {
     fn parse(&self, line: &str) -> Option<Record> {
@@ -54,7 +54,7 @@ impl Format for PrintableFormat {
 }
 
 parser!(OldPrintableFormat,
-        r"(\d\d-\d\d \d\d:\d\d:\d\d\.\d\d\d) \++\d\d\d\d (\D)/([a-zA-Z0-9-_\{\}\[\]=\\/\.]*)\(\s*(\d+)\): (.*)");
+        r"(\d\d-\d\d \d\d:\d\d:\d\d\.\d\d\d) \++\d\d\d\d (\D)/([a-zA-Z0-9-_\{\}\[\]=\\/\.\+]*)\(\s*(\d+)\): (.*)");
 
 impl Format for OldPrintableFormat {
     fn parse(&self, line: &str) -> Option<Record> {
@@ -79,7 +79,7 @@ impl Format for OldPrintableFormat {
 }
 
 // D/ConnectivityService: notifyType CAP_CHANGED for NetworkAgentInfo [WIFI () - 145]
-parser!(TagFormat, r"^(\D)/([a-zA-Z0-9-_\{\}\[\]=\\/\.]*)\s*: (.*)");
+parser!(TagFormat, r"^(\D)/([a-zA-Z0-9-_\{\}\[\]=\\/\.\+]*)\s*: (.*)");
 
 impl Format for TagFormat {
     fn parse(&self, line: &str) -> Option<Record> {
@@ -122,7 +122,7 @@ impl Format for ThreadFormat {
 
 // D/ServiceManager(711ad700): Service MediaPlayer has been created in process main
 parser!(MindroidFormat,
-        r"^(\D)/([a-zA-Z0-9-_\{\}\[\]=\\/\. ]*)\(([0-9a-f]+)\): (.*)");
+        r"^(\D)/([a-zA-Z0-9-_\{\}\[\]=\\/\. \+]*)\(([0-9a-f]+)\): (.*)");
 
 impl Format for MindroidFormat {
     fn parse(&self, line: &str) -> Option<Record> {
@@ -215,14 +215,17 @@ impl Parser {
 
 #[test]
 fn test_printable() {
-    let line = "08-20 12:13:47.931 30786 30786 D EventBus: No subscribers registered for event \
-                class com.runtastic.android.events.bolt.music.MusicStateChangedEvent";
-    assert!(PrintableFormat::new().parse(line).is_some());
+ 
+    let lines = [ "11-06 13:58:53.582 31359 31420 I GStreamer+amc: 0:00:00.326067533 0xb8ef2a00 gstamc.c:1526:scan_codecs Checking codec 'OMX.ffmpeg.flac.decoder",
+                  "08-20 12:13:47.931 30786 30786 D EventBus: No subscribers registered for event class com.runtastic.android.events.bolt.music.MusicStateChangedEvent" ];
+    for line in &lines {
+        assert!(PrintableFormat::new().parse(line).is_some());
+    }
 }
 
 #[test]
 fn test_tag() {
-    let line = "V/Avrcp   : isPlayStateTobeUpdated: device: null";
+    let line = "V/Av+rcp   : isPlayStateTobeUpdated: device: null";
     assert!(TagFormat::new().parse(line).is_some());
 }
 
@@ -234,7 +237,7 @@ fn test_thread() {
 
 #[test]
 fn test_mindroid() {
-    let line = "D/ServiceManager(711ad700): Service MediaPlayer has been created in process main";
+    let line = "D/ServiceManager+(711ad700): Service MediaPlayer has been created in process main";
     assert!(MindroidFormat::new().parse(line).is_some());
 }
 
