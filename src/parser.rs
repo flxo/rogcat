@@ -79,7 +79,8 @@ impl Format for OldPrintableFormat {
 }
 
 // D/ConnectivityService: notifyType CAP_CHANGED for NetworkAgentInfo [WIFI () - 145]
-parser!(TagFormat, r"^(\D)/([a-zA-Z0-9-_\{\}\[\]=\\/\.\+]*)\s*: (.*)");
+parser!(TagFormat,
+        r"^(\D)/([a-zA-Z0-9-_\{\}\[\]=\\/\.\+]*)\s*: (.*)");
 
 impl Format for TagFormat {
     fn parse(&self, line: &str) -> Option<Record> {
@@ -151,7 +152,7 @@ impl Format for SyslogFormat {
         match self.regex.captures(line) {
             Some(captures) => {
                 Some(Record {
-                    timestamp: ::time::now(),
+                    timestamp: ::time::now(), // TODO
                     level: Level::Debug,
                     tag: captures.at(2).unwrap_or("").to_string(),
                     process: "".to_string(),
@@ -160,6 +161,34 @@ impl Format for SyslogFormat {
                 })
             }
             None => None,
+        }
+    }
+}
+
+// "11-05 19:55:27.791000000","ConnectivityService","798","1013","D","notifyType CAP_CHANGED for NetworkAgentInfo [MOBILE (UMTS) - 109]"
+struct CsvFormat;
+
+impl CsvFormat {
+    fn new() -> CsvFormat {
+        CsvFormat {}
+    }
+}
+
+impl Format for CsvFormat {
+    fn parse(&self, line: &str) -> Option<Record> {
+        let parts: Vec<&str> = line.split(',').map(|s| s.trim().trim_matches('"')).collect();
+        if parts.len() >= 6 {
+            Some(Record {
+                timestamp: ::time::strptime(parts[0], "%m-%d %H:%M:%S.%f")
+                    .unwrap_or(::time::now()),
+                level: Level::from(parts[4]),
+                tag: parts[1].to_owned(),
+                process: parts[2].to_owned(),
+                thread: parts[3].to_owned(),
+                message: parts[5..].iter().map(|s| s.to_string()).collect(),
+            })
+        } else {
+            None
         }
     }
 }
@@ -191,7 +220,8 @@ impl Parser {
                            Box::new(OldPrintableFormat::new()) as Box<Format>,
                            Box::new(ThreadFormat::new()) as Box<Format>,
                            Box::new(TagFormat::new()) as Box<Format>,
-                           Box::new(SyslogFormat::new()) as Box<Format>];
+                           Box::new(SyslogFormat::new()) as Box<Format>,
+                           Box::new(CsvFormat::new()) as Box<Format>];
 
         for p in parsers {
             if p.parse(line).is_some() {
@@ -215,37 +245,55 @@ impl Parser {
 
 #[test]
 fn test_printable() {
- 
-    let lines = [ "11-06 13:58:53.582 31359 31420 I GStreamer+amc: 0:00:00.326067533 0xb8ef2a00 gstamc.c:1526:scan_codecs Checking codec 'OMX.ffmpeg.flac.decoder",
-                  "08-20 12:13:47.931 30786 30786 D EventBus: No subscribers registered for event class com.runtastic.android.events.bolt.music.MusicStateChangedEvent" ];
-    for line in &lines {
-        assert!(PrintableFormat::new().parse(line).is_some());
-    }
+    assert!(PrintableFormat::new()
+        .parse("11-06 13:58:53.582 31359 31420 I GStreamer+amc: 0:00:00.326067533 0xb8ef2a00 \
+                gstamc.c:1526:scan_codecs Checking codec 'OMX.ffmpeg.flac.decoder")
+        .is_some());
+    assert!(PrintableFormat::new()
+        .parse("08-20 12:13:47.931 30786 30786 D EventBus: No subscribers registered for event \
+                class com.runtastic.android.events.bolt.music.MusicStateChangedEvent")
+        .is_some());
 }
 
 #[test]
 fn test_tag() {
-    let line = "V/Av+rcp   : isPlayStateTobeUpdated: device: null";
-    assert!(TagFormat::new().parse(line).is_some());
+    assert!(TagFormat::new().parse("V/Av+rcp   : isPlayStateTobeUpdated: device: null").is_some());
 }
 
 #[test]
 fn test_thread() {
-    let line = "I(  801:  815) uid=1000(system) Binder_1 expire 3 lines";
-    assert!(ThreadFormat::new().parse(line).is_some());
+    assert!(ThreadFormat::new()
+        .parse("I(  801:  815) uid=1000(system) Binder_1 expire 3 lines")
+        .is_some());
 }
 
 #[test]
 fn test_mindroid() {
-    let line = "D/ServiceManager+(711ad700): Service MediaPlayer has been created in process main";
-    assert!(MindroidFormat::new().parse(line).is_some());
+    assert!(MindroidFormat::new()
+        .parse("D/ServiceManager+(711ad700): Service MediaPlayer has been created in process \
+                main")
+        .is_some());
 }
 
 #[test]
 fn test_syslog() {
-    let lines = ["Nov  5 10:22:34 flap kernel: [ 1262.374536] usb 2-2: Manufacturer: motorola",
-                 "Nov  5 11:08:34 flap wpa_supplicant[1342]: wlp2s0: WPA: Group rekeying completed with 00:11:22:33:44:55 [GTK=CCMP]"];
-    for l in &lines {
-        assert!(SyslogFormat::new().parse(l).is_some());
-    }
+    assert!(SyslogFormat::new()
+        .parse("Nov  5 10:22:34 flap kernel: [ 1262.374536] usb 2-2: Manufacturer: motorola")
+        .is_some());
+    assert!(SyslogFormat::new()
+        .parse("Nov  5 11:08:34 flap wpa_supplicant[1342]: wlp2s0: WPA: Group rekeying \
+                completed with 00:11:22:33:44:55 [GTK=CCMP]")
+        .is_some());
+}
+
+#[test]
+fn test_csv() {
+    assert!(CsvFormat::new()
+        .parse("11-04 23:14:11.566000000\",\"vold\",\"181\",\"191\",\"D\",\"Waiting for FUSE to \
+                spin up...")
+        .is_some());
+    assert!(CsvFormat::new()
+        .parse("11-04 23:14:37.171000000\",\"chatty\",\"798\",\"2107\",\"I\",\"uid=1000(s,,,,,,\
+                ystem) Binder_C expire 12 lines")
+        .is_some());
 }
