@@ -29,7 +29,7 @@ macro_rules! parser {
 }
 
 parser!(PrintableFormat,
-        r"(\d\d-\d\d \d\d:\d\d:\d\d\.\d\d\d)\s+(\d+)\s+(\d+) (\D)\s([a-zA-Z0-9-_\{\}\[\]=\\/\.\+]*)\s*: (.*)");
+        r"(\d\d-\d\d \d\d:\d\d:\d\d\.\d\d\d)\s+(\d+)\s+(\d+) (\D)\s([a-zA-Z0-9-_\{\}\[\]=\\/\.\+\s]*)\s*: (.*)");
 
 impl Format for PrintableFormat {
     fn parse(&self, line: &str) -> Option<Record> {
@@ -54,7 +54,7 @@ impl Format for PrintableFormat {
 }
 
 parser!(OldPrintableFormat,
-        r"(\d\d-\d\d \d\d:\d\d:\d\d\.\d\d\d) \++\d\d\d\d (\D)/([a-zA-Z0-9-_\{\}\[\]=\\/\.\+]*)\(\s*(\d+)\): (.*)");
+        r"(\d\d-\d\d \d\d:\d\d:\d\d\.\d\d\d) \++\d\d\d\d (\D)/([a-zA-Z0-9-_\{\}\[\]=\\/\.\+\s]*)\(\s*(\d+)\): (.*)");
 
 impl Format for OldPrintableFormat {
     fn parse(&self, line: &str) -> Option<Record> {
@@ -252,6 +252,9 @@ fn test_printable() {
     assert!(PrintableFormat::new()
         .parse("08-20 12:13:47.931 30786 30786 D EventBus: No subscribers registered for event \
                 class com.runtastic.android.events.bolt.music.MusicStateChangedEvent")
+        .is_some());
+    assert!(PrintableFormat::new()
+        .parse("01-01 00:00:48.990   121   121 E Provisioner {XXXX-XXX-7}: 	at coresaaaaaaa.provisioning.d.j(SourceFile:1352)")
         .is_some());
 }
 
