@@ -1,7 +1,7 @@
 [package]
 name = "rogcat"
-version = "0.1.2"
-authors = ["Felix Obenhuber <felix@obenhuber@esrlabs.com>"]
+version = "0.2.0"
+authors = ["Felix Obenhuber <felix@obenhuber.de>"]
 
 [dependencies]
 clap = "2.16.2"

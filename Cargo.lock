@@ -1,6 +1,6 @@
 [root]
 name = "rogcat"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "clap 2.16.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex 0.1.77 (registry+https://github.com/rust-lang/crates.io-index)",

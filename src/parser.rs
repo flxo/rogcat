@@ -5,8 +5,9 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use regex::Regex;
-use Level;
-use Record;
+use super::node::Handler;
+use super::record::{Level, Record};
+use super::Args;
 
 trait Format {
     fn parse(&self, line: &str) -> Option<Record>;
@@ -14,15 +15,12 @@ trait Format {
 
 macro_rules! parser {
     ($v:ident, $r:expr) => (
-        struct $v {
-            regex: Regex,
-        }
+        #[derive(PartialEq)]
+        struct $v { regex: Regex, }
 
         impl $v {
             fn new() -> $v {
-                $v {
-                    regex: Regex::new($r).unwrap(),
-                }
+                $v { regex: Regex::new($r).unwrap(), }
             }
         }
     );
@@ -166,6 +164,7 @@ impl Format for SyslogFormat {
 }
 
 // "11-05 19:55:27.791000000","ConnectivityService","798","1013","D","notifyType CAP_CHANGED for NetworkAgentInfo [MOBILE (UMTS) - 109]"
+#[derive(PartialEq)]
 struct CsvFormat;
 
 impl CsvFormat {
@@ -194,51 +193,54 @@ impl Format for CsvFormat {
 }
 
 pub struct Parser {
-    parser: Option<Box<Format>>,
+    format: Option<Box<Format + Send + Sync>>,
+    parsers: Vec<Box<Format + Send + Sync>>,
 }
 
-
 impl Parser {
-    pub fn new() -> Parser {
-        Parser { parser: None }
-    }
-
-    fn default_record(line: &str) -> Record {
-        Record {
-            timestamp: ::time::now(),
-            level: Level::Debug,
-            tag: "".to_string(),
-            process: "".to_string(),
-            thread: "".to_string(),
-            message: line.to_string().trim().to_string(),
-        }
-    }
-
-    fn detect_format(line: &str) -> Option<Box<Format>> {
-        let parsers = vec![Box::new(MindroidFormat::new()) as Box<Format>,
-                           Box::new(PrintableFormat::new()) as Box<Format>,
-                           Box::new(OldPrintableFormat::new()) as Box<Format>,
-                           Box::new(ThreadFormat::new()) as Box<Format>,
-                           Box::new(TagFormat::new()) as Box<Format>,
-                           Box::new(SyslogFormat::new()) as Box<Format>,
-                           Box::new(CsvFormat::new()) as Box<Format>];
-
-        for p in parsers {
-            if p.parse(line).is_some() {
+    fn detect(&mut self, record: &Record) -> Option<Box<Format + Send + Sync>> {
+        for i in 0..self.parsers.len() {
+            if self.parsers[i].parse(&record.message).is_some() {
+                let p = self.parsers.remove(i);
                 return Some(p);
             }
         }
         None
     }
+}
 
-    pub fn parse(&mut self, line: &str) -> Record {
-        if self.parser.is_none() {
-            self.parser = Self::detect_format(line);
+impl Default for Parser {
+    fn default() -> Parser {
+        Parser {
+            format: None,
+            parsers: vec![
+                Box::new(MindroidFormat::new()),
+                Box::new(PrintableFormat::new()),
+                Box::new(OldPrintableFormat::new()),
+                Box::new(TagFormat::new()),
+                Box::new(ThreadFormat::new()),
+                Box::new(CsvFormat::new()),
+                Box::new(SyslogFormat::new()),
+            ],
         }
+    }
+}
 
-        match self.parser {
-            Some(ref p) => (*p).parse(line).unwrap_or_else(|| Self::default_record(line)),
-            None => Self::default_record(line),
+impl Handler<Record> for Parser {
+    fn new(_args: Args) -> Box<Self> {
+        Box::new(Parser::default())
+    }
+
+    fn handle(&mut self, record: Record) -> Option<Record> {
+        if self.format.is_none() {
+            self.format = self.detect(&record);
+        }
+        match self.format {
+            Some(ref p) => {
+                Some(p.parse(&record.message)
+                    .unwrap_or_else(|| Record::new(&record.message)))
+            }
+            None => Some(Record::new(&record.message)),
         }
     }
 }
@@ -254,7 +256,8 @@ fn test_printable() {
                 class com.runtastic.android.events.bolt.music.MusicStateChangedEvent")
         .is_some());
     assert!(PrintableFormat::new()
-        .parse("01-01 00:00:48.990   121   121 E Provisioner {XXXX-XXX-7}: 	at coresaaaaaaa.provisioning.d.j(SourceFile:1352)")
+        .parse("01-01 00:00:48.990   121   121 E Provisioner {XXXX-XXX-7}: 	at \
+                coresaaaaaaa.provisioning.d.j(SourceFile:1352)")
         .is_some());
 }
 

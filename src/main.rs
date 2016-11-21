@@ -10,163 +10,84 @@ extern crate regex;
 extern crate time;
 extern crate termion;
 
-use clap::{App, Arg, ArgMatches, Shell, SubCommand};
-use regex::Regex;
-use std::io::{BufReader, BufRead};
-use std::process::{Command, Stdio};
+use clap::{App, Arg, ArgMatches,Shell, SubCommand};
+use record::{Level, Record};
+use node::Nodes;
 
-mod terminal;
-mod parser;
+mod filereader;
 mod filewriter;
+mod filter;
+mod node;
+mod parser;
+mod record;
+mod runner;
+mod terminal;
 
-#[derive (Clone, PartialOrd, PartialEq)]
-pub enum Level {
-    Trace,
-    Debug,
-    Info,
-    Warn,
-    Error,
-    Fatal,
-    Assert,
-}
-
-impl ::std::fmt::Display for Level {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        write!(f,
-               "{}",
-               match *self {
-                   Level::Trace => "T",
-                   Level::Debug => "D",
-                   Level::Info => "I",
-                   Level::Warn => "W",
-                   Level::Error => "E",
-                   Level::Fatal => "F",
-                   Level::Assert => "A",
-               })
-    }
-}
-
-impl<'a> From<&'a str> for Level {
-    fn from(s: &str) -> Self {
-        match s {
-            "T" => Level::Trace,
-            "I" => Level::Info,
-            "W" => Level::Warn,
-            "E" => Level::Error,
-            "F" => Level::Fatal,
-            "A" => Level::Assert,
-            "D" | _ => Level::Debug,
-        }
-    }
-}
-
-impl std::str::FromStr for Level {
-    type Err = bool;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self::from(s))
-    }
-}
-
-pub struct Output<'a> {
-    terminal: bool,
-    file: Option<&'a str>,
-}
-
-pub struct Configuration<'a> {
-    command: &'a str,
-    args: Vec<&'a str>,
+#[derive(Clone)]
+pub struct Args {
+    command: Vec<String>,
+    input: Option<String>,
+    output: Option<String>,
     full_tag: bool,
     time_diff: bool,
     show_date: bool,
     color: bool,
     level: Level,
-    outputs: Output<'a>,
-}
-#[derive(Clone)]
-pub struct Record {
-    pub timestamp: ::time::Tm,
-    pub message: String,
-    pub level: Level,
-    pub tag: String,
-    pub process: String,
-    pub thread: String,
+    tag_filter: Vec<String>,
+    msg_filter: Vec<String>,
 }
 
-pub enum Event {
-    Init,
-    Shutdown,
-    Record(Record),
-}
+impl Args {
+    fn new(args: ArgMatches) -> Args {
+        let command = args.value_of("COMMAND")
+            .unwrap_or("adb logcat")
+            .split_whitespace().map(|s| s.to_owned())
+            .collect::<Vec<String>>();
 
-
-pub trait Node {
-    fn on_event(&mut self, record: Event);
-}
-
-struct Filter {
-    regex: Option<Vec<Regex>>,
-}
-
-impl Filter {
-    fn new(regex: Option<clap::Values>) -> Filter {
-        if let Some(values) = regex {
-            Filter {
-                regex: Some(values.map(|e| Regex::new(e).unwrap_or_else(|_| std::process::exit(0)))
-                    .collect::<Vec<Regex>>()),
+        let filter = |arg_name| {
+            if args.is_present(arg_name) {
+                args.values_of(arg_name).unwrap().map(|v| v.to_owned()).collect()
+            } else {
+                Vec::new()
             }
-        } else {
-            Filter { regex: None }
-        }
-    }
+        };
 
-    fn is_match(&self, t: &str) -> bool {
-        match self.regex {
-            Some(ref r) => {
-                for m in r {
-                    if m.is_match(t) {
-                        return true;
-                    }
-                }
-                false
+        let file_arg = |arg| {
+            if let Some(f) = args.value_of(arg) {
+                // TODO: check file existence and readability
+                Some(f.to_owned())
+            } else {
+                None
             }
-            None => true,
+        };
+        
+        Args {
+            command: command,
+            input: file_arg("input"),
+            output: file_arg("output"),
+            color: !args.is_present("NO-COLOR"),
+            full_tag: args.is_present("NO-TAG-SHORTENING"),
+            time_diff: !args.is_present("NO-TIME-DIFF"),
+            show_date: args.is_present("SHOW-DATE"),
+            level: value_t!(args, "level", Level).unwrap_or(Level::Trace), // TODO: warn about invalid level
+            tag_filter: filter("tag"),
+            msg_filter: filter("msg"),
         }
     }
 }
 
-fn configuration<'a>(args: &'a ArgMatches) -> Configuration<'a> {
-    let command = args.value_of("COMMAND")
-        .unwrap_or("adb logcat")
-        .split_whitespace()
-        .collect::<Vec<&str>>();
 
-    let outputs = Output {
-        terminal: true,
-        file: args.value_of("file"),
-    };
-
-    Configuration {
-        command: command[0],
-        args: command.iter().skip(1).map(|c| *c).collect(),
-        color: !args.is_present("NO-COLOR"),
-        full_tag: args.is_present("NO-TAG-SHORTENING"),
-        time_diff: !args.is_present("NO-TIME-DIFF"),
-        show_date: args.is_present("SHOW-DATE"),
-        level: value_t!(args, "level", Level).unwrap_or(Level::Debug),
-        outputs: outputs,
-    }
-}
 pub fn build_cli() -> App<'static, 'static> {
     App::new("rogcat")
         .version(crate_version!())
         .author(crate_authors!())
-        .about("A logcat wrapper")
-        .arg_from_usage("-a --adb=[ADB BINARY] 'Path to adb'")
+        .about("A logcat (and others) wrapper")
+        .arg_from_usage("-a --adb=[ADB BINARY] 'Path to adb'") // TODO unimplemented
         .arg(Arg::from_usage("-t --tag [FILTER] 'Tag filters in RE2'").multiple(true))
         .arg(Arg::from_usage("-m --msg [FILTER] 'Message filters in RE2'").multiple(true))
-        .arg_from_usage("-f --file [FILE] 'Write to file'")
+        .arg_from_usage("-o --output [OUTPUT] 'Write to file instead to stdout'")
         .arg_from_usage("-i --input [INPUT] 'Read from file instead of command'")
-        .arg_from_usage("-l --level [LEVEL] 'Minumum loglevel'")
+        .arg_from_usage("-l --level [LEVEL] 'Minumum level'")
         .arg_from_usage("-c 'Clear (flush) the entire log and exit'")
         .arg_from_usage("-g 'Get the size of the log's ring buffer and exit'")
         .arg_from_usage("-S 'Output statistics'")
@@ -186,6 +107,7 @@ pub fn build_cli() -> App<'static, 'static> {
 fn main() {
     let matches = build_cli().get_matches();
 
+    // Shell completion file generation
     match matches.subcommand() {
         ("completions", Some(sub_matches)) => {
             let shell = sub_matches.value_of("SHELL").unwrap();
@@ -197,84 +119,43 @@ fn main() {
         (_, _) => (),
     }
 
-    let configuration = configuration(&matches);
-
     let single_shots = ["c", "g", "S"];
     for arg in &single_shots {
         if matches.is_present(arg) {
             let arg = format!("-{}", arg);
-            let mut child = Command::new("adb")
+            let mut child = std::process::Command::new("adb")
                 .arg("logcat")
                 .arg(arg)
                 .spawn()
                 .expect("Failed to execute adb");
-            child.wait().ok();
-            return;
+            std::process::exit(child.wait().unwrap().code().unwrap());
         }
     }
 
-    let level_filter = |record: &Record| -> bool { record.level >= configuration.level };
-    let tag_filter = Filter::new(matches.values_of("tag"));
-    let msg_filter = Filter::new(matches.values_of("msg"));
 
-    let mut reader = if matches.is_present("input") {
-        if let Some(f) = matches.value_of("input") {
-            if let Ok(file) = std::fs::File::open(f) {
-                BufReader::new(Box::new(file) as Box<std::io::Read>)
-            } else {
-                println!("Failed to read {}", f);
-                return;
-            }
-        } else {
-            println!("Cannot read input");
-            return;
-        }
+
+    let args = Args::new(matches);
+    let mut nodes = Nodes::<Record>::default();
+
+    let output = if args.output.is_some() {
+        nodes.add_node::<filewriter::FileWriter>(&args, None)
     } else {
-        let mut application = Command::new(configuration.command);
-        for arg in configuration.args.iter() {
-            application.arg(arg);
-        }
-        let application = application.stdout(Stdio::piped())
-            .spawn()
-            .expect("failed to execute adb");
-        BufReader::new(Box::new(application.stdout.unwrap()) as Box<std::io::Read>)
+        nodes.add_node::<terminal::Terminal>(&args, None)
     };
 
-    let mut nodes = Vec::new();
-    if configuration.outputs.file.is_some() {
-        nodes.push(Box::new(filewriter::FileWriter::new(&configuration)) as Box<Node>);
-    }
-    if configuration.outputs.terminal {
-        nodes.push(Box::new(terminal::Terminal::new(&configuration)) as Box<Node>);
+    let processing = if args.tag_filter.is_empty() && args.msg_filter.is_empty() && args.level == Level::Trace {
+        output
+    } else {
+        nodes.add_node::<filter::Filter>(&args, Some(vec![&output]))
+    };
+
+    let parser = nodes.add_node::<parser::Parser>(&args, Some(vec![&processing]));
+
+    if args.input.is_some() {
+        nodes.add_node::<filereader::FileReader>(&args, Some(vec![&parser]));
+    } else {
+        nodes.add_node::<runner::Runner>(&args, Some(vec![&parser]));
     }
 
-    let mut parser = parser::Parser::new();
-
-    for s in &mut nodes {
-        s.on_event(Event::Init);
-    }
-
-    loop {
-        let mut buffer: Vec<u8> = Vec::new();
-        if let Ok(len) = reader.read_until(b'\n', &mut buffer) {
-            if len == 0 {
-                break;
-            } else {
-                let line = String::from_utf8_lossy(&buffer);
-                let record = parser.parse(&line);
-                if tag_filter.is_match(&record.tag) && msg_filter.is_match(&record.message) &&
-                   level_filter(&record) {
-                    for s in &mut nodes {
-                        s.on_event(Event::Record(record.clone()));
-                    }
-                }
-            }
-        } else {
-            println!("Invalid line");
-        }
-    }
-
-    for s in &mut nodes {
-        s.on_event(Event::Shutdown);
-    }
+    nodes.run();
 }

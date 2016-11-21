@@ -6,23 +6,25 @@
 
 use std::fs::File;
 use std::io::Write;
-use super::{Configuration, Event, Node, Record};
+use super::Args;
+use super::node::Handler;
+use super::record::Record;
 
 pub struct FileWriter {
     file: File,
 }
 
-impl FileWriter {
-    pub fn new(configuration: &Configuration) -> FileWriter {
-        FileWriter {
-            file: File::create(configuration.outputs.file.unwrap()).unwrap_or_else(|e| {
+impl Handler<Record> for FileWriter {
+    fn new(args: Args) -> Box<Self> {
+        Box::new(FileWriter {
+            file: File::create(args.output.unwrap()).unwrap_or_else(|e| {
                 println!("Failed to open {}", e);
                 ::std::process::exit(0)
             }),
-        }
+        })
     }
 
-    fn write(&mut self, record: Record) {
+    fn handle(&mut self, record: Record) -> Option<Record> {
         let timestamp: String = ::time::strftime("%m-%d %H:%M:%S.%f", &record.timestamp).unwrap();
         let line = format!("\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"\r\n",
                            timestamp,
@@ -35,18 +37,6 @@ impl FileWriter {
             Ok(_) => (),
             Err(e) => panic!("{}", e),
         }
-    }
-}
-
-impl Node for FileWriter {
-    fn on_event(&mut self, event: Event) {
-        match event {
-            Event::Init => (),
-            Event::Shutdown => {
-                self.file.sync_all().ok();
-                ()
-            }
-            Event::Record(r) => self.write(r),
-        }
+        None
     }
 }

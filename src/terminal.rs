@@ -6,10 +6,11 @@
 
 use regex::Regex;
 use std::collections::HashMap;
-use std::hash::{Hash, SipHasher, Hasher};
 use std::io::Write;
+use super::node::Handler;
+use super::record::{Level, Record};
+use super::Args;
 use termion::color;
-use super::{Configuration, Event, Level, Node, Record};
 
 const DIMM_COLOR: u8 = 243;
 
@@ -27,33 +28,12 @@ pub struct Terminal<'a> {
 }
 
 impl<'a> Terminal<'a> {
-    pub fn new(configuration: &Configuration) -> Terminal<'a> {
-        let date_format = if configuration.show_date {
-            ("%m-%d %H:%M:%S.%f", 18)
-        } else {
-            ("%H:%M:%S.%f", 12)
-        };
-
-        Terminal {
-            beginning_of: Regex::new(r"--------- beginning of.*").unwrap(),
-            color: configuration.color,
-            date_format: date_format,
-            full_tag: configuration.full_tag,
-            process_width: 0,
-            tag_timestamps: HashMap::new(),
-            tag_width: 20,
-            thread_width: 0,
-            time_diff: configuration.time_diff,
-            vovels: Regex::new(r"a|e|i|o|u").unwrap(),
-        }
-    }
-
     fn level_color(level: &Level) -> u8 {
-        match *level {
-            Level::Trace | Level::Debug => DIMM_COLOR,
-            Level::Info => 2, // green
-            Level::Warn => 3, // yellow
-            Level::Error | Level::Fatal | Level::Assert => 1, // red
+        match level {
+            &Level::Trace | &Level::Debug => DIMM_COLOR, // some shade of gray
+            &Level::Info => 2, // green
+            &Level::Warn => 3, // yellow
+            &Level::Error | &Level::Fatal | &Level::Assert => 1, // red
         }
     }
 
@@ -71,12 +51,11 @@ impl<'a> Terminal<'a> {
     }
 
     fn hashed_color(item: &str) -> color::AnsiValue {
-        let mut hasher = SipHasher::new();
-        item.hash(&mut hasher);
-        Self::color((hasher.finish() % 255) as u8)
+        let c = item.bytes().fold(42, |c, x| c ^ x);
+        Self::color(c)
     }
 
-    fn print_seperator(&mut self) {
+    fn print_seperator(&self) {
         let size = ::termion::terminal_size().unwrap();
         let line = (0..size.0).map(|_| "─").collect::<String>();
         print!("\r{}\r\n", line);
@@ -218,12 +197,31 @@ impl<'a> Terminal<'a> {
     }
 }
 
-impl<'a> Node for Terminal<'a> {
-    fn on_event(&mut self, event: Event) {
-        match event {
-            Event::Init => (),
-            Event::Shutdown => (),
-            Event::Record(record) => self.print_record(&record),
-        }
+impl<'a> Handler<Record> for Terminal<'a> {
+    fn new(args: Args) -> Box<Self> {
+        let date_format = if args.show_date {
+            ("%m-%d %H:%M:%S.%f", 18)
+        } else {
+            ("%H:%M:%S.%f", 12)
+        };
+
+        Box::new(Terminal {
+            beginning_of: Regex::new(r"--------- beginning of.*").unwrap(),
+            color: args.color,
+            date_format: date_format,
+            full_tag: args.full_tag,
+            process_width: 0,
+            tag_timestamps: HashMap::new(),
+            tag_width: 20,
+            thread_width: 0,
+            time_diff: args.time_diff,
+            vovels: Regex::new(r"a|e|i|o|u").unwrap(),
+        })
+    }
+
+    fn handle(&mut self, record: Record) -> Option<Record> {
+        self.print_record(&record);
+        Some(record)
+        
     }
 }
