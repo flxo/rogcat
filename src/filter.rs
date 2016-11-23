@@ -45,9 +45,9 @@ impl Handler<Record> for Filter {
 }
 
 impl Filter {
-    fn is_match(&self, t: &String, regex: &Vec<Regex>) -> bool {
+    fn is_match(&self, t: &str, regex: &[Regex]) -> bool {
         for m in regex {
-            if m.is_match(&t) {
+            if m.is_match(t) {
                 return true;
             }
         }

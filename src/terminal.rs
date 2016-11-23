@@ -28,12 +28,12 @@ pub struct Terminal<'a> {
 }
 
 impl<'a> Terminal<'a> {
-    fn level_color(level: &Level) -> u8 {
+    fn level_color(level: Level) -> u8 {
         match level {
-            &Level::Trace | &Level::Debug => DIMM_COLOR, // some shade of gray
-            &Level::Info => 2, // green
-            &Level::Warn => 3, // yellow
-            &Level::Error | &Level::Fatal | &Level::Assert => 1, // red
+            Level::Trace | Level::Debug => DIMM_COLOR, // some shade of gray
+            Level::Info => 2, // green
+            Level::Warn => 3, // yellow
+            Level::Error | Level::Fatal | Level::Assert => 1, // red
         }
     }
 
@@ -58,7 +58,7 @@ impl<'a> Terminal<'a> {
     fn print_seperator(&self) {
         let size = ::termion::terminal_size().unwrap();
         let line = (0..size.0).map(|_| "─").collect::<String>();
-        print!("\r{}\r\n", line);
+        println!("\r{}", line);
     }
 
     fn print_record(&mut self, record: &Record) {
@@ -89,16 +89,14 @@ impl<'a> Terminal<'a> {
 
             if self.full_tag {
                 format!("{:>width$}", t, width = self.tag_width)
-            } else {
+            } else if t.chars().count() > self.tag_width {
+                let mut t = self.vovels.replace_all(t, "");
                 if t.chars().count() > self.tag_width {
-                    let mut t = self.vovels.replace_all(&t, "");
-                    if t.chars().count() > self.tag_width {
-                        t.truncate(self.tag_width);
-                    }
-                    format!("{:>width$}", t, width = self.tag_width)
-                } else {
-                    format!("{:>width$}", t, width = self.tag_width)
+                    t.truncate(self.tag_width);
                 }
+                format!("{:>width$}", t, width = self.tag_width)
+            } else {
+                format!("{:>width$}", t, width = self.tag_width)
             }
         };
 
@@ -123,7 +121,7 @@ impl<'a> Terminal<'a> {
                                level);
         let preamble_width = preamble.chars().count();
 
-        let level_color = color::AnsiValue(Self::level_color(&record.level));
+        let level_color = color::AnsiValue(Self::level_color(record.level.clone()));
 
         let preamble = if self.color {
             format!("{} {}{} {} {}{}{} ({}{}{}{}{}) {}{}{}",
@@ -175,18 +173,16 @@ impl<'a> Terminal<'a> {
                 };
 
                 m = m.chars().skip(chunk_width).collect();
-                print!("{} {} {}\r\n", preamble, sign, chunk);
+                println!("{} {} {}", preamble, sign, chunk);
             }
+        } else if self.color {
+            println!("{} {}{}{}",
+                   preamble,
+                   color::Fg(level_color),
+                   record.message,
+                   color::Fg(color::Reset));
         } else {
-            if self.color {
-                print!("{} {}{}{}\r\n",
-                       preamble,
-                       color::Fg(level_color),
-                       record.message,
-                       color::Fg(color::Reset));
-            } else {
-                print!("{} {}\r\n", preamble, record.message);
-            }
+            println!("{} {}", preamble, record.message);
         }
 
         if !record.tag.is_empty() {
@@ -222,6 +218,6 @@ impl<'a> Handler<Record> for Terminal<'a> {
     fn handle(&mut self, record: Record) -> Option<Record> {
         self.print_record(&record);
         Some(record)
-        
+
     }
 }

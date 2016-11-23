@@ -179,7 +179,7 @@ impl Format for CsvFormat {
         if parts.len() >= 6 {
             Some(Record {
                 timestamp: ::time::strptime(parts[0], "%m-%d %H:%M:%S.%f")
-                    .unwrap_or(::time::now()),
+                    .unwrap_or_else(|_| ::time::now()),
                 level: Level::from(parts[4]),
                 tag: parts[1].to_owned(),
                 process: parts[2].to_owned(),

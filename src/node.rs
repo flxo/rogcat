@@ -104,12 +104,8 @@ impl<T> Nodes<T>
         for n in &self.nodes {
             n.0.send(Command::Start).ok(); // TODO check
         }
-        loop {
-            if let Some(h) = self.nodes.pop() {
-                h.1.join().ok(); // TODO check
-            } else {
-                break;
-            }
+        while let Some(h) = self.nodes.pop() {
+            h.1.join().ok(); // TODO check
         }
     }
 }
