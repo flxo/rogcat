@@ -10,7 +10,7 @@ extern crate regex;
 extern crate time;
 extern crate termion;
 
-use clap::{App, Arg, ArgMatches,Shell, SubCommand};
+use clap::{App, Arg, ArgMatches, Shell, SubCommand};
 use record::{Level, Record};
 use node::Nodes;
 
@@ -42,7 +42,8 @@ impl Args {
     fn new(args: ArgMatches) -> Args {
         let command = args.value_of("COMMAND")
             .unwrap_or("adb logcat")
-            .split_whitespace().map(|s| s.to_owned())
+            .split_whitespace()
+            .map(|s| s.to_owned())
             .collect::<Vec<String>>();
 
         let filter = |arg_name| {
@@ -61,7 +62,7 @@ impl Args {
                 None
             }
         };
-        
+
         Args {
             command: command,
             input: file_arg("input"),
@@ -71,7 +72,7 @@ impl Args {
             full_tag: args.is_present("NO-TAG-SHORTENING"),
             time_diff: !args.is_present("NO-TIME-DIFF"),
             show_date: args.is_present("SHOW-DATE"),
-            level: value_t!(args, "level", Level).unwrap_or(Level::Trace), // TODO: warn about invalid level
+            level: value_t!(args, "level", Level).unwrap_or(Level::Trace), /* TODO: warn about invalid level */
             tag_filter: filter("tag"),
             msg_filter: filter("msg"),
         }
@@ -135,30 +136,34 @@ fn main() {
         }
     }
 
-
-
     let args = Args::new(matches);
     let mut nodes = Nodes::<Record>::default();
 
-    let output = if args.output.is_some() {
-        nodes.add_node::<filewriter::FileWriter>(&args, None)
+    let input = if args.input.is_some() {
+        nodes.add_node::<filereader::FileReader>(&args)
     } else {
-        nodes.add_node::<terminal::Terminal>(&args, None)
+        nodes.add_node::<runner::Runner>(&args)
     };
 
-    let processing = if args.tag_filter.is_empty() && args.msg_filter.is_empty() && args.level == Level::Trace {
-        output
+    let parser = nodes.add_node::<parser::Parser>(&args);
+    input.add_target(&parser);
+
+    let processing = if args.tag_filter.is_empty() && args.msg_filter.is_empty() &&
+                        args.level == Level::Trace {
+        parser
     } else {
-        nodes.add_node::<filter::Filter>(&args, Some(vec![&output]))
+        let filter = nodes.add_node::<filter::Filter>(&args);
+        parser.add_target(&filter);
+        filter
     };
 
-    let parser = nodes.add_node::<parser::Parser>(&args, Some(vec![&processing]));
-
-    if args.input.is_some() {
-        nodes.add_node::<filereader::FileReader>(&args, Some(vec![&parser]));
-    } else {
-        nodes.add_node::<runner::Runner>(&args, Some(vec![&parser]));
+    if args.output.is_some() {
+        let file_output = nodes.add_node::<filewriter::FileWriter>(&args);
+        processing.add_target(&file_output);
     }
+
+    let terminal = nodes.add_node::<terminal::Terminal>(&args);
+    processing.add_target(&terminal);
 
     nodes.run();
 }

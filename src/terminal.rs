@@ -177,10 +177,10 @@ impl<'a> Terminal<'a> {
             }
         } else if self.color {
             println!("{} {}{}{}",
-                   preamble,
-                   color::Fg(level_color),
-                   record.message,
-                   color::Fg(color::Reset));
+                     preamble,
+                     color::Fg(level_color),
+                     record.message,
+                     color::Fg(color::Reset));
         } else {
             println!("{} {}", preamble, record.message);
         }

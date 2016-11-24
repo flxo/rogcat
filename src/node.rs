@@ -14,6 +14,7 @@ enum Command<T> {
     Start,
     Stop,
     Payload(T),
+    Target(Sender<Command<T>>),
 }
 
 pub trait Handler<T: Clone> {
@@ -32,19 +33,15 @@ pub struct Node<T: Clone> {
 impl<T> Node<T>
     where T: Clone + Send + Sync + 'static
 {
-    pub fn new<H>(args: &Args, targets: Option<Vec<&Node<T>>>) -> (Node<T>, JoinHandle<()>)
+    pub fn new<H>(args: &Args) -> (Node<T>, JoinHandle<()>)
         where H: Send + Handler<T> + 'static
     {
         let args = args.clone();
         let (tx, rx) = channel();
         let tx_done = tx.clone();
-        let targets: Vec<Sender<Command<T>>> = if let Some(targets) = targets {
-            targets.iter().map(|t| t.tx.clone()).collect()
-        } else {
-            Vec::new()
-        };
 
         let handle = ::std::thread::spawn(move || {
+            let mut targets: Vec<Sender<Command<T>>> = Vec::new();
             let mut node = H::new(args);
             loop {
                 let msg = rx.recv().unwrap();
@@ -74,13 +71,18 @@ impl<T> Node<T>
                             }
                         }
                     }
+                    Command::Target(target) => {
+                        targets.push(target);
+                    }
                 }
             }
         });
 
-        (Node {
-            tx: tx,
-        }, handle)
+        (Node { tx: tx }, handle)
+    }
+
+    pub fn add_target(&self, target: &Self) {
+        self.tx.send(Command::Target(target.tx.clone())).ok(); // TODO check
     }
 }
 
@@ -92,10 +94,10 @@ pub struct Nodes<T: Clone> {
 impl<T> Nodes<T>
     where T: Clone + Send + Sync + 'static
 {
-    pub fn add_node<H: Handler<T>>(&mut self, args: &Args, targets: Option<Vec<&Node<T>>>) -> Node<T>
+    pub fn add_node<H: Handler<T>>(&mut self, args: &Args) -> Node<T>
         where H: Send + Handler<T> + 'static
     {
-        let (node, handle) = Node::<T>::new::<H>(args, targets);
+        let (node, handle) = Node::<T>::new::<H>(args);
         self.nodes.push((node.tx.clone(), handle));
         node
     }
