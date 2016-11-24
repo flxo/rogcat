@@ -28,6 +28,7 @@ pub struct Args {
     command: Vec<String>,
     input: Option<String>,
     output: Option<String>,
+    output_csv: bool,
     full_tag: bool,
     time_diff: bool,
     show_date: bool,
@@ -65,6 +66,7 @@ impl Args {
             command: command,
             input: file_arg("input"),
             output: file_arg("output"),
+            output_csv: args.is_present("csv"),
             color: !args.is_present("NO-COLOR"),
             full_tag: args.is_present("NO-TAG-SHORTENING"),
             time_diff: !args.is_present("NO-TIME-DIFF"),
@@ -86,6 +88,7 @@ pub fn build_cli() -> App<'static, 'static> {
         .arg(Arg::from_usage("-t --tag [FILTER] 'Tag filters in RE2'").multiple(true))
         .arg(Arg::from_usage("-m --msg [FILTER] 'Message filters in RE2'").multiple(true))
         .arg_from_usage("-o --output [OUTPUT] 'Write to file instead to stdout'")
+        .arg_from_usage("--csv 'Write csv like format instead of raw'")
         .arg_from_usage("-i --input [INPUT] 'Read from file instead of command'")
         .arg_from_usage("-l --level [LEVEL] 'Minumum level'")
         .arg_from_usage("-c 'Clear (flush) the entire log and exit'")

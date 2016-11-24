@@ -10,13 +10,24 @@ use super::Args;
 use super::node::Handler;
 use super::record::Record;
 
+enum Format {
+    Raw,
+    Csv,
+}
+
 pub struct FileWriter {
+    format: Format,
     file: File,
 }
 
 impl Handler<Record> for FileWriter {
     fn new(args: Args) -> Box<Self> {
         Box::new(FileWriter {
+            format: if args.output_csv {
+                Format::Csv
+            } else {
+                Format::Raw
+            },
             file: File::create(args.output.unwrap()).unwrap_or_else(|e| {
                 println!("Failed to open {}", e);
                 ::std::process::exit(0)
@@ -26,13 +37,18 @@ impl Handler<Record> for FileWriter {
 
     fn handle(&mut self, record: Record) -> Option<Record> {
         let timestamp: String = ::time::strftime("%m-%d %H:%M:%S.%f", &record.timestamp).unwrap();
-        let line = format!("\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"\r\n",
-                           timestamp,
-                           record.tag,
-                           record.process,
-                           record.thread,
-                           record.level,
-                           record.message);
+        let line = match self.format {
+            Format::Csv => {
+                format!("\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"\n",
+                        timestamp,
+                        record.tag,
+                        record.process,
+                        record.thread,
+                        record.level,
+                        record.message)
+            }
+            Format::Raw => format!("{}\n", record.raw),
+        };
         match self.file.write(&line.into_bytes()) {
             Ok(_) => (),
             Err(e) => panic!("{}", e),
