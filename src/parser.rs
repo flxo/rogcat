@@ -44,6 +44,7 @@ impl Format for PrintableFormat {
                     process: captures.at(2).unwrap_or("").to_string(),
                     thread: captures.at(3).unwrap_or("").to_string(),
                     message: captures.at(6).unwrap_or("").to_string().trim().to_string(),
+                    raw: line.to_owned(),
                 })
             }
             None => None,
@@ -69,6 +70,7 @@ impl Format for OldPrintableFormat {
                     process: captures.at(4).unwrap_or("").to_string(),
                     thread: "".to_string(),
                     message: captures.at(5).unwrap_or("").to_string().trim().to_string(),
+                    raw: line.to_owned(),
                 })
             }
             None => None,
@@ -91,6 +93,7 @@ impl Format for TagFormat {
                     process: "".to_string(),
                     thread: "".to_string(),
                     message: captures.at(3).unwrap_or("").to_string().trim().to_string(),
+                    raw: line.to_owned(),
                 })
             }
             None => None,
@@ -112,6 +115,7 @@ impl Format for ThreadFormat {
                     process: captures.at(2).unwrap_or("").to_string(),
                     thread: captures.at(3).unwrap_or("").to_string(),
                     message: captures.at(4).unwrap_or("").to_string().trim().to_string(),
+                    raw: line.to_owned(),
                 })
             }
             None => None,
@@ -134,6 +138,7 @@ impl Format for MindroidFormat {
                     process: captures.at(3).unwrap_or("").to_string(),
                     thread: "".to_string(),
                     message: captures.at(4).unwrap_or("").to_string().trim().to_string(),
+                    raw: line.to_owned(),
                 })
             }
             None => None,
@@ -156,6 +161,7 @@ impl Format for SyslogFormat {
                     process: "".to_string(),
                     thread: "".to_string(),
                     message: captures.at(3).unwrap_or("").to_string().trim().to_string(),
+                    raw: line.to_owned(),
                 })
             }
             None => None,
@@ -185,6 +191,7 @@ impl Format for CsvFormat {
                 process: parts[2].to_owned(),
                 thread: parts[3].to_owned(),
                 message: parts[5..].iter().map(|s| s.to_string()).collect(),
+                raw: line.to_owned(),
             })
         } else {
             None
@@ -200,7 +207,7 @@ pub struct Parser {
 impl Parser {
     fn detect(&mut self, record: &Record) -> Option<Box<Format + Send + Sync>> {
         for i in 0..self.parsers.len() {
-            if self.parsers[i].parse(&record.message).is_some() {
+            if self.parsers[i].parse(&record.raw).is_some() {
                 let p = self.parsers.remove(i);
                 return Some(p);
             }
@@ -237,10 +244,10 @@ impl Handler<Record> for Parser {
         }
         match self.format {
             Some(ref p) => {
-                Some(p.parse(&record.message)
-                    .unwrap_or_else(|| Record::new(&record.message)))
+                Some(p.parse(&record.raw)
+                    .unwrap_or_else(|| Record::new(record.raw.clone())))
             }
-            None => Some(Record::new(&record.message)),
+            None => Some(Record::new(record.raw)),
         }
     }
 }

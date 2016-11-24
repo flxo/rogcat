@@ -31,11 +31,12 @@ impl Handler<Record> for FileReader {
                 } else {
                     send(Record {
                         timestamp: ::time::now(),
-                        level: Level::Debug,
-                        tag: "".to_string(),
-                        process: "".to_string(),
-                        thread: "".to_string(),
-                        message: String::from_utf8_lossy(&buffer).trim().to_string(),
+                        level: Level::default(),
+                        tag: String::default(),
+                        process: String::default(),
+                        thread: String::default(),
+                        message: String::default(),
+                        raw: String::from_utf8_lossy(&buffer).trim().to_string(),
                     });
                 }
             } else {

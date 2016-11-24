@@ -31,6 +31,12 @@ impl ::std::fmt::Display for Level {
     }
 }
 
+impl Default for Level {
+    fn default() -> Level {
+        Level::Debug
+    }
+}
+
 impl<'a> From<&'a str> for Level {
     fn from(s: &str) -> Self {
         match s {
@@ -60,17 +66,19 @@ pub struct Record {
     pub tag: String,
     pub process: String,
     pub thread: String,
+    pub raw: String,
 }
 
 impl Record {
-    pub fn new(message: &str) -> Record {
+    pub fn new(message: String) -> Record {
         Record {
             timestamp: ::time::now(),
             level: Level::Debug,
             tag: String::default(),
             process: String::default(),
             thread: String::default(),
-            message: message.to_owned(),
+            message: message,
+            raw: String::default(),
         }
     }
 }
@@ -84,6 +92,7 @@ impl Default for Record {
             process: String::default(),
             thread: String::default(),
             message: String::default(),
+            raw: String::default(),
         }
     }
 }
