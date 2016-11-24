@@ -26,6 +26,7 @@ mod terminal;
 #[derive(Clone)]
 pub struct Args {
     command: Vec<String>,
+    restart: bool,
     input: Option<String>,
     output: Option<String>,
     output_csv: bool,
@@ -65,6 +66,7 @@ impl Args {
 
         Args {
             command: command,
+            restart: args.is_present("restart"),
             input: file_arg("input"),
             output: file_arg("output"),
             output_csv: args.is_present("csv"),
@@ -92,6 +94,7 @@ pub fn build_cli() -> App<'static, 'static> {
         .arg_from_usage("--csv 'Write csv like format instead of raw'")
         .arg_from_usage("-i --input [INPUT] 'Read from file instead of command'")
         .arg_from_usage("-l --level [LEVEL] 'Minumum level'")
+        .arg_from_usage("--restart 'Restart command on exit'")
         .arg_from_usage("-c 'Clear (flush) the entire log and exit'")
         .arg_from_usage("-g 'Get the size of the log's ring buffer and exit'")
         .arg_from_usage("-S 'Output statistics'")

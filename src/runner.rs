@@ -12,45 +12,55 @@ use super::Args;
 
 pub struct Runner {
     command: Vec<String>,
+    restart: bool,
 }
 
 impl Handler<Record> for Runner {
     fn new(args: Args) -> Box<Self> {
-        Box::new(Runner { command: args.command })
+        Box::new(Runner {
+            command: args.command,
+            restart: args.restart,
+        })
     }
 
     fn start(&self, send: &Fn(Record), done: &Fn()) {
-        let mut reader = {
-            let mut application = Command::new(self.command[0].clone());
-            for arg in self.command.iter().skip(1) {
-                application.arg(arg);
-            }
-            // TODO: Spawn two threads and read stdout *and* stderr
-            let application = application.stdout(Stdio::piped())
-                .spawn()
-                .expect("failed to execute command");
-            BufReader::new(application.stdout.unwrap())
-        };
-
         loop {
-            let mut buffer: Vec<u8> = Vec::new();
-            if let Ok(len) = reader.read_until(b'\n', &mut buffer) {
-                if len == 0 {
-                    done();
-                    break;
-                } else {
-                    send(Record {
-                        timestamp: ::time::now(),
-                        level: Level::default(),
-                        tag: String::default(),
-                        process: String::default(),
-                        thread: String::default(),
-                        message: String::default(),
-                        raw: String::from_utf8_lossy(&buffer).trim().to_string(),
-                    });
+            let mut reader = {
+                let mut application = Command::new(self.command[0].clone());
+                for arg in self.command.iter().skip(1) {
+                    application.arg(arg);
                 }
-            } else {
-                panic!("Failed to read {:?}", self.command); // TODO: handle this nicely
+                // TODO: Spawn two threads and read stdout *and* stderr
+                let application = application.stdout(Stdio::piped())
+                    .spawn()
+                    .expect("failed to execute command");
+                BufReader::new(application.stdout.unwrap())
+            };
+
+            loop {
+                let mut buffer: Vec<u8> = Vec::new();
+                if let Ok(len) = reader.read_until(b'\n', &mut buffer) {
+                    if len == 0 {
+                        done();
+                        break;
+                    } else {
+                        send(Record {
+                            timestamp: ::time::now(),
+                            level: Level::default(),
+                            tag: String::default(),
+                            process: String::default(),
+                            thread: String::default(),
+                            message: String::default(),
+                            raw: String::from_utf8_lossy(&buffer).trim().to_string(),
+                        });
+                    }
+                } else {
+                    panic!("Failed to read {:?}", self.command); // TODO: handle this nicely
+                }
+            }
+
+            if !self.restart {
+                break;
             }
         }
     }
