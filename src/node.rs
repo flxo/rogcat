@@ -111,3 +111,59 @@ impl<T> Nodes<T>
         }
     }
 }
+
+#[test]
+fn nodes() {
+    #[derive(Clone, Default)]
+    struct R;
+    let mut nodes = Nodes::<R>::default();
+    nodes.run();
+}
+
+#[test]
+fn nodes_run() {
+    struct S;
+
+    impl Handler<i32> for S {
+        fn new(_: Args) -> Box<Self> {
+            Box::new(S)
+        }
+        fn start(&self, send: &Fn(i32), done: &Fn()) {
+            for i in 0..1000 {
+                send(i);
+            }
+            done();
+        }
+    }
+
+    struct R {
+        n: i32,
+    }
+
+    impl Handler<i32> for R {
+        fn new(_: Args) -> Box<Self> {
+            Box::new(R { n: 0 })
+        }
+
+        fn handle(&mut self, n: i32) -> Option<i32> {
+            assert!(self.n == n);
+            self.n = self.n + 1;
+            Some(n)
+        }
+    }
+
+    impl Drop for R {
+        fn drop(&mut self) {
+            assert!(self.n == 1000);
+        }
+    }
+
+    let mut nodes = Nodes::<i32>::default();
+    let args = Args::default();
+    let s = nodes.add_node::<S>(&args);
+    let r0 = nodes.add_node::<R>(&args);
+    s.add_target(&r0);
+    let r1 = nodes.add_node::<R>(&args);
+    r0.add_target(&r1);
+    nodes.run();
+}

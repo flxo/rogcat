@@ -23,7 +23,7 @@ mod record;
 mod runner;
 mod terminal;
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Args {
     command: Vec<String>,
     restart: bool,
