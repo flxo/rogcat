@@ -13,6 +13,7 @@ extern crate termion;
 use clap::{App, Arg, ArgMatches, Shell, SubCommand};
 use record::{Level, Record};
 use node::Nodes;
+use std::env;
 
 mod filereader;
 mod filewriter;
@@ -21,6 +22,7 @@ mod node;
 mod parser;
 mod record;
 mod runner;
+mod stdinreader;
 mod terminal;
 
 #[derive(Clone, Default)]
@@ -102,7 +104,7 @@ pub fn build_cli() -> App<'static, 'static> {
         .arg_from_usage("[NO-TAG-SHORTENING] --no-tag-shortening 'Disable shortening of tag'")
         .arg_from_usage("[NO-TIME-DIFF] --no-time-diff 'Disable tag time difference'")
         .arg_from_usage("[SHOW-DATE] --show-date 'Disable month and day display'")
-        .arg_from_usage("[COMMAND] 'Optional command to run and capture stdout'")
+        .arg_from_usage("[COMMAND] 'Optional command to run and capture stdout. Use -- to read stdin.'")
         .subcommand(SubCommand::with_name("completions")
             .about("Generates completion scripts for your shell")
             .arg(Arg::with_name("SHELL")
@@ -145,7 +147,15 @@ fn main() {
     let input = if args.input.is_some() {
         nodes.add_node::<filereader::FileReader>(&args)
     } else {
-        nodes.add_node::<runner::Runner>(&args)
+        if let Some(a) = env::args().last() {
+            if a == "--" {
+                nodes.add_node::<stdinreader::StdinReader>(&args)
+            } else {
+                nodes.add_node::<runner::Runner>(&args)
+            }
+        } else {
+            nodes.add_node::<runner::Runner>(&args)
+        }
     };
 
     let parser = nodes.add_node::<parser::Parser>(&args);
