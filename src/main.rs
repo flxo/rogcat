@@ -8,7 +8,8 @@
 extern crate clap;
 extern crate regex;
 extern crate time;
-extern crate termion;
+extern crate terminal_size;
+extern crate term_painter;
 
 use clap::{App, Arg, ArgMatches, Shell, SubCommand};
 use record::{Level, Record};

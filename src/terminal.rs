@@ -7,12 +7,15 @@
 use regex::Regex;
 use std::collections::HashMap;
 use std::io::Write;
+use super::Args;
 use super::node::Handler;
 use super::record::{Level, Record};
-use super::Args;
-use termion::color;
+use terminal_size::{Width, Height, terminal_size};
+use term_painter::ToStyle;
+use term_painter::Color;
+use term_painter::Attr::*;
 
-const DIMM_COLOR: u8 = 243;
+const DIMM_COLOR: Color = Color::Custom(243);
 
 pub struct Terminal<'a> {
     beginning_of: Regex,
@@ -28,37 +31,17 @@ pub struct Terminal<'a> {
 }
 
 impl<'a> Terminal<'a> {
-    fn level_color(level: Level) -> u8 {
-        match level {
-            Level::Trace | Level::Debug => DIMM_COLOR, // some shade of gray
-            Level::Info => 2, // green
-            Level::Warn => 3, // yellow
-            Level::Error | Level::Fatal | Level::Assert => 1, // red
+    /// Filter some unreadable (on dark background) or nasty colors
+    fn hashed_color(item: &str) -> Color {
+        match item.bytes().fold(42u16, |c, x| c ^ x as u16) {
+            c @ 0...1 => Color::Custom(c + 2),
+            c @ 16...21 => Color::Custom(c + 6),
+            c @ 52...55 | c @ 126...129 => Color::Custom(c + 4),
+            c @ 163...165 | c @ 200...201 => Color::Custom(c + 3),
+            c @ 207 => Color::Custom(c + 1),
+            c @ 232...240 => Color::Custom(c + 9),
+            c @ _ => Color::Custom(c),
         }
-    }
-
-    fn color(color: u8) -> color::AnsiValue {
-        match color {
-            // filter some unreadable (on dark background) or nasty colors
-            0...1 => color::AnsiValue(color + 2),
-            16...21 => color::AnsiValue(color + 6),
-            52...55 | 126...129 => color::AnsiValue(color + 4),
-            163...165 | 200...201 => color::AnsiValue(color + 3),
-            207 => color::AnsiValue(color + 1),
-            232...240 => color::AnsiValue(color + 9),
-            _ => color::AnsiValue(color),
-        }
-    }
-
-    fn hashed_color(item: &str) -> color::AnsiValue {
-        let c = item.bytes().fold(42, |c, x| c ^ x);
-        Self::color(c)
-    }
-
-    fn print_seperator(&self) {
-        let size = ::termion::terminal_size().unwrap();
-        let line = (0..size.0).map(|_| "─").collect::<String>();
-        println!("\r{}", line);
     }
 
     fn print_record(&mut self, record: &Record) {
@@ -81,7 +64,9 @@ impl<'a> Terminal<'a> {
 
         let tag = {
             let t = if self.beginning_of.is_match(&record.message) {
-                self.print_seperator();
+                if let Some((Width(width), Height(_))) = terminal_size() {
+                    println!("{}", (0..width).map(|_| "─").collect::<String>());
+                }
                 &record.message
             } else {
                 &record.tag
@@ -110,8 +95,14 @@ impl<'a> Terminal<'a> {
         };
 
         let level = format!(" {} ", record.level);
+        let level_color = match record.level {
+            Level::Trace | Level::Debug => DIMM_COLOR,
+            Level::Info => Color::Green,
+            Level::Warn => Color::Yellow,
+            Level::Error | Level::Fatal | Level::Assert => Color::Red,
+        };
 
-        let preamble = format!("{} {} {} {} ({}{}) {}",
+        let preamble = format!("{} {} {} {} ({}{}) {}  ",
                                " ",
                                timestamp,
                                diff,
@@ -119,71 +110,64 @@ impl<'a> Terminal<'a> {
                                pid,
                                tid,
                                level);
-        let preamble_width = preamble.chars().count();
+        let color = self.color;
+        let print_msg = |chunk: &str, sign: &str| {
+            if color {
+                println!("{} {} {} ({}{}) {} {} {}",
+                         DIMM_COLOR.paint(&timestamp),
+                         DIMM_COLOR.paint(&diff),
+                         Self::hashed_color(&tag).paint(&tag),
+                         Self::hashed_color(&pid).paint(&pid),
+                         Self::hashed_color(&tid).paint(&tid),
+                         Plain.bg(level_color).fg(Color::Black).paint(&level),
+                         level_color.paint(sign),
+                         level_color.paint(chunk));
 
-        let level_color = color::AnsiValue(Self::level_color(record.level.clone()));
-
-        let preamble = if self.color {
-            format!("{} {}{} {} {}{}{} ({}{}{}{}{}) {}{}{}",
-                    " ",
-                    color::Fg(color::AnsiValue(DIMM_COLOR)),
-                    timestamp,
-                    diff,
-                    color::Fg(Self::hashed_color(&tag)),
-                    tag,
-                    color::Fg(color::Reset),
-                    color::Fg(Self::hashed_color(&pid)),
-                    pid,
-                    color::Fg(Self::hashed_color(&tid)),
-                    tid,
-                    color::Fg(color::Reset),
-                    color::Bg(level_color),
-                    level,
-                    color::Bg(color::Reset))
-        } else {
-            preamble
+            } else {
+                println!("{} {} {} ({}{}) {} {} {}",
+                         timestamp,
+                         diff,
+                         tag,
+                         pid,
+                         tid,
+                         level,
+                         sign,
+                         chunk);
+            }
         };
 
-        let record_length = record.message.chars().count();
-        let full_preamble_width = preamble_width + 3;
+        if let Some((Width(width), Height(_))) = terminal_size() {
+            let preamble_width = preamble.chars().count();
+            let record_len = record.message.chars().count();
+            let columns = width as usize;
+            if (preamble_width + record_len) > columns {
+                let mut m = record.message.clone();
+                while !m.is_empty() {
+                    let chars_left = m.chars().count();
+                    let (chunk_width, sign) = if chars_left == record_len {
+                        (columns - preamble_width, "┌")
+                    } else if chars_left <= (columns - preamble_width) {
+                        (chars_left, "└")
+                    } else {
+                        (columns - preamble_width, "├")
+                    };
 
-        let terminal_size = ::termion::terminal_size().unwrap();
-
-        if (preamble_width + record_length) > (terminal_size.0 as usize) {
-            let columns = terminal_size.0 as usize;
-            let mut m = record.message.clone();
-            while !m.is_empty() {
-                let chars_left = m.chars().count();
-                let (chunk_width, sign) = if chars_left == record_length {
-                    (columns - full_preamble_width, "┌")
-                } else if chars_left <= (columns - full_preamble_width) {
-                    (chars_left, "└")
-                } else {
-                    (columns - full_preamble_width, "├")
-                };
-
-                let chunk: String = m.chars().take(chunk_width).collect();
-                let chunk = if self.color {
-                    format!("{}{}{}",
-                            color::Fg(level_color),
-                            chunk,
-                            color::Fg(color::Reset))
-                } else {
-                    chunk
-                };
-
-                m = m.chars().skip(chunk_width).collect();
-                println!("{} {} {}", preamble, sign, chunk);
+                    let chunk: String = m.chars().take(chunk_width).collect();
+                    m = m.chars().skip(chunk_width).collect();
+                    if self.color {
+                        let c = level_color.paint(chunk).to_string();
+                        print_msg(&c, sign)
+                    } else {
+                        print_msg(&chunk, sign)
+                    }
+                }
+            } else {
+                print_msg(&record.message, " ");
             }
-        } else if self.color {
-            println!("{} {}{}{}",
-                     preamble,
-                     color::Fg(level_color),
-                     record.message,
-                     color::Fg(color::Reset));
         } else {
-            println!("{} {}", preamble, record.message);
-        }
+            print_msg(&record.message, " ");
+        };
+
 
         if !record.tag.is_empty() {
             self.tag_timestamps.insert(record.tag.clone(), record.timestamp);

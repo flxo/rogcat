@@ -6,5 +6,6 @@ authors = ["Felix Obenhuber <felix@obenhuber.de>"]
 [dependencies]
 clap = "2.16.2"
 regex = "0.1.73"
-termion = "1.1.1"
+term-painter = "0.2.3"
+terminal_size = "0.1.6"
 time = "0.1.35"
