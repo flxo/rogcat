@@ -5,37 +5,33 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use std::io::stdin;
-use super::node::Handler;
-use super::record::{Level, Record};
-use super::Args;
+use super::node::Node;
+use super::record::Record;
 
 pub struct StdinReader;
 
-impl Handler<Record> for StdinReader {
-    fn new(_args: Args) -> Box<Self> {
-        Box::new(StdinReader {})
+impl Node<Record, ()> for StdinReader {
+    fn new(_: ()) -> Result<Box<Self>, String> {
+        Ok(Box::new(StdinReader {}))
     }
 
-    fn start(&self, send: &Fn(Record), done: &Fn()) {
+    fn start(&self, send: &Fn(Record), done: &Fn()) -> Result<(), String> {
         loop {
             let mut buffer = String::new();
-            if let Ok(len) = stdin().read_line(&mut buffer) {
-                if len == 0 {
-                    done();
-                    break;
-                } else {
-                    send(Record {
-                        timestamp: ::time::now(),
-                        level: Level::default(),
-                        tag: String::default(),
-                        process: String::default(),
-                        thread: String::default(),
-                        message: String::default(),
-                        raw: buffer.trim().to_string(),
-                    });
+            match stdin().read_line(&mut buffer) {
+                Ok(len) => {
+                    if len == 0 {
+                        done();
+                        return Ok(());
+                    } else {
+                        send(Record {
+                            timestamp: Some(::time::now()),
+                            raw: buffer.trim().to_string(),
+                            ..Default::default()
+                        })
+                    }
                 }
-            } else {
-                panic!("Failed to read"); // TODO: handle this nicely
+                Err(e) => return Err(format!("{}", e)),
             }
         }
     }

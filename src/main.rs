@@ -10,11 +10,13 @@ extern crate regex;
 extern crate time;
 extern crate terminal_size;
 extern crate term_painter;
+extern crate tempdir;
 
 use clap::{App, Arg, ArgMatches, Shell, SubCommand};
-use record::{Level, Record};
+use record::Record;
 use node::Nodes;
-use std::env;
+use std::path::PathBuf;
+use std::process::exit;
 
 mod filereader;
 mod filewriter;
@@ -26,85 +28,30 @@ mod runner;
 mod stdinreader;
 mod terminal;
 
-#[derive(Clone, Default)]
-pub struct Args {
-    command: Vec<String>,
-    restart: bool,
-    input: Option<String>,
-    output: Option<String>,
-    output_csv: bool,
-    full_tag: bool,
-    time_diff: bool,
-    show_date: bool,
-    color: bool,
-    level: Level,
-    tag_filter: Vec<String>,
-    msg_filter: Vec<String>,
-}
-
-impl Args {
-    fn new(args: ArgMatches) -> Args {
-        let command = args.value_of("COMMAND")
-            .unwrap_or("adb logcat")
-            .split_whitespace()
-            .map(|s| s.to_owned())
-            .collect::<Vec<String>>();
-
-        let filter = |arg_name| {
-            if args.is_present(arg_name) {
-                args.values_of(arg_name).unwrap().map(|v| v.to_owned()).collect()
-            } else {
-                Vec::new()
-            }
-        };
-
-        let file_arg = |arg| {
-            if let Some(f) = args.value_of(arg) {
-                // TODO: check file existence and readability
-                Some(f.to_owned())
-            } else {
-                None
-            }
-        };
-
-        Args {
-            command: command,
-            restart: args.is_present("restart"),
-            input: file_arg("input"),
-            output: file_arg("output"),
-            output_csv: args.is_present("csv"),
-            color: !args.is_present("NO-COLOR"),
-            full_tag: args.is_present("NO-TAG-SHORTENING"),
-            time_diff: !args.is_present("NO-TIME-DIFF"),
-            show_date: args.is_present("SHOW-DATE"),
-            level: value_t!(args, "level", Level).unwrap_or(Level::Trace), /* TODO: warn about invalid level */
-            tag_filter: filter("tag"),
-            msg_filter: filter("msg"),
-        }
-    }
-}
-
-
-pub fn build_cli() -> App<'static, 'static> {
+fn build_cli() -> App<'static, 'static> {
     App::new("rogcat")
         .version(crate_version!())
         .author(crate_authors!())
-        .about("A logcat (and others) wrapper")
-        .arg_from_usage("-a --adb=[ADB BINARY] 'Path to adb'") // TODO unimplemented
-        .arg(Arg::from_usage("-t --tag [FILTER] 'Tag filters in RE2'").multiple(true))
-        .arg(Arg::from_usage("-m --msg [FILTER] 'Message filters in RE2'").multiple(true))
-        .arg_from_usage("-o --output [OUTPUT] 'Write to file instead to stdout'")
-        .arg_from_usage("--csv 'Write csv like format instead of raw'")
+        .about("A 'adb logcat' wrapper")
+        //.arg_from_usage("-a --adb=[ADB BINARY] 'Path to adb'") // TODO unimplemented
+        // .arg(Arg::from_usage("-t --tag [FILTER] 'Tag filters in RE2'").multiple(true))
+        // .arg(Arg::from_usage("-m --msg [FILTER] 'Message filters in RE2'").multiple(true))
+        .arg_from_usage("-o --output [OUTPUT] 'Write to file and stdout'")
+        .arg_from_usage("--csv 'Write csv format instead'")
         .arg_from_usage("-i --input [INPUT] 'Read from file instead of command'")
-        .arg_from_usage("-l --level [LEVEL] 'Minumum level'")
+        // .arg(Arg::with_name("level").short("l").long("level")
+        //     .takes_value(true)
+        //     .value_name("LEVEL")
+        //     .help("Minimum level")
+        //     .possible_values(&["trace", "debug", "info", "warn", "error", "fatal", "assert"]))
         .arg_from_usage("--restart 'Restart command on exit'")
         .arg_from_usage("-c 'Clear (flush) the entire log and exit'")
         .arg_from_usage("-g 'Get the size of the log's ring buffer and exit'")
         .arg_from_usage("-S 'Output statistics'")
-        .arg_from_usage("[NO-COLOR] --no-color 'Monochrome output'")
-        .arg_from_usage("[NO-TAG-SHORTENING] --no-tag-shortening 'Disable shortening of tag'")
-        .arg_from_usage("[NO-TIME-DIFF] --no-time-diff 'Disable tag time difference'")
-        .arg_from_usage("[SHOW-DATE] --show-date 'Disable month and day display'")
+        // .arg_from_usage("[NO-COLOR] --no-color 'Monochrome output'")
+        // .arg_from_usage("[NO-TAG-SHORTENING] --no-tag-shortening 'Disable shortening of tag'")
+        // .arg_from_usage("[NO-TIME-DIFF] --no-time-diff 'Disable tag time difference'")
+        // .arg_from_usage("[SHOW-DATE] --show-date 'Disable month and day display'")
         .arg_from_usage("[COMMAND] 'Optional command to run and capture stdout. Use -- to read stdin.'")
         .subcommand(SubCommand::with_name("completions")
             .about("Generates completion scripts for your shell")
@@ -129,55 +76,60 @@ fn main() {
         (_, _) => (),
     }
 
-    let single_shots = ["c", "g", "S"];
-    for arg in &single_shots {
+    for arg in &["c", "g", "S"] {
         if matches.is_present(arg) {
             let arg = format!("-{}", arg);
             let mut child = std::process::Command::new("adb")
                 .arg("logcat")
                 .arg(arg)
                 .spawn()
-                .expect("Failed to execute adb");
+                .expect("Failed to execute adb!");
             std::process::exit(child.wait().unwrap().code().unwrap());
         }
     }
 
-    let args = Args::new(matches);
+    match run(matches) {
+        Ok(_) => exit(0),
+        Err(e) => {
+            println!("{}", e);
+            exit(1)
+        }
+    }
+}
+
+fn run<'a>(args: ArgMatches<'a>) -> Result<(), String> {
     let mut nodes = Nodes::<Record>::default();
 
-    let input = if args.input.is_some() {
-        nodes.add_node::<filereader::FileReader>(&args)
-    } else {
-        if let Some(a) = env::args().last() {
-            if a == "--" {
-                nodes.add_node::<stdinreader::StdinReader>(&args)
-            } else {
-                nodes.add_node::<runner::Runner>(&args)
+    let mut output = vec![(nodes.register::<terminal::Terminal, _>((), vec![]))?];
+    match args.value_of("output") {
+        Some(o) => output.push(try!(nodes.register::<filewriter::FileWriter, (PathBuf, bool)>((PathBuf::from(o), args.is_present("csv")), vec!()))),
+        None => (),
+    }
+
+    let filter = try!(nodes.register::<filter::Filter, _>((), output));
+    let parser = vec![try!(nodes.register::<parser::Parser, _>((), vec![filter]))];
+
+    match args.value_of("input") {
+        Some(i) => nodes.register::<filereader::FileReader, PathBuf>(PathBuf::from(i), parser)?,
+        None => {
+            match args.value_of("COMMAND") {
+                Some(c) => {
+                    if c.split_whitespace().last() == Some("--") {
+                        nodes.register::<stdinreader::StdinReader, _>((), parser)?
+                    } else {
+                        let arg = (args.value_of("COMMAND")
+                                       .unwrap_or("adb logcat")
+                                       .split_whitespace()
+                                       .map(|s| s.to_owned())
+                                       .collect::<Vec<String>>(),
+                                   args.is_present("restart"));
+                        (nodes.register::<runner::Runner, (Vec<String>, bool)>(arg, parser))?
+                    }
+                }
+                None => nodes.register::<stdinreader::StdinReader, _>((), parser)?,
             }
-        } else {
-            nodes.add_node::<runner::Runner>(&args)
         }
     };
 
-    let parser = nodes.add_node::<parser::Parser>(&args);
-    input.add_target(&parser);
-
-    let processing = if args.tag_filter.is_empty() && args.msg_filter.is_empty() &&
-                        args.level == Level::Trace {
-        parser
-    } else {
-        let filter = nodes.add_node::<filter::Filter>(&args);
-        parser.add_target(&filter);
-        filter
-    };
-
-    if args.output.is_some() {
-        let file_output = nodes.add_node::<filewriter::FileWriter>(&args);
-        processing.add_target(&file_output);
-    }
-
-    let terminal = nodes.add_node::<terminal::Terminal>(&args);
-    processing.add_target(&terminal);
-
-    nodes.run();
+    nodes.run()
 }

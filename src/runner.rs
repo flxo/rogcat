@@ -5,25 +5,24 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use std::io::{BufReader, BufRead};
-use super::node::Handler;
+use super::node::Node;
 use std::process::{Command, Stdio};
-use super::record::{Level, Record};
-use super::Args;
+use super::record::Record;
 
 pub struct Runner {
     command: Vec<String>,
     restart: bool,
 }
 
-impl Handler<Record> for Runner {
-    fn new(args: Args) -> Box<Self> {
-        Box::new(Runner {
-            command: args.command,
-            restart: args.restart,
-        })
+impl Node<Record, (Vec<String>, bool)> for Runner {
+    fn new(command: (Vec<String>, bool)) -> Result<Box<Self>, String> {
+        Ok(Box::new(Runner {
+            command: command.0,
+            restart: command.1,
+        }))
     }
 
-    fn start(&self, send: &Fn(Record), done: &Fn()) {
+    fn start(&self, send: &Fn(Record), done: &Fn()) -> Result<(), String> {
         loop {
             let mut reader = {
                 let mut application = Command::new(self.command[0].clone());
@@ -45,13 +44,9 @@ impl Handler<Record> for Runner {
                         break;
                     } else {
                         send(Record {
-                            timestamp: ::time::now(),
-                            level: Level::default(),
-                            tag: String::default(),
-                            process: String::default(),
-                            thread: String::default(),
-                            message: String::default(),
+                            timestamp: Some(::time::now()),
                             raw: String::from_utf8_lossy(&buffer).trim().to_string(),
+                            ..Default::default()
                         });
                     }
                 } else {
@@ -63,5 +58,6 @@ impl Handler<Record> for Runner {
                 break;
             }
         }
+        Ok(())
     }
 }

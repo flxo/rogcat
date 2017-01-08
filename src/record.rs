@@ -6,6 +6,7 @@
 
 #[derive (Clone, PartialOrd, PartialEq)]
 pub enum Level {
+    None,
     Trace,
     Debug,
     Info,
@@ -20,6 +21,7 @@ impl ::std::fmt::Display for Level {
         write!(f,
                "{}",
                match *self {
+                   Level::None => "-",
                    Level::Trace => "T",
                    Level::Debug => "D",
                    Level::Info => "I",
@@ -33,7 +35,7 @@ impl ::std::fmt::Display for Level {
 
 impl Default for Level {
     fn default() -> Level {
-        Level::Debug
+        Level::None
     }
 }
 
@@ -46,7 +48,8 @@ impl<'a> From<&'a str> for Level {
             "E" => Level::Error,
             "F" => Level::Fatal,
             "A" => Level::Assert,
-            "D" | _ => Level::Debug,
+            "D" => Level::Debug,
+            _ => Level::None,
         }
     }
 }
@@ -58,9 +61,9 @@ impl ::std::str::FromStr for Level {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Record {
-    pub timestamp: ::time::Tm,
+    pub timestamp: Option<::time::Tm>,
     pub message: String,
     pub level: Level,
     pub tag: String,
@@ -70,28 +73,14 @@ pub struct Record {
 }
 
 impl Record {
-    pub fn new(message: String) -> Record {
+    pub fn new(message: &str) -> Record {
         Record {
-            timestamp: ::time::now(),
-            level: Level::Debug,
+            timestamp: None,
+            level: Level::None,
             tag: String::default(),
             process: String::default(),
             thread: String::default(),
-            message: message,
-            raw: String::default(),
-        }
-    }
-}
-
-impl Default for Record {
-    fn default() -> Record {
-        Record {
-            timestamp: ::time::now(),
-            level: Level::Debug,
-            tag: String::default(),
-            process: String::default(),
-            thread: String::default(),
-            message: String::default(),
+            message: message.to_owned(),
             raw: String::default(),
         }
     }

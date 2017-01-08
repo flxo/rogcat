@@ -7,108 +7,94 @@
 use std::thread::JoinHandle;
 use std::sync::mpsc::{channel, Sender};
 use std::vec::Vec;
-use super::Args;
 
 #[derive(Clone)]
-enum Command<T> {
+pub enum Event<T> {
     Start,
     Stop,
-    Payload(T),
-    Target(Sender<Command<T>>),
+    Message(T),
 }
 
-pub trait Handler<T: Clone> {
-    fn new(_args: Args) -> Box<Self>;
-    fn handle(&mut self, _message: T) -> Option<T> {
-        None
+pub trait Node<T: Clone, A> {
+    fn new(_args: A) -> Result<Box<Self>, String>;
+
+    fn start(&self, _send: &Fn(T), _done: &Fn()) -> Result<(), String> {
+        Ok(())
     }
-    fn start(&self, _send: &Fn(T), _done: &Fn()) {}
+
     fn stop(&self) {}
-}
 
-pub struct Node<T: Clone> {
-    tx: Sender<Command<T>>,
-}
-
-impl<T> Node<T>
-    where T: Clone + Send + Sync + 'static
-{
-    pub fn new<H>(args: &Args) -> (Node<T>, JoinHandle<()>)
-        where H: Send + Handler<T> + 'static
-    {
-        let args = args.clone();
-        let (tx, rx) = channel();
-        let tx_done = tx.clone();
-
-        let handle = ::std::thread::spawn(move || {
-            let mut targets: Vec<Sender<Command<T>>> = Vec::new();
-            let mut node = H::new(args);
-            loop {
-                let msg = rx.recv().unwrap();
-                match msg {
-                    Command::Start => {
-                        let done = || {
-                            tx_done.send(Command::Stop).ok(); // TODO: check
-                        };
-                        let send = |payload: T| {
-                            for t in &targets {
-                                t.send(Command::Payload(payload.clone())).ok(); // TODO: check
-                            }
-                        };
-                        node.start(&send, &done);
-                    }
-                    Command::Stop => {
-                        node.stop();
-                        for t in &targets {
-                            t.send(Command::Stop).ok(); // TODO: check
-                        }
-                        break;
-                    }
-                    Command::Payload(msg) => {
-                        if let Some(msg) = node.handle(msg) {
-                            for n in &targets {
-                                n.send(Command::Payload(msg.clone())).ok(); // TODO: check
-                            }
-                        }
-                    }
-                    Command::Target(target) => {
-                        targets.push(target);
-                    }
-                }
-            }
-        });
-
-        (Node { tx: tx }, handle)
-    }
-
-    pub fn add_target(&self, target: &Self) {
-        self.tx.send(Command::Target(target.tx.clone())).ok(); // TODO check
+    fn message(&mut self, message: T) -> Result<Option<T>, String> {
+        Ok(Some(message))
     }
 }
+
+pub type NodeHandle<T> = Sender<Event<T>>;
 
 #[derive(Default)]
 pub struct Nodes<T: Clone> {
-    nodes: Vec<(Sender<Command<T>>, JoinHandle<()>)>,
+    nodes: Vec<(Sender<Event<T>>, JoinHandle<()>)>,
 }
 
 impl<T> Nodes<T>
     where T: Clone + Send + Sync + 'static
 {
-    pub fn add_node<H: Handler<T>>(&mut self, args: &Args) -> Node<T>
-        where H: Send + Handler<T> + 'static
+    pub fn register<H: Node<T, A>, A>(&mut self,
+                                      a: A,
+                                      t: Vec<NodeHandle<T>>)
+                                      -> Result<NodeHandle<T>, String>
+        where H: Send + Node<T, A> + 'static,
+              A: Send + 'static
     {
-        let (node, handle) = Node::<T>::new::<H>(args);
-        self.nodes.push((node.tx.clone(), handle));
-        node
+        let (tx, rx) = channel();
+        let tx1 = tx.clone();
+        let mut node = try!(H::new(a));
+
+        let h = ::std::thread::spawn(move || {
+            let out = |c: Event<T>| {
+                for n in &t {
+                    n.send(c.clone()).ok(); // TODO: check
+                }
+            };
+
+            loop {
+                let msg = rx.recv().unwrap();
+                match msg {
+                    Event::Start => {
+                        let done = || {
+                            tx1.send(Event::Stop).ok(); // TODO
+                        };
+                        let send = |payload: T| out(Event::Message(payload));
+                        if let Err(e) = node.start(&send, &done) {
+                            panic!(e)
+                        }
+                    }
+                    Event::Stop => {
+                        node.stop();
+                        out(Event::Stop);
+                        break;
+                    }
+                    Event::Message(msg) => {
+                        if let Ok(Some(msg)) = node.message(msg) {
+                            out(Event::Message(msg.clone()));
+                        }
+                    }
+                }
+            }
+        });
+
+        self.nodes.push((tx.clone(), h));
+        Ok(tx)
     }
 
-    pub fn run(&mut self) {
+    pub fn run(&mut self) -> Result<(), String> {
         for n in &self.nodes {
-            n.0.send(Command::Start).ok(); // TODO check
+            try!(n.0.send(Event::Start).map_err(|e| format!("{:?}", e)))
         }
         while let Some(h) = self.nodes.pop() {
-            h.1.join().ok(); // TODO check
+            try!(h.1.join().map_err(|e| format!("{:?}", e)))
         }
+        Ok(())
     }
 }
 
@@ -117,22 +103,23 @@ fn nodes() {
     #[derive(Clone, Default)]
     struct R;
     let mut nodes = Nodes::<R>::default();
-    nodes.run();
+    assert!(nodes.run().is_ok());
 }
 
 #[test]
 fn nodes_run() {
     struct S;
 
-    impl Handler<i32> for S {
-        fn new(_: Args) -> Box<Self> {
-            Box::new(S)
+    impl Node<i32, ()> for S {
+        fn new(_: ()) -> Result<Box<Self>, String> {
+            Ok(Box::new(S))
         }
-        fn start(&self, send: &Fn(i32), done: &Fn()) {
+        fn start(&self, send: &Fn(i32), done: &Fn()) -> Result<(), String> {
             for i in 0..1000 {
                 send(i);
             }
             done();
+            Ok(())
         }
     }
 
@@ -140,30 +127,29 @@ fn nodes_run() {
         n: i32,
     }
 
-    impl Handler<i32> for R {
-        fn new(_: Args) -> Box<Self> {
-            Box::new(R { n: 0 })
+    impl Node<i32, ()> for R {
+        fn new(_: ()) -> Result<Box<Self>, String> {
+            Ok(Box::new(R { n: 0 }))
         }
 
-        fn handle(&mut self, n: i32) -> Option<i32> {
+        fn message(&mut self, n: i32) -> Result<Option<i32>, String> {
             assert!(self.n == n);
             self.n = self.n + 1;
-            Some(n)
+            Ok(Some(n))
         }
     }
 
     impl Drop for R {
         fn drop(&mut self) {
-            assert!(self.n == 1000);
+            assert_eq!(self.n, 1000);
         }
     }
 
     let mut nodes = Nodes::<i32>::default();
-    let args = Args::default();
-    let s = nodes.add_node::<S>(&args);
-    let r0 = nodes.add_node::<R>(&args);
-    s.add_target(&r0);
-    let r1 = nodes.add_node::<R>(&args);
-    r0.add_target(&r1);
-    nodes.run();
+
+    let o = nodes.register::<R, _>((), vec![]);
+    let r0 = nodes.register::<R, _>((), vec![o.unwrap()]);
+    let r1 = nodes.register::<R, _>((), vec![]);
+    nodes.register::<S, _>((), vec![r0.unwrap(), r1.unwrap()]).ok();
+    assert!(nodes.run().is_ok());
 }

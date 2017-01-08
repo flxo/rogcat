@@ -5,15 +5,15 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use regex::Regex;
+use std::cmp::max;
 use std::collections::HashMap;
 use std::io::Write;
-use super::Args;
-use super::node::Handler;
+use std::io::stdout;
+use super::node::Node;
 use super::record::{Level, Record};
-use terminal_size::{Width, Height, terminal_size};
-use term_painter::ToStyle;
-use term_painter::Color;
 use term_painter::Attr::*;
+use term_painter::{Color, ToStyle};
+use terminal_size::{Width, Height, terminal_size};
 
 const DIMM_COLOR: Color = Color::Custom(243);
 
@@ -26,8 +26,9 @@ pub struct Terminal<'a> {
     tag_timestamps: HashMap<String, ::time::Tm>,
     tag_width: usize,
     thread_width: usize,
-    time_diff: bool,
     vovels: Regex,
+    time_diff: bool,
+    diff_width: usize,
 }
 
 impl<'a> Terminal<'a> {
@@ -44,29 +45,49 @@ impl<'a> Terminal<'a> {
         }
     }
 
-    fn print_record(&mut self, record: &Record) {
-        let timestamp: String = ::time::strftime(self.date_format.0, &record.timestamp)
-            .unwrap()
-            .chars()
-            .take(self.date_format.1)
-            .collect();
+    // TODO
+    // Rework this to use a more column based approach!
+    fn print_record(&mut self, record: Record) {
+        let (timestamp, diff) = if let Some(ts) = record.timestamp {
+            let timestamp = match ::time::strftime(self.date_format.0, &ts) {
+                Ok(t) => {
+                    t.chars()
+                        .take(self.date_format.1)
+                        .collect::<String>()
+                }
+                Err(_) => "".to_owned(),
+            };
 
-        let diff = if self.time_diff {
-            if let Some(t) = self.tag_timestamps.get_mut(&record.tag) {
-                let diff = (record.timestamp - *t).num_milliseconds() as f32 / 1000.0;
-                format!("{:>9}", format!("{:4.3}", diff))
+            let diff = if self.time_diff {
+                if let Some(t) = self.tag_timestamps.get_mut(&record.tag) {
+                    let diff = (ts - *t).num_milliseconds() as f32 / 1000.0;
+                    let diff = format!("{:>.3}", diff);
+                    let diff = if diff.chars().count() <= self.diff_width {
+                        diff
+                    } else {
+                        "-.---".to_owned()
+                    };
+
+                    diff
+                } else {
+                    "".to_owned()
+                }
             } else {
-                (0..9).map(|_| " ").collect::<String>()
-            }
+                "".to_owned()
+            };
+
+            (timestamp, diff)
         } else {
-            "".to_owned()
+            ("".to_owned(), "".to_owned())
         };
 
         let tag = {
             let t = if self.beginning_of.is_match(&record.message) {
+                // Print horizontal line if temrinal width is detectable
                 if let Some((Width(width), Height(_))) = terminal_size() {
                     println!("{}", (0..width).map(|_| "─").collect::<String>());
                 }
+                // "beginnig of" messages never have a tag
                 &record.message
             } else {
                 &record.tag
@@ -85,35 +106,30 @@ impl<'a> Terminal<'a> {
             }
         };
 
-        self.process_width = ::std::cmp::max(self.process_width, record.process.chars().count());
+        self.process_width = max(self.process_width, record.process.chars().count());
         let pid = format!("{:<width$}", record.process, width = self.process_width);
         let tid = if record.thread.is_empty() {
             "".to_owned()
         } else {
-            self.thread_width = ::std::cmp::max(self.thread_width, record.thread.chars().count());
+            self.thread_width = max(self.thread_width, record.thread.chars().count());
             format!(" {:>width$}", record.thread, width = self.thread_width)
         };
 
         let level = format!(" {} ", record.level);
         let level_color = match record.level {
-            Level::Trace | Level::Debug => DIMM_COLOR,
+            Level::Trace | Level::Debug | Level::None => DIMM_COLOR,
             Level::Info => Color::Green,
             Level::Warn => Color::Yellow,
             Level::Error | Level::Fatal | Level::Assert => Color::Red,
         };
 
-        let preamble = format!("{} {} {} {} ({}{}) {}  ",
-                               " ",
-                               timestamp,
-                               diff,
-                               tag,
-                               pid,
-                               tid,
-                               level);
         let color = self.color;
+        let tag_width = self.tag_width;
+        let diff_width = self.diff_width;
+        let timestamp_width = self.date_format.1;
         let print_msg = |chunk: &str, sign: &str| {
             if color {
-                println!("{} {} {} ({}{}) {} {} {}",
+                println!("{:<timestamp_width$} {:>diff_width$} {:>tag_width$} ({}{}) {} {} {}",
                          DIMM_COLOR.paint(&timestamp),
                          DIMM_COLOR.paint(&diff),
                          Self::hashed_color(&tag).paint(&tag),
@@ -121,10 +137,13 @@ impl<'a> Terminal<'a> {
                          Self::hashed_color(&tid).paint(&tid),
                          Plain.bg(level_color).fg(Color::Black).paint(&level),
                          level_color.paint(sign),
-                         level_color.paint(chunk));
+                         level_color.paint(chunk),
+                         timestamp_width = timestamp_width,
+                         diff_width = diff_width,
+                         tag_width = tag_width);
 
             } else {
-                println!("{} {} {} ({}{}) {} {} {}",
+                println!("{:<timestamp_width$} {:>diff_width$} {:>tag_width$} ({}{}) {} {} {}",
                          timestamp,
                          diff,
                          tag,
@@ -132,16 +151,22 @@ impl<'a> Terminal<'a> {
                          tid,
                          level,
                          sign,
-                         chunk);
+                         chunk,
+                         timestamp_width = timestamp_width,
+                         diff_width = diff_width,
+                         tag_width = tag_width);
             }
         };
 
         if let Some((Width(width), Height(_))) = terminal_size() {
-            let preamble_width = preamble.chars().count();
+            let preamble_width = timestamp_width + 1 + self.diff_width + 1 + tag_width + 1 +
+                                 2 * self.process_width + 2 + 1 +
+                                 8;
             let record_len = record.message.chars().count();
             let columns = width as usize;
             if (preamble_width + record_len) > columns {
                 let mut m = record.message.clone();
+                // TODO: Refactor this!
                 while !m.is_empty() {
                     let chars_left = m.chars().count();
                     let (chunk_width, sign) = if chars_left == record_len {
@@ -168,40 +193,40 @@ impl<'a> Terminal<'a> {
             print_msg(&record.message, " ");
         };
 
-
-        if !record.tag.is_empty() {
-            self.tag_timestamps.insert(record.tag.clone(), record.timestamp);
+        if let Some(ts) = record.timestamp {
+            if self.time_diff && !record.tag.is_empty() {
+                self.tag_timestamps.insert(record.tag.clone(), ts);
+            }
         }
 
-        ::std::io::stdout().flush().unwrap();
+        stdout().flush().unwrap();
     }
 }
 
-impl<'a> Handler<Record> for Terminal<'a> {
-    fn new(args: Args) -> Box<Self> {
-        let date_format = if args.show_date {
-            ("%m-%d %H:%M:%S.%f", 18)
-        } else {
-            ("%H:%M:%S.%f", 12)
-        };
-
-        Box::new(Terminal {
+impl<'a> Node<Record, ()> for Terminal<'a> {
+    fn new(_: ()) -> Result<Box<Self>, String> {
+        Ok(Box::new(Terminal {
             beginning_of: Regex::new(r"--------- beginning of.*").unwrap(),
-            color: args.color,
-            date_format: date_format,
-            full_tag: args.full_tag,
+            color: true, // ! args.is_present("NO-COLOR"),
+            date_format: if true {
+                ("%m-%d %H:%M:%S.%f", 18)
+            } else {
+                ("%H:%M:%S.%f", 12)
+            },
+            full_tag: false, // args.is_present("NO-TAG-SHORTENING"),
             process_width: 0,
             tag_timestamps: HashMap::new(),
+            vovels: Regex::new(r"a|e|i|o|u").unwrap(),
+
             tag_width: 20,
             thread_width: 0,
-            time_diff: args.time_diff,
-            vovels: Regex::new(r"a|e|i|o|u").unwrap(),
-        })
+            diff_width: 8,
+            time_diff: true, // !args.is_present("NO-TIME-DIFF"),
+        }))
     }
 
-    fn handle(&mut self, record: Record) -> Option<Record> {
-        self.print_record(&record);
-        Some(record)
-
+    fn message(&mut self, record: Record) -> Result<Option<Record>, String> {
+        self.print_record(record);
+        Ok(None)
     }
 }

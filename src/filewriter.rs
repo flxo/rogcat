@@ -5,9 +5,9 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use std::fs::File;
+use std::path::PathBuf;
 use std::io::Write;
-use super::Args;
-use super::node::Handler;
+use super::node::Node;
 use super::record::Record;
 
 enum Format {
@@ -20,25 +20,24 @@ pub struct FileWriter {
     file: File,
 }
 
-impl Handler<Record> for FileWriter {
-    fn new(args: Args) -> Box<Self> {
-        Box::new(FileWriter {
-            format: if args.output_csv {
-                Format::Csv
-            } else {
-                Format::Raw
-            },
-            file: File::create(args.output.unwrap()).unwrap_or_else(|e| {
-                println!("Failed to open {}", e);
-                ::std::process::exit(0)
-            }),
-        })
+impl Node<Record, (PathBuf, bool)> for FileWriter {
+    fn new(args: (PathBuf, bool)) -> Result<Box<Self>, String> {
+        println!("filewriter");
+        Ok(Box::new(FileWriter {
+            format: if args.1 { Format::Csv } else { Format::Raw },
+            file: File::create(args.0).map_err(|e| format!("{}", e))?,
+        }))
     }
 
-    fn handle(&mut self, record: Record) -> Option<Record> {
-        let timestamp: String = ::time::strftime("%m-%d %H:%M:%S.%f", &record.timestamp).unwrap();
+    fn message(&mut self, record: Record) -> Result<Option<Record>, String> {
+        println!("{:?}", record.message);
         let line = match self.format {
             Format::Csv => {
+                let timestamp = if let Some(ts) = record.timestamp {
+                    ::time::strftime("%m-%d %H:%M:%S.%f", &ts).unwrap_or("".to_owned())
+                } else {
+                    "".to_owned()
+                };
                 format!("\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"\n",
                         timestamp,
                         record.tag,
@@ -49,10 +48,24 @@ impl Handler<Record> for FileWriter {
             }
             Format::Raw => format!("{}\n", record.raw),
         };
+        println!("writing {}", line);
         match self.file.write(&line.into_bytes()) {
             Ok(_) => (),
             Err(e) => panic!("{}", e),
         }
-        None
+        Ok(None)
+    }
+}
+
+#[test]
+fn open() {
+    use ::tempdir::TempDir;
+    let tmp_dir = TempDir::new("filewriter").expect("create temp dir");
+    let file = tmp_dir.path().join("my-temporary-note.txt");
+
+    {
+        let mut filewriter = FileWriter::new((PathBuf::from(file), false));
+        assert!(filewriter.is_ok());
+        let mut FileWriter = filewriter.unwrap();
     }
 }
