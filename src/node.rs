@@ -4,9 +4,9 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
-use std::thread::JoinHandle;
+use std::process::exit;
 use std::sync::mpsc::{channel, Sender};
-use std::vec::Vec;
+use std::thread::JoinHandle;
 
 #[derive(Clone)]
 pub enum Event<T> {
@@ -18,7 +18,7 @@ pub enum Event<T> {
 pub trait Node<T: Clone, A> {
     fn new(_args: A) -> Result<Box<Self>, String>;
 
-    fn start(&self, _send: &Fn(T), _done: &Fn()) -> Result<(), String> {
+    fn start(&mut self, _send: &Fn(T), _done: &Fn()) -> Result<(), String> {
         Ok(())
     }
 
@@ -66,7 +66,8 @@ impl<T> Nodes<T>
                         };
                         let send = |payload: T| out(Event::Message(payload));
                         if let Err(e) = node.start(&send, &done) {
-                            panic!(e)
+                            println!("{}", e);
+                            exit(1);
                         }
                     }
                     Event::Stop => {
@@ -114,7 +115,7 @@ fn nodes_run() {
         fn new(_: ()) -> Result<Box<Self>, String> {
             Ok(Box::new(S))
         }
-        fn start(&self, send: &Fn(i32), done: &Fn()) -> Result<(), String> {
+        fn start(&mut self, send: &Fn(i32), done: &Fn()) -> Result<(), String> {
             for i in 0..1000 {
                 send(i);
             }

@@ -15,7 +15,7 @@ impl Node<Record, ()> for StdinReader {
         Ok(Box::new(StdinReader {}))
     }
 
-    fn start(&self, send: &Fn(Record), done: &Fn()) -> Result<(), String> {
+    fn start(&mut self, send: &Fn(Record), done: &Fn()) -> Result<(), String> {
         loop {
             let mut buffer = String::new();
             match stdin().read_line(&mut buffer) {

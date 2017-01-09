@@ -19,7 +19,7 @@ impl Node<Record, PathBuf> for FileReader {
         Ok(Box::new(FileReader { filename: file }))
     }
 
-    fn start(&self, send: &Fn(Record), done: &Fn()) -> Result<(), String> {
+    fn start(&mut self, send: &Fn(Record), done: &Fn()) -> Result<(), String> {
         let file = File::open(self.filename.clone()).map_err(|e| format!("{}", e))?;
         let mut reader = BufReader::new(file);
         loop {
