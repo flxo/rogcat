@@ -22,7 +22,6 @@ pub struct FileWriter {
 
 impl Node<Record, (PathBuf, bool)> for FileWriter {
     fn new(args: (PathBuf, bool)) -> Result<Box<Self>, String> {
-        println!("filewriter");
         Ok(Box::new(FileWriter {
             format: if args.1 { Format::Csv } else { Format::Raw },
             file: File::create(args.0).map_err(|e| format!("{}", e))?,
@@ -30,7 +29,6 @@ impl Node<Record, (PathBuf, bool)> for FileWriter {
     }
 
     fn message(&mut self, record: Record) -> Result<Option<Record>, String> {
-        println!("{:?}", record.message);
         let line = match self.format {
             Format::Csv => {
                 let timestamp = if let Some(ts) = record.timestamp {
@@ -48,7 +46,6 @@ impl Node<Record, (PathBuf, bool)> for FileWriter {
             }
             Format::Raw => format!("{}\n", record.raw),
         };
-        println!("writing {}", line);
         match self.file.write(&line.into_bytes()) {
             Ok(_) => (),
             Err(e) => panic!("{}", e),
