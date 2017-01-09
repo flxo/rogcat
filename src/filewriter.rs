@@ -62,10 +62,6 @@ fn open() {
     use ::tempdir::TempDir;
     let tmp_dir = TempDir::new("filewriter").expect("create temp dir");
     let file = tmp_dir.path().join("my-temporary-note.txt");
-
-    {
-        let mut filewriter = FileWriter::new((PathBuf::from(file), false));
-        assert!(filewriter.is_ok());
-        let mut FileWriter = filewriter.unwrap();
-    }
+    let filewriter = FileWriter::new((PathBuf::from(file), false));
+    assert!(filewriter.is_ok());
 }

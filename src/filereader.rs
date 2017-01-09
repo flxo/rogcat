@@ -16,9 +16,7 @@ pub struct FileReader {
 
 impl Node<Record, PathBuf> for FileReader {
     fn new(file: PathBuf) -> Result<Box<Self>, String> {
-        Ok(Box::new(FileReader {
-            filename: file,
-        }))
+        Ok(Box::new(FileReader { filename: file }))
     }
 
     fn start(&self, send: &Fn(Record), done: &Fn()) -> Result<(), String> {
