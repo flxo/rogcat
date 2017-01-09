@@ -14,6 +14,7 @@ use super::record::{Level, Record};
 use term_painter::Attr::*;
 use term_painter::{Color, ToStyle};
 use terminal_size::{Width, Height, terminal_size};
+use time::Tm;
 
 const DIMM_COLOR: Color = Color::Custom(243);
 
@@ -23,7 +24,7 @@ pub struct Terminal<'a> {
     date_format: (&'a str, usize),
     full_tag: bool,
     process_width: usize,
-    tag_timestamps: HashMap<String, ::time::Tm>,
+    tag_timestamps: HashMap<String, Tm>,
     tag_width: usize,
     thread_width: usize,
     vovels: Regex,
@@ -55,12 +56,12 @@ impl<'a> Terminal<'a> {
                         .take(self.date_format.1)
                         .collect::<String>()
                 }
-                Err(_) => "".to_owned(),
+                Err(_) => (0..self.date_format.1).map(|_| " ").collect::<String>(),
             };
 
             let diff = if self.time_diff {
-                if let Some(t) = self.tag_timestamps.get_mut(&record.tag) {
-                    let diff = (ts - *t).num_milliseconds() as f32 / 1000.0;
+                if let Some(t) = self.tag_timestamps.get(&record.tag) {
+                    let diff = (ts - *t).num_milliseconds();
                     let diff = format!("{:>.3}", diff);
                     let diff = if diff.chars().count() <= self.diff_width {
                         diff
@@ -195,7 +196,7 @@ impl<'a> Terminal<'a> {
 
         if let Some(ts) = record.timestamp {
             if self.time_diff && !record.tag.is_empty() {
-                self.tag_timestamps.insert(record.tag.clone(), ts);
+                self.tag_timestamps.insert(record.tag, ts);
             }
         }
 
@@ -221,7 +222,7 @@ impl<'a> Node<Record, ()> for Terminal<'a> {
             tag_width: 20,
             thread_width: 0,
             diff_width: 8,
-            time_diff: true, // !args.is_present("NO-TIME-DIFF"),
+            time_diff: false, // !args.is_present("NO-TIME-DIFF"),
         }))
     }
 
