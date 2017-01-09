@@ -18,21 +18,18 @@ impl Node<Record, ()> for StdinReader {
     fn start(&mut self, send: &Fn(Record), done: &Fn()) -> Result<(), String> {
         loop {
             let mut buffer = String::new();
-            match stdin().read_line(&mut buffer) {
-                Ok(len) => {
-                    if len == 0 {
-                        done();
-                        return Ok(());
-                    } else {
-                        send(Record {
-                            timestamp: Some(::time::now()),
-                            raw: buffer.trim().to_string(),
-                            ..Default::default()
-                        })
-                    }
-                }
-                Err(e) => return Err(format!("{}", e)),
+            if stdin().read_line(&mut buffer)
+                .map_err(|e| format!("Failed to read from stdin: \"{}\"", e))? == 0 {
+                done();
+                break;
+            } else {
+                send(Record {
+                    timestamp: Some(::time::now()),
+                    raw: buffer.trim().to_string(),
+                    ..Default::default()
+                })
             }
         }
+        Ok(())
     }
 }
