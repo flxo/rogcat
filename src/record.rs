@@ -4,7 +4,7 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
-#[derive (Clone, PartialOrd, PartialEq)]
+#[derive (Clone, Debug, PartialOrd, PartialEq)]
 pub enum Level {
     None,
     Trace,
@@ -61,7 +61,7 @@ impl ::std::str::FromStr for Level {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Record {
     pub timestamp: Option<::time::Tm>,
     pub message: String,
