@@ -13,7 +13,7 @@ extern crate term_painter;
 extern crate tempdir;
 
 use clap::{App, Arg, ArgMatches, Shell, SubCommand};
-use record::Record;
+use record::{Level, Record};
 use node::Nodes;
 use std::path::PathBuf;
 use std::process::exit;
@@ -34,16 +34,16 @@ fn build_cli() -> App<'static, 'static> {
         .author(crate_authors!())
         .about("A 'adb logcat' wrapper")
         //.arg_from_usage("-a --adb=[ADB BINARY] 'Path to adb'") // TODO unimplemented
-        // .arg(Arg::from_usage("-t --tag [FILTER] 'Tag filters in RE2'").multiple(true))
-        // .arg(Arg::from_usage("-m --msg [FILTER] 'Message filters in RE2'").multiple(true))
+        .arg(Arg::from_usage("-t --tag [TAG] 'Tag filters in RE2'").multiple(true))
+        .arg(Arg::from_usage("-m --msg [MSG] 'Message filters in RE2'").multiple(true))
         .arg_from_usage("-o --output [OUTPUT] 'Write to file and stdout'")
         .arg_from_usage("--csv 'Write csv format instead'")
         .arg_from_usage("-i --input [INPUT] 'Read from file instead of command'")
-        // .arg(Arg::with_name("level").short("l").long("level")
-        //     .takes_value(true)
-        //     .value_name("LEVEL")
-        //     .help("Minimum level")
-        //     .possible_values(&["trace", "debug", "info", "warn", "error", "fatal", "assert"]))
+        .arg(Arg::with_name("level").short("l").long("level")
+            .takes_value(true)
+            .value_name("LEVEL")
+            .help("Minimum level")
+            .possible_values(&["trace", "debug", "info", "warn", "error", "fatal", "assert"]))
         .arg_from_usage("--restart 'Restart command on exit'")
         .arg_from_usage("-c 'Clear (flush) the entire log and exit'")
         .arg_from_usage("-g 'Get the size of the log's ring buffer and exit'")
@@ -102,15 +102,32 @@ fn run<'a>(args: ArgMatches<'a>) -> Result<(), String> {
 
     let mut output = vec![(nodes.register::<terminal::Terminal, _>((), vec![]))?];
     match args.value_of("output") {
-        Some(o) => output.push(try!(nodes.register::<filewriter::FileWriter, (PathBuf, bool)>((PathBuf::from(o), args.is_present("csv")), vec!()))),
+        Some(o) => {
+            let path = PathBuf::from(o);
+            let csv = args.is_present("csv");
+            let file_writer = try!(nodes.register::<filewriter::FileWriter, _>((path, csv), vec!()));
+            output.push(file_writer);
+        }
         None => (),
     }
 
-    let filter = try!(nodes.register::<filter::Filter, _>((), output));
+    let filters = |k| {
+        args.values_of(k)
+            .and_then(|m| {
+                Some(m.map(|f| f.to_owned())
+                    .collect::<Vec<String>>())
+            })
+    };
+    let filter_args = filter::Args {
+        level: Level::from(args.value_of("LEVEL").unwrap_or("none")),
+        msg: filters("MSG"),
+        tag: filters("TAG"),
+    };
+    let filter = try!(nodes.register::<filter::Filter, _>(filter_args, output));
     let parser = vec![try!(nodes.register::<parser::Parser, _>((), vec![filter]))];
 
     match args.value_of("input") {
-        Some(i) => nodes.register::<filereader::FileReader, PathBuf>(PathBuf::from(i), parser)?,
+        Some(i) => nodes.register::<filereader::FileReader, _>(PathBuf::from(i), parser)?,
         None => {
             match args.value_of("COMMAND") {
                 Some(c) => {
