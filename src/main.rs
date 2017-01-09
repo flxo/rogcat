@@ -38,7 +38,7 @@ fn build_cli() -> App<'static, 'static> {
         .arg(Arg::from_usage("-m --msg [MSG] 'Message filters in RE2'").multiple(true))
         .arg_from_usage("-o --output [OUTPUT] 'Write to file and stdout'")
         .arg_from_usage("--csv 'Write csv format instead'")
-        .arg_from_usage("-i --input [INPUT] 'Read from file instead of command'")
+        .arg_from_usage("-i --input [INPUT] 'Read from file instead of command. Pass \"stdin\" to capture stdin'")
         .arg(Arg::with_name("level").short("l").long("level")
             .takes_value(true)
             .value_name("LEVEL")
@@ -52,7 +52,7 @@ fn build_cli() -> App<'static, 'static> {
         // .arg_from_usage("[NO-TAG-SHORTENING] --no-tag-shortening 'Disable shortening of tag'")
         // .arg_from_usage("[NO-TIME-DIFF] --no-time-diff 'Disable tag time difference'")
         // .arg_from_usage("[SHOW-DATE] --show-date 'Disable month and day display'")
-        .arg_from_usage("[COMMAND] 'Optional command to run and capture stdout. Use -- to read stdin.'")
+        .arg_from_usage("[COMMAND] 'Optional command to run and capture stdout. Pass \"stdin\" to capture stdin'")
         .subcommand(SubCommand::with_name("completions")
             .about("Generates completion scripts for your shell")
             .arg(Arg::with_name("SHELL")
@@ -127,23 +127,25 @@ fn run<'a>(args: ArgMatches<'a>) -> Result<(), String> {
     let parser = vec![try!(nodes.register::<parser::Parser, _>((), vec![filter]))];
 
     match args.value_of("input") {
-        Some(i) => nodes.register::<filereader::FileReader, _>(PathBuf::from(i), parser)?,
+        Some(i) => if i == "--" {
+            nodes.register::<filereader::FileReader, _>(PathBuf::from(i), parser)?
+        } else {
+            nodes.register::<stdinreader::StdinReader, _>((), parser)?
+        },
         None => {
             match args.value_of("COMMAND") {
                 Some(c) => {
-                    if c.split_whitespace().last() == Some("--") {
+                    if c == "stdin" {
                         nodes.register::<stdinreader::StdinReader, _>((), parser)?
                     } else {
-                        let arg = (args.value_of("COMMAND")
-                                       .unwrap_or("adb logcat")
-                                       .split_whitespace()
-                                       .map(|s| s.to_owned())
-                                       .collect::<Vec<String>>(),
+                        let arg = (c.split_whitespace()
+                                    .map(|s| s.to_owned())
+                                    .collect::<Vec<String>>(),
                                    args.is_present("restart"));
-                        (nodes.register::<runner::Runner, (Vec<String>, bool)>(arg, parser))?
+                        (nodes.register::<runner::Runner, _>(arg, parser))?
                     }
                 }
-                None => nodes.register::<stdinreader::StdinReader, _>((), parser)?,
+                None => nodes.register::<runner::Runner, _>((vec!["adb".to_owned(), "logcat".to_owned()], true), parser)?,
             }
         }
     };
