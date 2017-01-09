@@ -4,47 +4,117 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
-
-// TODO: rewrite this
-
 use super::node::Node;
 use super::record::{Level, Record};
+use regex::Regex;
 
-pub struct Filter {
-    level: Level, /* tag: Vec<Regex>,
-                   * msg: Vec<Regex>, */
+pub struct Args {
+    pub level: Level,
+    pub msg: Option<Vec<String>>,
+    pub tag: Option<Vec<String>>,
 }
 
-impl Node<Record, ()> for Filter {
-    fn new(_: ()) -> Result<Box<Self>, String> {
-        // let build = |f: &Vec<String>| {
-        //     f.iter().map(|e| Regex::new(e).unwrap_or_else(|_| exit(0))).collect::<Vec<Regex>>()
-        // };
+// TODO: Add time range
+pub struct Filter {
+    level: Level,
+    msg: Vec<Regex>,
+    tag: Vec<Regex>,
+}
 
-        Ok(Box::new(Filter { level: Level::None }))
+impl Filter {
+    /// Try to build regex from args
+    fn init_filter(i: Option<Vec<String>>) -> Result<Vec<Regex>, String> {
+        let mut result = vec![];
+        for r in &i.unwrap_or(vec![]) {
+            match Regex::new(r) {
+                Ok(re) => result.push(re),
+                Err(e) => return Err(format!("{}", e)),
+            }
+        }
+        Ok(result)
+    }
+}
+
+type Filters = Option<Vec<String>>;
+
+impl Node<Record, Args> for Filter {
+    fn new(arg: Args) -> Result<Box<Self>, String> {
+        Ok(Box::new(Filter {
+            level: arg.level,
+            msg: Self::init_filter(arg.msg)?,
+            tag: Self::init_filter(arg.tag)?,
+        }))
     }
 
     fn message(&mut self, record: Record) -> Result<Option<Record>, String> {
         if record.level < self.level {
             return Ok(None);
         }
-        // if !self.is_match(&record.tag, &self.tag) {
-        //     return None;
-        // }
-        // if !self.is_match(&record.message, &self.msg) {
-        //     return None;
-        // }
+
+        for r in &self.msg {
+            if !r.is_match(&record.message) {
+                return Ok(None);
+            }
+        }
+
+        for r in &self.tag {
+            if !r.is_match(&record.tag) {
+                return Ok(None);
+            }
+        }
+
         Ok(Some(record))
     }
 }
 
-// impl Filter {
-//     fn is_match(&self, t: &str, regex: &[Regex]) -> bool {
-//         for m in regex {
-//             if m.is_match(t) {
-//                 return true;
-//             }
-//         }
-//         regex.is_empty()
-//     }
-// }
+
+#[test]
+fn filter_args() {
+    assert!(Filter::init_filter(None).is_ok());
+    assert!(Filter::init_filter(Some(vec!["".to_owned()])).is_ok());
+    assert!(Filter::init_filter(Some(vec!["a".to_owned()])).is_ok());
+    assert!(Filter::init_filter(Some(vec![".*".to_owned()])).is_ok());
+    assert!(Filter::init_filter(Some(vec![".*".to_owned(), ".*".to_owned()])).is_ok());
+    assert!(Filter::init_filter(Some(vec!["(".to_owned()])).is_err());
+
+    assert!(Filter::new(Args {
+            level: Level::None,
+            msg: None,
+            tag: None,
+        })
+        .is_ok());
+
+    assert!(Filter::new(Args {
+            level: Level::None,
+            msg: Some(vec!["(".to_owned()]),
+            tag: None,
+        })
+        .is_err());
+}
+
+#[test]
+fn filter() {
+    let mut filter = Filter::new(Args {
+            level: Level::Debug,
+            msg: Some(vec!["test.*".to_owned()]),
+            tag: Some(vec!["test.*".to_owned()]),
+        })
+        .unwrap();
+
+    let t = Record { tag: "test".to_owned(), ..Default::default() };
+    assert_eq!(filter.message(t.clone()).unwrap(), None);
+
+    let t = Record { message: "test".to_owned(), ..Default::default() };
+    assert_eq!(filter.message(t.clone()).unwrap(), None);
+
+    let t = Record { level: Level::None, ..Default::default() };
+    assert_eq!(filter.message(t).unwrap(), None);
+
+    let t = Record {
+        level: Level::Warn,
+        message: "testasdf".to_owned(),
+        tag: "test123".to_owned(),
+        ..Default::default()
+    };
+    assert_eq!(filter.message(t.clone()).unwrap(), Some(t));
+}
