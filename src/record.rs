@@ -71,17 +71,3 @@ pub struct Record {
     pub thread: String,
     pub raw: String,
 }
-
-impl Record {
-    pub fn new(message: &str) -> Record {
-        Record {
-            timestamp: None,
-            level: Level::None,
-            tag: String::default(),
-            process: String::default(),
-            thread: String::default(),
-            message: message.to_owned(),
-            raw: String::default(),
-        }
-    }
-}
