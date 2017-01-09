@@ -42,13 +42,13 @@ impl Default for Level {
 impl<'a> From<&'a str> for Level {
     fn from(s: &str) -> Self {
         match s {
-            "T" => Level::Trace,
-            "I" => Level::Info,
-            "W" => Level::Warn,
-            "E" => Level::Error,
-            "F" => Level::Fatal,
-            "A" => Level::Assert,
-            "D" => Level::Debug,
+            "T" | "trace" => Level::Trace,
+            "I" | "info" => Level::Info,
+            "W" | "warn" => Level::Warn,
+            "E" | "error" => Level::Error,
+            "F" | "fatal" => Level::Fatal,
+            "A" | "assert" => Level::Assert,
+            "D" | "debug" => Level::Debug,
             _ => Level::None,
         }
     }

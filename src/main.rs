@@ -41,9 +41,8 @@ fn build_cli() -> App<'static, 'static> {
         .arg_from_usage("-i --input [INPUT] 'Read from file instead of command. Pass \"stdin\" to capture stdin'")
         .arg(Arg::with_name("level").short("l").long("level")
             .takes_value(true)
-            .value_name("LEVEL")
             .help("Minimum level")
-            .possible_values(&["trace", "debug", "info", "warn", "error", "fatal", "assert"]))
+            .possible_values(&["trace", "debug", "info", "warn", "error", "fatal", "assert", "T", "D", "I", "W", "E", "F", "A"]))
         .arg_from_usage("--restart 'Restart command on exit'")
         .arg_from_usage("-c 'Clear (flush) the entire log and exit'")
         .arg_from_usage("-g 'Get the size of the log's ring buffer and exit'")
@@ -105,7 +104,8 @@ fn run<'a>(args: ArgMatches<'a>) -> Result<(), String> {
         Some(o) => {
             let path = PathBuf::from(o);
             let csv = args.is_present("csv");
-            let file_writer = try!(nodes.register::<filewriter::FileWriter, _>((path, csv), vec!()));
+            let file_writer =
+                try!(nodes.register::<filewriter::FileWriter, _>((path, csv), vec![]));
             output.push(file_writer);
         }
         None => (),
@@ -113,25 +113,29 @@ fn run<'a>(args: ArgMatches<'a>) -> Result<(), String> {
 
     let filters = |k| {
         args.values_of(k)
-            .and_then(|m| {
-                Some(m.map(|f| f.to_owned())
-                    .collect::<Vec<String>>())
+            .map(|m| {
+                m.map(|f| f.to_owned())
+                    .collect::<Vec<String>>()
             })
     };
+
     let filter_args = filter::Args {
-        level: Level::from(args.value_of("LEVEL").unwrap_or("none")),
-        msg: filters("MSG"),
-        tag: filters("TAG"),
+        level: Level::from(args.value_of("level").unwrap_or("")),
+        msg: filters("msg"),
+        tag: filters("tag"),
     };
+
     let filter = try!(nodes.register::<filter::Filter, _>(filter_args, output));
     let parser = vec![try!(nodes.register::<parser::Parser, _>((), vec![filter]))];
 
     match args.value_of("input") {
-        Some(i) => if i == "--" {
-            nodes.register::<filereader::FileReader, _>(PathBuf::from(i), parser)?
-        } else {
-            nodes.register::<stdinreader::StdinReader, _>((), parser)?
-        },
+        Some(i) => {
+            if i == "--" {
+                nodes.register::<filereader::FileReader, _>(PathBuf::from(i), parser)?
+            } else {
+                nodes.register::<stdinreader::StdinReader, _>((), parser)?
+            }
+        }
         None => {
             match args.value_of("COMMAND") {
                 Some(c) => {
@@ -139,13 +143,18 @@ fn run<'a>(args: ArgMatches<'a>) -> Result<(), String> {
                         nodes.register::<stdinreader::StdinReader, _>((), parser)?
                     } else {
                         let arg = (c.split_whitespace()
-                                    .map(|s| s.to_owned())
-                                    .collect::<Vec<String>>(),
+                                       .map(|s| s.to_owned())
+                                       .collect::<Vec<String>>(),
                                    args.is_present("restart"));
                         (nodes.register::<runner::Runner, _>(arg, parser))?
                     }
                 }
-                None => nodes.register::<runner::Runner, _>((vec!["adb".to_owned(), "logcat".to_owned()], true), parser)?,
+                None => {
+                    nodes.register::<runner::Runner, _>((vec!["adb".to_owned(),
+                                                             "logcat".to_owned()],
+                                                        true),
+                                                       parser)?
+                }
             }
         }
     };
