@@ -139,10 +139,10 @@ fn run<'a>(args: ArgMatches<'a>) -> Result<(), String> {
 
     match args.value_of("input") {
         Some(i) => {
-            if i == "--" {
-                nodes.register::<filereader::FileReader, _>(PathBuf::from(i), parser)?
-            } else {
+            if i == "stdin" {
                 nodes.register::<stdinreader::StdinReader, _>((), parser)?
+            } else {
+                nodes.register::<filereader::FileReader, _>(PathBuf::from(i), parser)?
             }
         }
         None => {
