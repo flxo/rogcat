@@ -22,7 +22,9 @@ pub trait Node<T: Clone, A> {
         Ok(())
     }
 
-    fn stop(&self) {}
+    fn stop(&mut self) -> Result<(), String> {
+        Ok(())
+    }
 
     fn message(&mut self, message: T) -> Result<Option<T>, String> {
         Ok(Some(message))
@@ -71,7 +73,10 @@ impl<T> Nodes<T>
                         }
                     }
                     Event::Stop => {
-                        node.stop();
+                        if let Err(e) = node.stop() {
+                            println!("{}", e);
+                            exit(1);
+                        }
                         out(Event::Stop);
                         break;
                     }

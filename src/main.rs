@@ -17,6 +17,7 @@ use record::{Level, Record};
 use node::Nodes;
 use std::path::PathBuf;
 use std::process::exit;
+use std::str::FromStr;
 
 mod filereader;
 mod filewriter;
@@ -37,6 +38,7 @@ fn build_cli() -> App<'static, 'static> {
         .arg(Arg::from_usage("-t --tag [TAG] 'Tag filters in RE2'").multiple(true))
         .arg(Arg::from_usage("-m --msg [MSG] 'Message filters in RE2'").multiple(true))
         .arg_from_usage("-o --output [OUTPUT] 'Write to file and stdout'")
+        .arg_from_usage("-n --lines-per-file [LINES] 'Write n records per file'")
         .arg_from_usage("--csv 'Write csv format instead'")
         .arg_from_usage("-i --input [INPUT] 'Read from file instead of command. Pass \"stdin\" to capture stdin'")
         .arg(Arg::with_name("level").short("l").long("level")
@@ -102,10 +104,17 @@ fn run<'a>(args: ArgMatches<'a>) -> Result<(), String> {
     let mut output = vec![(nodes.register::<terminal::Terminal, _>((), vec![]))?];
     match args.value_of("output") {
         Some(o) => {
-            let path = PathBuf::from(o);
-            let csv = args.is_present("csv");
-            let file_writer =
-                try!(nodes.register::<filewriter::FileWriter, _>((path, csv), vec![]));
+            let args = filewriter::Args {
+                filename: PathBuf::from(o),
+                format: if args.is_present("csv") {
+                    filewriter::Format::Csv
+                } else {
+                    filewriter::Format::Raw
+                },
+                lines_per_file: args.value_of("lines-per-file")
+                    .and_then(|l| usize::from_str(&l).ok()),
+            };
+            let file_writer = try!(nodes.register::<filewriter::FileWriter, _>(args, vec![]));
             output.push(file_writer);
         }
         None => (),
