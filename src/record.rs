@@ -8,6 +8,7 @@
 pub enum Level {
     None,
     Trace,
+    Verbose,
     Debug,
     Info,
     Warn,
@@ -23,6 +24,7 @@ impl ::std::fmt::Display for Level {
                match *self {
                    Level::None => "-",
                    Level::Trace => "T",
+                   Level::Verbose => "V",
                    Level::Debug => "D",
                    Level::Info => "I",
                    Level::Warn => "W",
@@ -43,12 +45,13 @@ impl<'a> From<&'a str> for Level {
     fn from(s: &str) -> Self {
         match s {
             "T" | "trace" => Level::Trace,
+            "V" | "verbose" => Level::Verbose,
+            "D" | "debug" => Level::Debug,
             "I" | "info" => Level::Info,
             "W" | "warn" => Level::Warn,
             "E" | "error" => Level::Error,
             "F" | "fatal" => Level::Fatal,
             "A" | "assert" => Level::Assert,
-            "D" | "debug" => Level::Debug,
             _ => Level::None,
         }
     }

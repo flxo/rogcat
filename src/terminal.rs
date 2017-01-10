@@ -118,7 +118,7 @@ impl<'a> Terminal<'a> {
 
         let level = format!(" {} ", record.level);
         let level_color = match record.level {
-            Level::Trace | Level::Debug | Level::None => DIMM_COLOR,
+            Level::Trace | Level::Verbose | Level::Debug | Level::None => DIMM_COLOR,
             Level::Info => Color::Green,
             Level::Warn => Color::Yellow,
             Level::Error | Level::Fatal | Level::Assert => Color::Red,
