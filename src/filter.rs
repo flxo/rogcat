@@ -35,8 +35,6 @@ impl Filter {
     }
 }
 
-type Filters = Option<Vec<String>>;
-
 impl Node<Record, Args> for Filter {
     fn new(arg: Args) -> Result<Box<Self>, String> {
         Ok(Box::new(Filter {
