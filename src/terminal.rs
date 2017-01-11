@@ -16,7 +16,10 @@ use term_painter::{Color, ToStyle};
 use terminal_size::{Width, Height, terminal_size};
 use time::Tm;
 
+#[cfg(not(target_os = "windows"))]
 const DIMM_COLOR: Color = Color::Custom(243);
+#[cfg(target_os = "windows")]
+const DIMM_COLOR: Color = Color::White;
 
 pub struct Terminal<'a> {
     beginning_of: Regex,
