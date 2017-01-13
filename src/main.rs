@@ -35,33 +35,47 @@ fn build_cli() -> App<'static, 'static> {
         .version(crate_version!())
         .author(crate_authors!())
         .about("A 'adb logcat' wrapper")
-        //.arg_from_usage("-a --adb=[ADB BINARY] 'Path to adb'") // TODO unimplemented
-        .arg(Arg::from_usage("-t --tag [TAG] 'Tag filters in RE2'").multiple(true))
-        .arg(Arg::from_usage("-m --msg [MSG] 'Message filters in RE2'").multiple(true))
+        .arg(Arg::from_usage("-t --tag [TAG] 'Tag filters in RE2'")
+             .multiple(true))
+        .arg(Arg::from_usage("-m --msg [MSG] 'Message filters in RE2'")
+             .multiple(true))
         .arg_from_usage("-o --output [OUTPUT] 'Write to file and stdout'")
-        .arg_from_usage("-n --records-per-file [LINES] 'Write n records per file. Use k, M, G suffixes or a number e.g 9k for 9000'")
-        .arg_from_usage("--csv 'Write csv format instead'")
+        .arg(Arg::with_name("records-per-file")
+             .short("n")
+             .long("records-per-file")
+             .takes_value(true)
+             .requires("output")
+             .help("Write n records per file. Use k, M, G suffixes or a number e.g 9k for 9000"))
+        .arg(Arg::with_name("format")
+             .long("format")
+             .short("f")
+             .takes_value(true)
+             .requires("output")
+             .possible_values(&["raw", "csv"])
+             .help("Write format to output files"))
         .arg_from_usage("-i --input [INPUT] 'Read from file instead of command. Pass \"stdin\" to capture stdin'")
-        .arg(Arg::with_name("level").short("l").long("level")
-            .takes_value(true)
-            .help("Minimum level")
-            .possible_values(&["trace", "debug", "info", "warn", "error", "fatal", "assert", "T", "D", "I", "W", "E", "F", "A"]))
-        .arg_from_usage("--restart 'Restart command on exit'")
-        .arg_from_usage("--silent 'Do not print on stdout'")
-        .arg_from_usage("-c 'Clear (flush) the entire log and exit'")
-        .arg_from_usage("-g 'Get the size of the log's ring buffer and exit'")
-        .arg_from_usage("-S 'Output statistics'")
-        // .arg_from_usage("[NO-COLOR] --no-color 'Monochrome output'")
-        // .arg_from_usage("[NO-TAG-SHORTENING] --no-tag-shortening 'Disable shortening of tag'")
-        // .arg_from_usage("[NO-TIME-DIFF] --no-time-diff 'Disable tag time difference'")
-        // .arg_from_usage("[SHOW-DATE] --show-date 'Disable month and day display'")
+        .arg(Arg::with_name("level")
+             .short("l")
+             .long("level")
+             .takes_value(true)
+             .possible_values(&["trace", "debug", "info", "warn", "error", "fatal", "assert", "T", "D", "I", "W", "E", "F", "A"])
+             .help("Minimum level"))
+        .arg_from_usage("-r --restart 'Restart command on exit'")
+        .arg_from_usage("-s --silent 'Do not print on stdout'")
+        .arg_from_usage("-c --clear 'Clear (flush) the entire log and exit'")
+        .arg_from_usage("-g --get-ringbuffer-size 'Get the size of the log's ring buffer and exit'")
+        .arg_from_usage("-S --output-statistics 'Output statistics'")
+        // .arg_from_usage("--no-color 'Monochrome output'")
+        // .arg_from_usage("--no-tag-shortening 'Disable shortening of tag'")
+        // .arg_from_usage("--no-time-diff 'Disable tag time difference'")
+        // .arg_from_usage("--show-date 'Disable month and day display'")
         .arg_from_usage("[COMMAND] 'Optional command to run and capture stdout. Pass \"stdin\" to capture stdin'")
         .subcommand(SubCommand::with_name("completions")
-            .about("Generates completion scripts for your shell")
-            .arg(Arg::with_name("SHELL")
-                .required(true)
-                .possible_values(&["bash", "fish", "zsh"])
-                .help("The shell to generate the script for")))
+                    .about("Generates completion scripts for your shell")
+                    .arg(Arg::with_name("SHELL")
+                         .required(true)
+                         .possible_values(&["bash", "fish", "zsh"])
+                         .help("The shell to generate the script for")))
 }
 
 fn main() {
@@ -79,9 +93,14 @@ fn main() {
         (_, _) => (),
     }
 
-    for arg in &["c", "g", "S"] {
+    for arg in &["clear", "get-ringbuffer-size", "output-statistics"] {
         if matches.is_present(arg) {
-            let arg = format!("-{}", arg);
+            let arg = format!("-{}", match arg {
+                &"clear" => "c",
+                &"get-ringbuffer-size" => "g",
+                &"output-statistics" => "S",
+                _ => panic!(""),
+            });
             let mut child = std::process::Command::new("adb")
                 .arg("logcat")
                 .arg(arg)
@@ -112,26 +131,25 @@ fn run<'a>(args: ArgMatches<'a>) -> Result<(), String> {
         Some(o) => {
             let args = filewriter::Args {
                 filename: PathBuf::from(o),
-                format: if args.is_present("csv") {
-                    filewriter::Format::Csv
-                } else {
-                    filewriter::Format::Raw
+                format: match args.value_of("format") {
+                    Some(s) => filewriter::Format::from_str(s)?,
+                    None => filewriter::Format::Raw,
                 },
                 records_per_file: args.value_of("records-per-file")
                     .and_then(|l|
-                        Regex::new(r"^(\d+)([KMG])$").unwrap().captures(l)
-                            .and_then(|caps|caps.at(1)
-                            .and_then(|size| u64::from_str(size).ok())
-                            .and_then(|size| Some((size, caps.at(2)))))
-                            .and_then(|(size, suffix)| {
-                                match suffix {
-                                    Some("K") => Some(1000 * size),
-                                    Some("M") => Some(1000_000 * size),
-                                    Some("G") => Some(1000_000_000 * size),
-                                    _ => None
-                                }
-                            })
-                    )
+                              Regex::new(r"^(\d+)([KMG])$").unwrap().captures(l)
+                              .and_then(|caps|caps.at(1)
+                                        .and_then(|size| u64::from_str(size).ok())
+                                        .and_then(|size| Some((size, caps.at(2)))))
+                              .and_then(|(size, suffix)| {
+                                  match suffix {
+                                      Some("K") => Some(1000 * size),
+                                      Some("M") => Some(1000_000 * size),
+                                      Some("G") => Some(1000_000_000 * size),
+                                      _ => None
+                                  }
+                              })
+                             )
             };
             output.push( try!(nodes.register::<filewriter::FileWriter, _>(args, vec![])));
         }
@@ -170,17 +188,17 @@ fn run<'a>(args: ArgMatches<'a>) -> Result<(), String> {
                         nodes.register::<stdinreader::StdinReader, _>((), parser)?
                     } else {
                         let arg = (c.split_whitespace()
-                                       .map(|s| s.to_owned())
-                                       .collect::<Vec<String>>(),
+                                   .map(|s| s.to_owned())
+                                   .collect::<Vec<String>>(),
                                    args.is_present("restart"));
                         (nodes.register::<runner::Runner, _>(arg, parser))?
                     }
                 }
                 None => {
                     nodes.register::<runner::Runner, _>((vec!["adb".to_owned(),
-                                                             "logcat".to_owned()],
-                                                        true),
-                                                       parser)?
+                    "logcat".to_owned()],
+                    true),
+                    parser)?
                 }
             }
         }

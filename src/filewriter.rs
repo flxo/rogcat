@@ -15,6 +15,17 @@ pub enum Format {
     Csv,
 }
 
+impl ::std::str::FromStr for Format {
+    type Err = &'static str;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "csv" => Ok(Format::Csv),
+            "raw" => Ok(Format::Raw),
+            _ => Err("Format parsing error"),
+        }
+    }
+}
+
 pub struct Args {
     pub filename: PathBuf,
     pub format: Format,
