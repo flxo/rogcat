@@ -9,7 +9,6 @@ use std::path::{Path, PathBuf};
 use std::io::Write;
 use super::node::Node;
 use super::record::Record;
-use std::collections::VecDeque;
 
 pub enum Format {
     Raw,
@@ -19,20 +18,20 @@ pub enum Format {
 pub struct Args {
     pub filename: PathBuf,
     pub format: Format,
-    pub lines_per_file: Option<usize>,
+    pub records_per_file: Option<u64>,
 }
 
 pub struct FileWriter {
     filename: PathBuf,
     file: File,
     format: Format,
-    lines_per_file: Option<usize>,
-    buffer: VecDeque<Record>,
-    index: u32,
+    records_per_file: Option<u64>,
+    file_index: u32,
+    file_size: u64,
 }
 
 impl FileWriter {
-    fn next_file(filename: &PathBuf, index: Option<u32>) -> Result<File, String> {
+    fn next_file(filename: &PathBuf, file_index: Option<u32>) -> Result<File, String> {
         if filename.as_path().is_dir() {
             return Err(format!("Output file {:?} is a directory", filename));
         }
@@ -49,9 +48,9 @@ impl FileWriter {
             .ok_or(format!("Invalid path"))?
             .to_str()
             .ok_or(format!("Invalid path"))?;
-        let filename = if let Some(index) = index {
+        let filename = if let Some(file_index) = file_index {
             // TODO: Strip and append files suffix
-            format!("{}-{:03}", filename, index)
+            format!("{}-{:03}", filename, file_index)
         } else {
             filename.to_owned()
         };
@@ -75,49 +74,37 @@ impl FileWriter {
             &Format::Raw => format!("{}\n", record.raw),
         })
     }
-
-    fn store(&mut self) -> Result<(), String> {
-        if !self.buffer.is_empty() {
-            for record in self.buffer.drain(..) {
-                let line = Self::format(record, &self.format)?;
-                self.file.write(line.as_bytes()).map_err(|e| format!("{}", e))?;
-            }
-            self.index += 1;
-        }
-
-        Ok(())
-    }
 }
 
 impl Node<Record, Args> for FileWriter {
     fn new(args: Args) -> Result<Box<Self>, String> {
+        println!("{:?}", args.records_per_file);
         Ok(Box::new(FileWriter {
-            file: Self::next_file(&args.filename, args.lines_per_file.map(|_| 0))?,
+            file: Self::next_file(&args.filename, args.records_per_file.map(|_| 0))?,
             filename: args.filename,
             format: args.format,
-            lines_per_file: args.lines_per_file,
-            buffer: VecDeque::new(),
-            index: 0,
+            records_per_file: args.records_per_file,
+            file_index: 0,
+            file_size: 0,
         }))
     }
 
-    fn stop(&mut self) -> Result<(), String> {
-        self.store()
-    }
-
     fn message(&mut self, record: Record) -> Result<Option<Record>, String> {
-        if let Some(lines_per_file) = self.lines_per_file {
-            self.buffer.push_back(record);
-            if self.buffer.len() >= lines_per_file {
-                self.file = Self::next_file(&self.filename, Some(self.index))?;
-                self.store()?
+        if let Some(records_per_file) = self.records_per_file {
+            if self.file_size == records_per_file {
+                self.file_index += 1;
+                self.file = Self::next_file(&self.filename, Some(self.file_index))?;
+                self.file_size = 0;
             }
-        } else {
-            self.file
-                .write(Self::format(record, &self.format)?.as_bytes())
-                .map(|_| ())
-                .map_err(|e| format!("{}", e))?
         }
+
+        self.file
+            .write(Self::format(record, &self.format)?.as_bytes())
+            .map(|_| ())
+            .map_err(|e| format!("{}", e))?;
+        self.file_size += 1;
+
+
         Ok(None)
     }
 }

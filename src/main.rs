@@ -18,6 +18,7 @@ use node::Nodes;
 use std::path::PathBuf;
 use std::process::exit;
 use std::str::FromStr;
+use regex::Regex;
 
 mod filereader;
 mod filewriter;
@@ -38,7 +39,7 @@ fn build_cli() -> App<'static, 'static> {
         .arg(Arg::from_usage("-t --tag [TAG] 'Tag filters in RE2'").multiple(true))
         .arg(Arg::from_usage("-m --msg [MSG] 'Message filters in RE2'").multiple(true))
         .arg_from_usage("-o --output [OUTPUT] 'Write to file and stdout'")
-        .arg_from_usage("-n --lines-per-file [LINES] 'Write n records per file'")
+        .arg_from_usage("-n --records-per-file [LINES] 'Write n records per file. Use k, M, G suffixes or a number e.g 9k for 9000'")
         .arg_from_usage("--csv 'Write csv format instead'")
         .arg_from_usage("-i --input [INPUT] 'Read from file instead of command. Pass \"stdin\" to capture stdin'")
         .arg(Arg::with_name("level").short("l").long("level")
@@ -46,6 +47,7 @@ fn build_cli() -> App<'static, 'static> {
             .help("Minimum level")
             .possible_values(&["trace", "debug", "info", "warn", "error", "fatal", "assert", "T", "D", "I", "W", "E", "F", "A"]))
         .arg_from_usage("--restart 'Restart command on exit'")
+        .arg_from_usage("--silent 'Do not print on stdout'")
         .arg_from_usage("-c 'Clear (flush) the entire log and exit'")
         .arg_from_usage("-g 'Get the size of the log's ring buffer and exit'")
         .arg_from_usage("-S 'Output statistics'")
@@ -101,7 +103,11 @@ fn main() {
 fn run<'a>(args: ArgMatches<'a>) -> Result<(), String> {
     let mut nodes = Nodes::<Record>::default();
 
-    let mut output = vec![(nodes.register::<terminal::Terminal, _>((), vec![]))?];
+    let mut output = if args.is_present("silent") {
+        vec!()
+    } else {
+        vec![(nodes.register::<terminal::Terminal, _>((), vec![]))?]
+    };
     match args.value_of("output") {
         Some(o) => {
             let args = filewriter::Args {
@@ -111,11 +117,23 @@ fn run<'a>(args: ArgMatches<'a>) -> Result<(), String> {
                 } else {
                     filewriter::Format::Raw
                 },
-                lines_per_file: args.value_of("lines-per-file")
-                    .and_then(|l| usize::from_str(&l).ok()),
+                records_per_file: args.value_of("records-per-file")
+                    .and_then(|l|
+                        Regex::new(r"^(\d+)([KMG])$").unwrap().captures(l)
+                            .and_then(|caps|caps.at(1)
+                            .and_then(|size| u64::from_str(size).ok())
+                            .and_then(|size| Some((size, caps.at(2)))))
+                            .and_then(|(size, suffix)| {
+                                match suffix {
+                                    Some("K") => Some(1000 * size),
+                                    Some("M") => Some(1000_000 * size),
+                                    Some("G") => Some(1000_000_000 * size),
+                                    _ => None
+                                }
+                            })
+                    )
             };
-            let file_writer = try!(nodes.register::<filewriter::FileWriter, _>(args, vec![]));
-            output.push(file_writer);
+            output.push( try!(nodes.register::<filewriter::FileWriter, _>(args, vec![])));
         }
         None => (),
     }
