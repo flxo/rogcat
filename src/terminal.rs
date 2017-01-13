@@ -165,7 +165,7 @@ impl<'a> Terminal<'a> {
         if let Some((Width(width), Height(_))) = terminal_size() {
             let preamble_width = timestamp_width + 1 + self.diff_width + 1 + tag_width + 1 +
                                  2 * self.process_width + 2 + 1 +
-                                 8;
+                                 8 + 1;
             let record_len = record.message.chars().count();
             let columns = width as usize;
             if (preamble_width + record_len) > columns {
