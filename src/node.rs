@@ -43,7 +43,7 @@ impl<T> Nodes<T>
 {
     pub fn register<H: Node<T, A>, A>(&mut self,
                                       a: A,
-                                      t: Vec<NodeHandle<T>>)
+                                      t: Option<Vec<NodeHandle<T>>>)
                                       -> Result<NodeHandle<T>, String>
         where H: Send + Node<T, A> + 'static,
               A: Send + 'static
@@ -54,8 +54,13 @@ impl<T> Nodes<T>
 
         let h = ::std::thread::spawn(move || {
             let out = |c: Event<T>| {
-                for n in &t {
-                    n.send(c.clone()).ok(); // TODO: check
+                match t {
+                    Some(ref targets) => {
+                        for n in targets {
+                            n.send(c.clone()).ok(); // TODO: check
+                        }
+                    },
+                    None => (),
                 }
             };
 
@@ -63,9 +68,7 @@ impl<T> Nodes<T>
                 let msg = rx.recv().unwrap();
                 match msg {
                     Event::Start => {
-                        let done = || {
-                            tx1.send(Event::Stop).ok(); // TODO
-                        };
+                        let done = || drop(tx1.send(Event::Stop).ok());
                         let send = |payload: T| out(Event::Message(payload));
                         if let Err(e) = node.start(&send, &done) {
                             println!("{}", e);
@@ -153,9 +156,9 @@ fn nodes_run() {
 
     let mut nodes = Nodes::<i32>::default();
 
-    let o = nodes.register::<R, _>((), vec![]);
-    let r0 = nodes.register::<R, _>((), vec![o.unwrap()]);
-    let r1 = nodes.register::<R, _>((), vec![]);
-    nodes.register::<S, _>((), vec![r0.unwrap(), r1.unwrap()]).ok();
+    let o = nodes.register::<R, _>((), None);
+    let r0 = nodes.register::<R, _>((), Some(vec![o.unwrap()]));
+    let r1 = nodes.register::<R, _>((), None);
+    nodes.register::<S, _>((), Some(vec![r0.unwrap(), r1.unwrap()])).ok();
     assert!(nodes.run().is_ok());
 }

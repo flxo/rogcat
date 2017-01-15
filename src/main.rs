@@ -125,7 +125,7 @@ fn run<'a>(args: ArgMatches<'a>) -> Result<(), String> {
     let mut output = if args.is_present("silent") {
         vec!()
     } else {
-        vec![(nodes.register::<terminal::Terminal, _>((), vec![]))?]
+        vec![(nodes.register::<terminal::Terminal, _>((), None))?]
     };
     match args.value_of("output") {
         Some(o) => {
@@ -151,7 +151,7 @@ fn run<'a>(args: ArgMatches<'a>) -> Result<(), String> {
                               })
                              )
             };
-            output.push( try!(nodes.register::<filewriter::FileWriter, _>(args, vec![])));
+            output.push( try!(nodes.register::<filewriter::FileWriter, _>(args, None)));
         }
         None => (),
     }
@@ -170,8 +170,8 @@ fn run<'a>(args: ArgMatches<'a>) -> Result<(), String> {
         tag: filters("tag"),
     };
 
-    let filter = try!(nodes.register::<filter::Filter, _>(filter_args, output));
-    let parser = vec![try!(nodes.register::<parser::Parser, _>((), vec![filter]))];
+    let filter = nodes.register::<filter::Filter, _>(filter_args, Some(output))?;
+    let parser = Some(vec![nodes.register::<parser::Parser, _>((), Some(vec![filter]))?]);
 
     match args.value_of("input") {
         Some(i) => {
