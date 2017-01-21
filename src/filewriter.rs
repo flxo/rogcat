@@ -42,31 +42,34 @@ pub struct FileWriter {
 }
 
 impl FileWriter {
-    fn next_file(filename: &PathBuf, file_index: Option<u32>) -> Result<File, String> {
-        if filename.as_path().is_dir() {
-            return Err(format!("Output file {:?} is a directory", filename));
-        }
-
-        let dir = filename.parent().unwrap_or(Path::new(""));
-
-        if !dir.is_dir() {
-            DirBuilder::new().recursive(true)
-                .create(dir)
-                .map_err(|e| format!("{}", e))?
-        }
-
-        let filename = filename.file_name()
-            .ok_or(format!("Invalid path"))?
-            .to_str()
-            .ok_or(format!("Invalid path"))?;
-        let filename = if let Some(file_index) = file_index {
-            // TODO: Strip and append files suffix
-            format!("{}-{:03}", filename, file_index)
+    fn next_file(filename: &PathBuf, file_index: Option<u32>) -> Result<PathBuf, String> {
+        if file_index.is_none() {
+            Ok(filename.clone())
         } else {
-            filename.to_owned()
-        };
+            if filename.as_path().is_dir() {
+                return Err(format!("Output file {:?} is a directory", filename));
+            }
 
-        File::create(dir.join(PathBuf::from(filename))).map_err(|e| format!("{}", e))
+            let dir = filename.parent().unwrap_or(Path::new(""));
+            if !dir.is_dir() {
+                DirBuilder::new().recursive(true)
+                    .create(dir)
+                    .map_err(|e| format!("{}", e))?
+            }
+
+            let mut name = filename.clone();
+            name = PathBuf::from(format!("{}-{:03}",
+                                         name.file_stem()
+                                             .ok_or(format!("Invalid path"))?
+                                             .to_str()
+                                             .ok_or(format!("Invalid path"))?,
+                                         file_index.unwrap()));
+            if let Some(extension) = filename.extension() {
+                name.set_extension(extension);
+            }
+
+            Ok(dir.join(name))
+        }
     }
 
     fn format(record: Record, format: &Format) -> Result<String, String> {
@@ -89,9 +92,9 @@ impl FileWriter {
 
 impl Node<Record, Args> for FileWriter {
     fn new(args: Args) -> Result<Box<Self>, String> {
-        println!("{:?}", args.records_per_file);
+        let file = Self::next_file(&args.filename, args.records_per_file.map(|_| 0))?;
         Ok(Box::new(FileWriter {
-            file: Self::next_file(&args.filename, args.records_per_file.map(|_| 0))?,
+            file: File::create(file).map_err(|e| format!("{}", e))?,
             filename: args.filename,
             format: args.format,
             records_per_file: args.records_per_file,
@@ -104,7 +107,8 @@ impl Node<Record, Args> for FileWriter {
         if let Some(records_per_file) = self.records_per_file {
             if self.file_size == records_per_file {
                 self.file_index += 1;
-                self.file = Self::next_file(&self.filename, Some(self.file_index))?;
+                self.file = File::create(Self::next_file(&self.filename, Some(self.file_index))?)
+                    .map_err(|e| format!("{}", e))?;
                 self.file_size = 0;
             }
         }
@@ -115,7 +119,34 @@ impl Node<Record, Args> for FileWriter {
             .map_err(|e| format!("{}", e))?;
         self.file_size += 1;
 
-
         Ok(None)
     }
+}
+
+#[test]
+fn next_file() {
+    assert_eq!(FileWriter::next_file(&PathBuf::from("test"), None),
+               Ok(PathBuf::from("test")));
+    assert_eq!(FileWriter::next_file(&PathBuf::from("tmp/test"), None),
+               Ok(PathBuf::from("tmp/test")));
+}
+
+#[test]
+fn next_file_index() {
+    assert_eq!(FileWriter::next_file(&PathBuf::from("tmp/test"), Some(0)),
+               Ok(PathBuf::from("tmp/test-000")));
+    assert_eq!(FileWriter::next_file(&PathBuf::from("tmp/test"), Some(1)),
+               Ok(PathBuf::from("tmp/test-001")));
+    assert_eq!(FileWriter::next_file(&PathBuf::from("tmp/test"), Some(2)),
+               Ok(PathBuf::from("tmp/test-002")));
+    assert_eq!(FileWriter::next_file(&PathBuf::from("tmp/test"), Some(1000)),
+               Ok(PathBuf::from("tmp/test-1000")));
+}
+
+#[test]
+fn next_file_index_extension() {
+    assert_eq!(FileWriter::next_file(&PathBuf::from("tmp/test.log"), Some(0)),
+               Ok(PathBuf::from("tmp/test-000.log")));
+    assert_eq!(FileWriter::next_file(&PathBuf::from("tmp/test.log"), Some(1)),
+               Ok(PathBuf::from("tmp/test-001.log")));
 }
