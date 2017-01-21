@@ -143,7 +143,7 @@ fn run<'a>(args: ArgMatches<'a>) -> Result<(), String> {
                                         .and_then(|size| Some((size, caps.at(2)))))
                               .and_then(|(size, suffix)| {
                                   match suffix {
-                                      Some("K") => Some(1000 * size),
+                                      Some("k") => Some(1000 * size),
                                       Some("M") => Some(1000_000 * size),
                                       Some("G") => Some(1000_000_000 * size),
                                       _ => None
