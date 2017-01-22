@@ -11,31 +11,36 @@ use super::node::Node;
 use super::record::Record;
 
 pub struct FileReader {
-    filename: PathBuf,
+    files: Vec<File>,
 }
 
-impl Node<Record, PathBuf> for FileReader {
-    fn new(file: PathBuf) -> Result<Box<Self>, String> {
-        Ok(Box::new(FileReader { filename: file }))
+impl Node<Record, Vec<PathBuf>> for FileReader {
+    fn new(files: Vec<PathBuf>) -> Result<Box<Self>, String> {
+        let mut f = vec!();
+        for filename in &files {
+            f.push(File::open(filename).map_err(|e| format!("Cannot open {:?}: {}", filename, e))?);
+        }
+        Ok(Box::new(FileReader { files: f }))
     }
 
     fn start(&mut self, send: &Fn(Record), done: &Fn()) -> Result<(), String> {
-        let file = File::open(self.filename.clone()).map_err(|e| format!("{}", e))?;
-        let mut reader = BufReader::new(file);
-        loop {
-            let mut buffer: Vec<u8> = Vec::new();
-            if let Ok(len) = reader.read_until(b'\n', &mut buffer) {
-                if len == 0 {
-                    done();
-                    break;
+        for f in self.files.drain(..) {
+            let mut reader = BufReader::new(f);
+            loop {
+                let mut buffer: Vec<u8> = Vec::new();
+                if let Ok(len) = reader.read_until(b'\n', &mut buffer) {
+                    if len == 0 {
+                        done();
+                        break;
+                    } else {
+                        send(Record {
+                            raw: String::from_utf8_lossy(&buffer).trim().to_string(),
+                            ..Default::default()
+                        });
+                    }
                 } else {
-                    send(Record {
-                        raw: String::from_utf8_lossy(&buffer).trim().to_string(),
-                        ..Default::default()
-                    });
+                    return Err("Failed to read input file".to_owned());
                 }
-            } else {
-                return Err(format!("Failed to read {:?}", self.filename));
             }
         }
         Ok(())

@@ -53,7 +53,8 @@ fn build_cli() -> App<'static, 'static> {
              .requires("output")
              .possible_values(&["raw", "csv"])
              .help("Write format to output files"))
-        .arg_from_usage("-i --input [INPUT] 'Read from file instead of command. Pass \"stdin\" to capture stdin'")
+        .arg(Arg::from_usage("-i --input [INPUT] 'Read from file instead of command. Pass \"stdin\" to capture stdin'")
+             .multiple(true))
         .arg(Arg::with_name("level")
              .short("l")
              .long("level")
@@ -173,36 +174,32 @@ fn run<'a>(args: ArgMatches<'a>) -> Result<(), String> {
     let filter = nodes.register::<filter::Filter, _>(filter_args, Some(output))?;
     let parser = Some(vec![nodes.register::<parser::Parser, _>((), Some(vec![filter]))?]);
 
-    match args.value_of("input") {
-        Some(i) => {
-            if i == "stdin" {
-                nodes.register::<stdinreader::StdinReader, _>((), parser)?
-            } else {
-                nodes.register::<filereader::FileReader, _>(PathBuf::from(i), parser)?
-            }
-        }
-        None => {
-            match args.value_of("COMMAND") {
-                Some(c) => {
-                    if c == "stdin" {
-                        nodes.register::<stdinreader::StdinReader, _>((), parser)?
-                    } else {
-                        let arg = (c.split_whitespace()
-                                   .map(|s| s.to_owned())
-                                   .collect::<Vec<String>>(),
-                                   args.is_present("restart"));
-                        (nodes.register::<runner::Runner, _>(arg, parser))?
-                    }
-                }
-                None => {
-                    nodes.register::<runner::Runner, _>((vec!["adb".to_owned(),
-                    "logcat".to_owned()],
-                    true),
-                    parser)?
+    if args.is_present("input") {
+        let files = args.values_of("input")
+            .map(|files| files.map(|f| PathBuf::from(f)).collect::<Vec<PathBuf>>())
+            .ok_or("Failed to parse input file(s) argument(s)".to_owned())?;
+        nodes.register::<filereader::FileReader, _>(files, parser)?;
+    } else {
+        match args.value_of("COMMAND") {
+            Some(c) => {
+                if c == "stdin" {
+                    nodes.register::<stdinreader::StdinReader, _>((), parser)?;
+                } else {
+                    let arg = (c.split_whitespace()
+                               .map(|s| s.to_owned())
+                               .collect::<Vec<String>>(),
+                               args.is_present("restart"));
+                    nodes.register::<runner::Runner, _>(arg, parser)?;
                 }
             }
+            None => {
+                nodes.register::<runner::Runner, _>((vec!["adb".to_owned(),
+                "logcat".to_owned()],
+                true),
+                parser)?;
+            }
         }
-    };
+    }
 
     nodes.run()
 }
