@@ -37,8 +37,8 @@ impl Format for PrintableFormat {
                         .and_then(|c| ::time::strptime(c.trim(), "%m-%d %H:%M:%S.%f").ok()),
                     level: Level::from(captures.at(4).unwrap_or("")),
                     tag: captures.at(5).unwrap_or("").to_string().trim().to_string(),
-                    process: captures.at(2).unwrap_or("").to_string(),
-                    thread: captures.at(3).unwrap_or("").to_string(),
+                    process: captures.at(2).unwrap_or("").trim().to_string(),
+                    thread: captures.at(3).unwrap_or("").trim().to_string(),
                     message: captures.at(6).unwrap_or("").to_string().trim().to_string(),
                     raw: line.to_owned(),
                 })
@@ -127,8 +127,8 @@ impl Format for MindroidFormat {
                 Ok(Record {
                     timestamp: None,
                     level: Level::from(captures.at(1).unwrap_or("")),
-                    tag: captures.at(2).unwrap_or("").to_string(),
-                    process: captures.at(3).unwrap_or("").to_string(),
+                    tag: captures.at(2).unwrap_or("").trim().to_string(),
+                    process: captures.at(3).unwrap_or("").trim().to_string(),
                     thread: "".to_string(),
                     message: captures.at(4).unwrap_or("").to_string().trim().to_string(),
                     raw: line.to_owned(),
