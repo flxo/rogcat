@@ -118,7 +118,7 @@ impl Format for ThreadFormat {
 
 // D/ServiceManager(711ad700): Service MediaPlayer has been created in process main
 parser!(MindroidFormat,
-        r"^(\D)/([a-zA-Z0-9-_\{\}\[\]=\\/\. \+]*)\(([0-9a-f]+)\):\s*(.*)");
+        r"^(\D)/([a-zA-Z0-9-_\{\}\[\]=\\/\. \+]*)\(\s*([0-9a-f]+)\):\s*(.*)");
 
 impl Format for MindroidFormat {
     fn parse(&self, line: &str) -> Result<Record, String> {
@@ -253,6 +253,9 @@ fn test_mindroid() {
     assert!(MindroidFormat::new()
         .parse("D/ServiceManager+(711ad700): Service MediaPlayer has been created in process \
                 main")
+        .is_ok());
+    assert!(MindroidFormat::new()
+        .parse("E/u-blox  (  247): connectReceiver: Failing to reopen the serial port")
         .is_ok());
 }
 
