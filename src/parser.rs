@@ -117,20 +117,23 @@ impl Format for ThreadFormat {
 }
 
 // D/ServiceManager(711ad700): Service MediaPlayer has been created in process main
+// or time
+// 01-01 00:54:21.129 V/u-blox  (  247): checkRecvInitReq: Serial not properly opened
 parser!(MindroidFormat,
-        r"^(\D)/([a-zA-Z0-9-_\{\}\[\]=\\/\. \+]*)\(\s*([0-9a-f]+)\):\s*(.*)");
+        r"^(\d\d-\d\d \d\d:\d\d:\d\d\.\d\d\d){0,1}\s*(\D)/([a-zA-Z0-9-_\{\}\[\]=\\/\. \+]*)\(\s*([0-9a-f]+)\):\s*(.*)");
 
 impl Format for MindroidFormat {
     fn parse(&self, line: &str) -> Result<Record, String> {
         match self.regex.captures(line) {
             Some(captures) => {
                 Ok(Record {
-                    timestamp: None,
-                    level: Level::from(captures.at(1).unwrap_or("")),
-                    tag: captures.at(2).unwrap_or("").trim().to_string(),
-                    process: captures.at(3).unwrap_or("").trim().to_string(),
+                    timestamp: captures.at(1)
+                        .and_then(|c| ::time::strptime(c.trim(), "%m-%d %H:%M:%S.%f").ok()),
+                    level: Level::from(captures.at(2).unwrap_or("")),
+                    tag: captures.at(3).unwrap_or("").trim().to_string(),
+                    process: captures.at(4).unwrap_or("").trim().to_string(),
                     thread: "".to_string(),
-                    message: captures.at(4).unwrap_or("").to_string().trim().to_string(),
+                    message: captures.at(5).unwrap_or("").to_string().trim().to_string(),
                     raw: line.to_owned(),
                 })
             }
@@ -256,6 +259,9 @@ fn test_mindroid() {
         .is_ok());
     assert!(MindroidFormat::new()
         .parse("E/u-blox  (  247): connectReceiver: Failing to reopen the serial port")
+        .is_ok());
+    assert!(MindroidFormat::new()
+        .parse("01-01 00:54:21.129 V/u-blox  (  247): checkRecvInitReq: Serial not properly opened")
         .is_ok());
 }
 
