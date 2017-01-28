@@ -125,28 +125,38 @@ impl Node<Record, Args> for FileWriter {
 
 #[test]
 fn next_file() {
-    assert_eq!(FileWriter::next_file(&PathBuf::from("test"), None),
-               Ok(PathBuf::from("test")));
+    use tempdir::TempDir;
+    let tempdir = TempDir::new("rogcat").unwrap();
+    let file = tempdir.path().join("test");
+    assert_eq!(FileWriter::next_file(&file, None),
+               Ok(file));
     assert_eq!(FileWriter::next_file(&PathBuf::from("tmp/test"), None),
                Ok(PathBuf::from("tmp/test")));
 }
 
 #[test]
 fn next_file_index() {
-    assert_eq!(FileWriter::next_file(&PathBuf::from("tmp/test"), Some(0)),
-               Ok(PathBuf::from("tmp/test-000")));
-    assert_eq!(FileWriter::next_file(&PathBuf::from("tmp/test"), Some(1)),
-               Ok(PathBuf::from("tmp/test-001")));
-    assert_eq!(FileWriter::next_file(&PathBuf::from("tmp/test"), Some(2)),
-               Ok(PathBuf::from("tmp/test-002")));
-    assert_eq!(FileWriter::next_file(&PathBuf::from("tmp/test"), Some(1000)),
-               Ok(PathBuf::from("tmp/test-1000")));
+    use tempdir::TempDir;
+    let tempdir = TempDir::new("rogcat").unwrap();
+    let file = tempdir.path().join("test");
+
+    assert_eq!(FileWriter::next_file(&file, Some(0)),
+               Ok(tempdir.path().join("test-000")));
+    assert_eq!(FileWriter::next_file(&file, Some(1)),
+               Ok(tempdir.path().join("test-001")));
+    assert_eq!(FileWriter::next_file(&file, Some(2)),
+               Ok(tempdir.path().join("test-002")));
+    assert_eq!(FileWriter::next_file(&file, Some(1000)),
+               Ok(tempdir.path().join("test-1000")));
 }
 
 #[test]
 fn next_file_index_extension() {
-    assert_eq!(FileWriter::next_file(&PathBuf::from("tmp/test.log"), Some(0)),
-               Ok(PathBuf::from("tmp/test-000.log")));
-    assert_eq!(FileWriter::next_file(&PathBuf::from("tmp/test.log"), Some(1)),
-               Ok(PathBuf::from("tmp/test-001.log")));
+    use tempdir::TempDir;
+    let tempdir = TempDir::new("rogcat").unwrap();
+    let file = tempdir.path().join("test.log");
+    assert_eq!(FileWriter::next_file(&file, Some(0)),
+               Ok(tempdir.path().join("test-000.log")));
+    assert_eq!(FileWriter::next_file(&file, Some(1)),
+               Ok(tempdir.path().join("test-001.log")));
 }
