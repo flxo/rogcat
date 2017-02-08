@@ -138,7 +138,7 @@ fn run<'a>(args: ArgMatches<'a>) -> Result<(), String> {
                 },
                 records_per_file: args.value_of("records-per-file")
                     .and_then(|l|
-                              Regex::new(r"^(\d+)([KMG])$").unwrap().captures(l)
+                              Regex::new(r"^(\d+)([kMG])$").unwrap().captures(l)
                               .and_then(|caps|caps.at(1)
                                         .and_then(|size| u64::from_str(size).ok())
                                         .and_then(|size| Some((size, caps.at(2)))))
