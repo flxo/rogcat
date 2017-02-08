@@ -53,7 +53,7 @@ fn build_cli() -> App<'static, 'static> {
              .requires("output")
              .possible_values(&["raw", "csv"])
              .help("Write format to output files"))
-        .arg(Arg::from_usage("-i --input [INPUT] 'Read from file instead of command. Pass \"stdin\" to capture stdin'")
+        .arg(Arg::from_usage("-i --input [INPUT] 'Read from file instead of command.")
              .multiple(true))
         .arg(Arg::with_name("level")
              .short("l")
