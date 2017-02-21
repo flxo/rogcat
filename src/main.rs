@@ -6,6 +6,8 @@
 
 #[macro_use]
 extern crate clap;
+#[macro_use]
+extern crate error_chain;
 extern crate regex;
 extern crate time;
 extern crate terminal_size;
@@ -20,6 +22,7 @@ use std::process::exit;
 use std::str::FromStr;
 use regex::Regex;
 
+mod errors;
 mod filereader;
 mod filewriter;
 mod filter;
@@ -29,6 +32,8 @@ mod record;
 mod runner;
 mod stdinreader;
 mod terminal;
+
+use errors::*;
 
 fn build_cli() -> App<'static, 'static> {
     App::new("rogcat")
@@ -120,7 +125,7 @@ fn main() {
     }
 }
 
-fn run<'a>(args: ArgMatches<'a>) -> Result<(), String> {
+fn run<'a>(args: ArgMatches<'a>) -> Result<()> {
     let mut nodes = Nodes::<Record>::default();
 
     let mut output = if args.is_present("silent") {

@@ -4,6 +4,7 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
+use errors::*;
 use std::process::exit;
 use std::sync::mpsc::{channel, Sender};
 use std::thread::JoinHandle;
@@ -16,17 +17,17 @@ pub enum Event<T> {
 }
 
 pub trait Node<T: Clone, A> {
-    fn new(_args: A) -> Result<Box<Self>, String>;
+    fn new(_args: A) -> Result<Box<Self>>;
 
-    fn start(&mut self, _send: &Fn(T), _done: &Fn()) -> Result<(), String> {
+    fn start(&mut self, _send: &Fn(T), _done: &Fn()) -> Result<()> {
         Ok(())
     }
 
-    fn stop(&mut self) -> Result<(), String> {
+    fn stop(&mut self) -> Result<()> {
         Ok(())
     }
 
-    fn message(&mut self, message: T) -> Result<Option<T>, String> {
+    fn message(&mut self, message: T) -> Result<Option<T>> {
         Ok(Some(message))
     }
 }
@@ -44,7 +45,7 @@ impl<T> Nodes<T>
     pub fn register<H: Node<T, A>, A>(&mut self,
                                       a: A,
                                       t: Option<Vec<NodeHandle<T>>>)
-                                      -> Result<NodeHandle<T>, String>
+                                      -> Result<NodeHandle<T>>
         where H: Send + Node<T, A> + 'static,
               A: Send + 'static
     {
@@ -96,7 +97,7 @@ impl<T> Nodes<T>
         Ok(tx)
     }
 
-    pub fn run(&mut self) -> Result<(), String> {
+    pub fn run(&mut self) -> Result<()> {
         for n in &self.nodes {
             try!(n.0.send(Event::Start).map_err(|e| format!("{:?}", e)))
         }
@@ -120,10 +121,10 @@ fn nodes_run() {
     struct S;
 
     impl Node<i32, ()> for S {
-        fn new(_: ()) -> Result<Box<Self>, String> {
+        fn new(_: ()) -> Result<Box<Self>> {
             Ok(Box::new(S))
         }
-        fn start(&mut self, send: &Fn(i32), done: &Fn()) -> Result<(), String> {
+        fn start(&mut self, send: &Fn(i32), done: &Fn()) -> Result<()> {
             for i in 0..1000 {
                 send(i);
             }
@@ -137,11 +138,11 @@ fn nodes_run() {
     }
 
     impl Node<i32, ()> for R {
-        fn new(_: ()) -> Result<Box<Self>, String> {
+        fn new(_: ()) -> Result<Box<Self>> {
             Ok(Box::new(R { n: 0 }))
         }
 
-        fn message(&mut self, n: i32) -> Result<Option<i32>, String> {
+        fn message(&mut self, n: i32) -> Result<Option<i32>> {
             assert!(self.n == n);
             self.n = self.n + 1;
             Ok(Some(n))

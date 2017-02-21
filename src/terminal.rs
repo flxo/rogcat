@@ -4,6 +4,7 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
+use errors::*;
 use regex::Regex;
 use std::cmp::max;
 use std::collections::HashMap;
@@ -208,7 +209,7 @@ impl<'a> Terminal<'a> {
 }
 
 impl<'a> Node<Record, ()> for Terminal<'a> {
-    fn new(_: ()) -> Result<Box<Self>, String> {
+    fn new(_: ()) -> Result<Box<Self>> {
         Ok(Box::new(Terminal {
             beginning_of: Regex::new(r"--------- beginning of.*").unwrap(),
             color: true, // ! args.is_present("NO-COLOR"),
@@ -229,7 +230,7 @@ impl<'a> Node<Record, ()> for Terminal<'a> {
         }))
     }
 
-    fn message(&mut self, record: Record) -> Result<Option<Record>, String> {
+    fn message(&mut self, record: Record) -> Result<Option<Record>> {
         self.print_record(record);
         Ok(None)
     }

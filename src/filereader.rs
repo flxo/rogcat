@@ -4,6 +4,7 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
+use errors::*;
 use std::fs::File;
 use std::io::{BufReader, BufRead};
 use std::path::PathBuf;
@@ -15,7 +16,7 @@ pub struct FileReader {
 }
 
 impl Node<Record, Vec<PathBuf>> for FileReader {
-    fn new(files: Vec<PathBuf>) -> Result<Box<Self>, String> {
+    fn new(files: Vec<PathBuf>) -> Result<Box<Self>> {
         let mut f = vec!();
         for filename in &files {
             f.push(File::open(filename).map_err(|e| format!("Cannot open {:?}: {}", filename, e))?);
@@ -23,7 +24,7 @@ impl Node<Record, Vec<PathBuf>> for FileReader {
         Ok(Box::new(FileReader { files: f }))
     }
 
-    fn start(&mut self, send: &Fn(Record), done: &Fn()) -> Result<(), String> {
+    fn start(&mut self, send: &Fn(Record), done: &Fn()) -> Result<()> {
         for f in self.files.drain(..) {
             let mut reader = BufReader::new(f);
             loop {
@@ -38,9 +39,10 @@ impl Node<Record, Vec<PathBuf>> for FileReader {
                             ..Default::default()
                         });
                     }
-                } else {
-                    return Err("Failed to read input file".to_owned());
                 }
+                // else {
+                //     return Error(::errors::ErrorKind::Other, "Failed to read input file");
+                // }
             }
         }
         Ok(())

@@ -5,8 +5,9 @@ authors = ["Felix Obenhuber <felix@obenhuber.de>"]
 
 [dependencies]
 clap = "2.16.2"
+error-chain = "0.7.2"
 regex = "0.1.73"
+tempdir = "0.3.4"
 term-painter = "0.2.3"
 terminal_size = "0.1.6"
-tempdir = "0.3.4"
 time = "0.1.35"

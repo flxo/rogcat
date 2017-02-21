@@ -4,6 +4,7 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
+use errors::*;
 use super::node::Node;
 use super::record::{Level, Record};
 use regex::Regex;
@@ -23,12 +24,12 @@ pub struct Filter {
 
 impl Filter {
     /// Try to build regex from args
-    fn init_filter(i: Option<Vec<String>>) -> Result<Vec<Regex>, String> {
+    fn init_filter(i: Option<Vec<String>>) -> Result<Vec<Regex>> {
         let mut result = vec![];
         for r in &i.unwrap_or(vec![]) {
             match Regex::new(r) {
                 Ok(re) => result.push(re),
-                Err(e) => return Err(format!("{}", e)),
+                Err(e) => return Err(e.into()),
             }
         }
         Ok(result)
@@ -36,7 +37,7 @@ impl Filter {
 }
 
 impl Node<Record, Args> for Filter {
-    fn new(arg: Args) -> Result<Box<Self>, String> {
+    fn new(arg: Args) -> Result<Box<Self>> {
         Ok(Box::new(Filter {
             level: arg.level,
             msg: Self::init_filter(arg.msg)?,
@@ -44,7 +45,7 @@ impl Node<Record, Args> for Filter {
         }))
     }
 
-    fn message(&mut self, record: Record) -> Result<Option<Record>, String> {
+    fn message(&mut self, record: Record) -> Result<Option<Record>> {
         if record.level < self.level {
             return Ok(None);
         }

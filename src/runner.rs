@@ -4,6 +4,7 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
+use errors::*;
 use std::io::{BufReader, BufRead};
 use std::process::{ChildStdout, Command, Stdio};
 use super::node::Node;
@@ -16,7 +17,7 @@ pub struct Runner {
 }
 
 impl Runner {
-    fn run(c: &Vec<String>) -> Result<BufReader<ChildStdout>, String> {
+    fn run(c: &Vec<String>) -> Result<BufReader<ChildStdout>> {
         Command::new(&c[0])
             .args(&c[1..])
             .stdout(Stdio::piped())
@@ -24,12 +25,12 @@ impl Runner {
             .map_err(|e| format!("Cannot run \"{}\": {}", c[0], e))?
             .stdout
             .map(|s| BufReader::new(s))
-            .ok_or(format!("Cannot open stdout of \"{}\"", c[0]))
+            .ok_or(format!("Cannot open stdout of \"{}\"", c[0]).into())
     }
 }
 
 impl Node<Record, (Vec<String>, bool)> for Runner {
-    fn new(args: (Vec<String>, bool)) -> Result<Box<Self>, String> {
+    fn new(args: (Vec<String>, bool)) -> Result<Box<Self>> {
         let stdout = Runner::run(&args.0)?;
 
         Ok(Box::new(Runner {
@@ -39,7 +40,7 @@ impl Node<Record, (Vec<String>, bool)> for Runner {
         }))
     }
 
-    fn start(&mut self, send: &Fn(Record), done: &Fn()) -> Result<(), String> {
+    fn start(&mut self, send: &Fn(Record), done: &Fn()) -> Result<()> {
         loop {
             loop {
                 let mut buffer: Vec<u8> = vec![];

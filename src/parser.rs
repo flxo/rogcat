@@ -4,12 +4,13 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
+use errors::*;
 use regex::Regex;
 use super::node::Node;
 use super::record::{Level, Record};
 
 trait Format {
-    fn parse(&self, line: &str) -> Result<Record, String>;
+    fn parse(&self, line: &str) -> Result<Record>;
 }
 
 macro_rules! parser {
@@ -29,7 +30,7 @@ parser!(PrintableFormat,
         r"(\d\d-\d\d \d\d:\d\d:\d\d\.\d\d\d)\s+(\d+)\s+(\d+) (\D)\s([a-zA-Z0-9-_\{\}\[\]=\\/\.\+\s]*)\s*:\s*(.*)");
 
 impl Format for PrintableFormat {
-    fn parse(&self, line: &str) -> Result<Record, String> {
+    fn parse(&self, line: &str) -> Result<Record> {
         match self.regex.captures(line) {
             Some(captures) => {
                 Ok(Record {
@@ -43,7 +44,7 @@ impl Format for PrintableFormat {
                     raw: line.to_owned(),
                 })
             }
-            None => Err("Parsing error".to_owned()),
+            None => Err("Parsing error".into()),
         }
     }
 }
@@ -52,7 +53,7 @@ parser!(OldPrintableFormat,
         r"(\d\d-\d\d \d\d:\d\d:\d\d\.\d\d\d) \++\d\d\d\d (\D)/([a-zA-Z0-9-_\{\}\[\]=\\/\.\+\s]*)\(\s*(\d+)\):\s*(.*)");
 
 impl Format for OldPrintableFormat {
-    fn parse(&self, line: &str) -> Result<Record, String> {
+    fn parse(&self, line: &str) -> Result<Record> {
         match self.regex.captures(line) {
             Some(captures) => {
                 Ok(Record {
@@ -66,7 +67,7 @@ impl Format for OldPrintableFormat {
                     raw: line.to_owned(),
                 })
             }
-            None => Err("Parsing error".to_owned()),
+            None => Err("Parsing error".into()),
         }
     }
 }
@@ -76,7 +77,7 @@ parser!(TagFormat,
         r"^(\D)/([a-zA-Z0-9-_\{\}\[\]=\\/\.\+]*)\s*:\s*(.*)");
 
 impl Format for TagFormat {
-    fn parse(&self, line: &str) -> Result<Record, String> {
+    fn parse(&self, line: &str) -> Result<Record> {
         match self.regex.captures(line) {
             Some(captures) => {
                 Ok(Record {
@@ -89,7 +90,7 @@ impl Format for TagFormat {
                     raw: line.to_owned(),
                 })
             }
-            None => Err("Parsing error".to_owned()),
+            None => Err("Parsing error".into()),
         }
     }
 }
@@ -98,7 +99,7 @@ impl Format for TagFormat {
 parser!(ThreadFormat, r"(\D)\(\s*(\d+):\s*(\d+)\)\s*(.*)");
 
 impl Format for ThreadFormat {
-    fn parse(&self, line: &str) -> Result<Record, String> {
+    fn parse(&self, line: &str) -> Result<Record> {
         match self.regex.captures(line) {
             Some(captures) => {
                 Ok(Record {
@@ -111,7 +112,7 @@ impl Format for ThreadFormat {
                     raw: line.to_owned(),
                 })
             }
-            None => Err("Parsing error".to_owned()),
+            None => Err("Parsing error".into()),
         }
     }
 }
@@ -123,7 +124,7 @@ parser!(MindroidFormat,
         r"^(\d\d-\d\d \d\d:\d\d:\d\d\.\d\d\d){0,1}\s*(\D)/([a-zA-Z0-9-_\{\}\[\]=\\/\. \+]*)\(\s*([0-9a-f]+)\):\s*(.*)");
 
 impl Format for MindroidFormat {
-    fn parse(&self, line: &str) -> Result<Record, String> {
+    fn parse(&self, line: &str) -> Result<Record> {
         match self.regex.captures(line) {
             Some(captures) => {
                 Ok(Record {
@@ -137,7 +138,7 @@ impl Format for MindroidFormat {
                     raw: line.to_owned(),
                 })
             }
-            None => Err("Parsing error".to_owned()),
+            None => Err("Parsing error".into()),
         }
     }
 }
@@ -153,7 +154,7 @@ impl CsvFormat {
 }
 
 impl Format for CsvFormat {
-    fn parse(&self, line: &str) -> Result<Record, String> {
+    fn parse(&self, line: &str) -> Result<Record> {
         let parts: Vec<&str> = line.split(',').map(|s| s.trim().trim_matches('"')).collect();
         if parts.len() >= 6 {
             Ok(Record {
@@ -166,7 +167,7 @@ impl Format for CsvFormat {
                 raw: line.to_owned(),
             })
         } else {
-            Err("Parsing error".to_owned())
+            Err("Parsing error".into())
         }
     }
 }
@@ -188,7 +189,7 @@ impl Parser {
 }
 
 impl Node<Record, ()> for Parser {
-    fn new(_: ()) -> Result<Box<Self>, String> {
+    fn new(_: ()) -> Result<Box<Self>> {
         Ok(Box::new(Parser {
             format: None,
             parsers: vec![Box::new(MindroidFormat::new()),
@@ -200,7 +201,7 @@ impl Node<Record, ()> for Parser {
         }))
     }
 
-    fn message(&mut self, record: Record) -> Result<Option<Record>, String> {
+    fn message(&mut self, record: Record) -> Result<Option<Record>> {
         if self.format.is_none() {
             self.format = self.detect(&record);
         }

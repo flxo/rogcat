@@ -4,6 +4,7 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
+use errors::*;
 use std::fs::{DirBuilder, File};
 use std::path::{Path, PathBuf};
 use std::io::Write;
@@ -17,7 +18,7 @@ pub enum Format {
 
 impl ::std::str::FromStr for Format {
     type Err = &'static str;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
         match s {
             "csv" => Ok(Format::Csv),
             "raw" => Ok(Format::Raw),
@@ -42,19 +43,20 @@ pub struct FileWriter {
 }
 
 impl FileWriter {
-    fn next_file(filename: &PathBuf, file_index: Option<u32>) -> Result<PathBuf, String> {
+    fn next_file(filename: &PathBuf, file_index: Option<u32>) -> Result<PathBuf> {
         if file_index.is_none() {
             Ok(filename.clone())
         } else {
             if filename.as_path().is_dir() {
-                return Err(format!("Output file {:?} is a directory", filename));
+                return Err(format!("Output file {:?} is a directory", filename).into());
             }
 
             let dir = filename.parent().unwrap_or(Path::new(""));
             if !dir.is_dir() {
-                DirBuilder::new().recursive(true)
+                DirBuilder::new()
+                    .recursive(true)
                     .create(dir)
-                    .map_err(|e| format!("{}", e))?
+                    .chain_err(|| "Failed to create directory")?
             }
 
             let mut name = filename.clone();
@@ -72,7 +74,7 @@ impl FileWriter {
         }
     }
 
-    fn format(record: Record, format: &Format) -> Result<String, String> {
+    fn format(record: Record, format: &Format) -> Result<String> {
         Ok(match format {
             &Format::Csv => {
                 format!("\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"\n",
@@ -91,7 +93,7 @@ impl FileWriter {
 }
 
 impl Node<Record, Args> for FileWriter {
-    fn new(args: Args) -> Result<Box<Self>, String> {
+    fn new(args: Args) -> Result<Box<Self>> {
         let file = Self::next_file(&args.filename, args.records_per_file.map(|_| 0))?;
         Ok(Box::new(FileWriter {
             file: File::create(file).map_err(|e| format!("{}", e))?,
@@ -103,7 +105,7 @@ impl Node<Record, Args> for FileWriter {
         }))
     }
 
-    fn message(&mut self, record: Record) -> Result<Option<Record>, String> {
+    fn message(&mut self, record: Record) -> Result<Option<Record>> {
         if let Some(records_per_file) = self.records_per_file {
             if self.file_size == records_per_file {
                 self.file_index += 1;

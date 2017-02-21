@@ -4,6 +4,7 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
+use errors::*;
 use std::io::stdin;
 use super::node::Node;
 use super::record::Record;
@@ -11,11 +12,11 @@ use super::record::Record;
 pub struct StdinReader;
 
 impl Node<Record, ()> for StdinReader {
-    fn new(_: ()) -> Result<Box<Self>, String> {
+    fn new(_: ()) -> Result<Box<Self>> {
         Ok(Box::new(StdinReader {}))
     }
 
-    fn start(&mut self, send: &Fn(Record), done: &Fn()) -> Result<(), String> {
+    fn start(&mut self, send: &Fn(Record), done: &Fn()) -> Result<()> {
         loop {
             let mut buffer = String::new();
             if stdin().read_line(&mut buffer)
