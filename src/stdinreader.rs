@@ -5,32 +5,36 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use errors::*;
+use futures::{future, Future};
+use kabuki::Actor;
 use std::io::stdin;
-use super::node::Node;
+use super::Message;
 use super::record::Record;
 
 pub struct StdinReader;
 
-impl Node<Record, ()> for StdinReader {
-    fn new(_: ()) -> Result<Box<Self>> {
-        Ok(Box::new(StdinReader {}))
-    }
+impl Actor for StdinReader {
+    type Request = ();
+    type Response = Message;
+    type Error = Error;
+    type Future = RFuture<Message>;
 
-    fn start(&mut self, send: &Fn(Record), done: &Fn()) -> Result<()> {
-        loop {
-            let mut buffer = String::new();
-            if stdin().read_line(&mut buffer)
-                .map_err(|e| format!("Failed to read from stdin: \"{}\"", e))? == 0 {
-                done();
-                break;
-            } else {
-                send(Record {
-                    timestamp: Some(::time::now()),
-                    raw: buffer.trim().to_string(),
-                    ..Default::default()
-                })
+    fn call(&mut self, _req: ()) -> Self::Future {
+        let mut buffer = String::new();
+        let record = match stdin().read_line(&mut buffer) {
+            Ok(_) => {
+                if buffer.is_empty() {
+                    future::ok(Message::Finished)
+                } else {
+                    future::ok(Message::Record(Record {
+                        timestamp: Some(::time::now()),
+                        raw: buffer.trim().to_string(),
+                        ..Default::default()
+                    }))
+                }
             }
-        }
-        Ok(())
+            Err(_) => future::err("Failed to read stdin".into()),
+        };
+        record.boxed()
     }
 }

@@ -60,7 +60,7 @@ impl<T> Nodes<T>
                         for n in targets {
                             n.send(c.clone()).ok(); // TODO: check
                         }
-                    },
+                    }
                     None => (),
                 }
             };

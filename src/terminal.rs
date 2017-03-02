@@ -5,12 +5,14 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use errors::*;
+use futures::{future, Future};
+use kabuki::Actor;
 use regex::Regex;
 use std::cmp::max;
 use std::collections::HashMap;
 use std::io::Write;
 use std::io::stdout;
-use super::node::Node;
+use super::Message;
 use super::record::{Level, Record};
 use term_painter::Attr::*;
 use term_painter::{Color, ToStyle};
@@ -37,6 +39,27 @@ pub struct Terminal<'a> {
 }
 
 impl<'a> Terminal<'a> {
+    pub fn new() -> Result<Self> {
+        Ok(Terminal {
+            beginning_of: Regex::new(r"--------- beginning of.*").unwrap(),
+            color: true, // ! args.is_present("NO-COLOR"),
+            date_format: if true {
+                ("%m-%d %H:%M:%S.%f", 18)
+            } else {
+                ("%H:%M:%S.%f", 12)
+            },
+            full_tag: false, // args.is_present("NO-TAG-SHORTENING"),
+            process_width: 0,
+            tag_timestamps: HashMap::new(),
+            vovels: Regex::new(r"a|e|i|o|u").unwrap(),
+
+            tag_width: 20,
+            thread_width: 0,
+            diff_width: 8,
+            time_diff: false, // !args.is_present("NO-TIME-DIFF"),
+        })
+    }
+
     /// Filter some unreadable (on dark background) or nasty colors
     fn hashed_color(item: &str) -> Color {
         match item.bytes().fold(42u16, |c, x| c ^ x as u16) {
@@ -52,7 +75,7 @@ impl<'a> Terminal<'a> {
 
     // TODO
     // Rework this to use a more column based approach!
-    fn print_record(&mut self, record: Record) {
+    fn print_record(&mut self, record: &Record) {
         let (timestamp, diff) = if let Some(ts) = record.timestamp {
             let timestamp = match ::time::strftime(self.date_format.0, &ts) {
                 Ok(t) => {
@@ -165,8 +188,8 @@ impl<'a> Terminal<'a> {
 
         if let Some((Width(width), Height(_))) = terminal_size() {
             let preamble_width = timestamp_width + 1 + self.diff_width + 1 + tag_width + 1 +
-                                 2 * self.process_width + 2 + 1 +
-                                 8 + 1;
+                                 2 * self.process_width + 2 +
+                                 1 + 8 + 1;
             let record_len = record.message.chars().count();
             let columns = width as usize;
             if (preamble_width + record_len) > columns {
@@ -200,7 +223,7 @@ impl<'a> Terminal<'a> {
 
         if let Some(ts) = record.timestamp {
             if self.time_diff && !record.tag.is_empty() {
-                self.tag_timestamps.insert(record.tag, ts);
+                self.tag_timestamps.insert(record.tag.clone(), ts);
             }
         }
 
@@ -208,30 +231,17 @@ impl<'a> Terminal<'a> {
     }
 }
 
-impl<'a> Node<Record, ()> for Terminal<'a> {
-    fn new(_: ()) -> Result<Box<Self>> {
-        Ok(Box::new(Terminal {
-            beginning_of: Regex::new(r"--------- beginning of.*").unwrap(),
-            color: true, // ! args.is_present("NO-COLOR"),
-            date_format: if true {
-                ("%m-%d %H:%M:%S.%f", 18)
-            } else {
-                ("%H:%M:%S.%f", 12)
-            },
-            full_tag: false, // args.is_present("NO-TAG-SHORTENING"),
-            process_width: 0,
-            tag_timestamps: HashMap::new(),
-            vovels: Regex::new(r"a|e|i|o|u").unwrap(),
+impl<'a> Actor for Terminal<'a> {
+    type Request = Message;
+    type Response = Message;
+    type Error = Error;
+    type Future = RFuture<Message>;
 
-            tag_width: 20,
-            thread_width: 0,
-            diff_width: 8,
-            time_diff: false, // !args.is_present("NO-TIME-DIFF"),
-        }))
-    }
-
-    fn message(&mut self, record: Record) -> Result<Option<Record>> {
-        self.print_record(record);
-        Ok(None)
+    fn call(&mut self, message: Message) -> Self::Future {
+        match message {
+            Message::Record(ref record) => self.print_record(record),
+            _ => (),
+        }
+        future::ok(message).boxed()
     }
 }

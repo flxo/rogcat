@@ -5,8 +5,10 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use errors::*;
+use futures::{future, Future};
+use kabuki::Actor;
 use regex::Regex;
-use super::node::Node;
+use super::Message;
 use super::record::{Level, Record};
 
 trait Format {
@@ -178,6 +180,18 @@ pub struct Parser {
 }
 
 impl Parser {
+    pub fn new() -> Self {
+        Parser {
+            format: None,
+            parsers: vec![Box::new(MindroidFormat::new()),
+                          Box::new(PrintableFormat::new()),
+                          Box::new(OldPrintableFormat::new()),
+                          Box::new(TagFormat::new()),
+                          Box::new(ThreadFormat::new()),
+                          Box::new(CsvFormat::new())],
+        }
+    }
+
     fn detect(&mut self, record: &Record) -> Option<Box<Format + Send + Sync>> {
         for i in 0..self.parsers.len() {
             if self.parsers[i].parse(&record.raw).is_ok() {
@@ -188,39 +202,38 @@ impl Parser {
     }
 }
 
-impl Node<Record, ()> for Parser {
-    fn new(_: ()) -> Result<Box<Self>> {
-        Ok(Box::new(Parser {
-            format: None,
-            parsers: vec![Box::new(MindroidFormat::new()),
-                          Box::new(PrintableFormat::new()),
-                          Box::new(OldPrintableFormat::new()),
-                          Box::new(TagFormat::new()),
-                          Box::new(ThreadFormat::new()),
-                          Box::new(CsvFormat::new())],
-        }))
-    }
+impl Actor for Parser {
+    type Request = Message;
+    type Response = Message;
+    type Error = Error;
+    type Future = RFuture<Message>;
 
-    fn message(&mut self, record: Record) -> Result<Option<Record>> {
-        if self.format.is_none() {
-            self.format = self.detect(&record);
-        }
-        match self.format {
-            Some(ref p) => {
-                Ok(Some(p.parse(&record.raw).unwrap_or(Record {
-                    message: record.raw.clone(),
-                    raw: record.raw,
-                    ..Default::default()
-                })))
+    fn call(&mut self, message: Message) -> Self::Future {
+        let r = match message {
+            Message::Record(ref record) => {
+                if self.format.is_none() {
+                    self.format = self.detect(&record);
+                }
+                match self.format {
+                    Some(ref p) => {
+                        Message::Record(p.parse(&record.raw).unwrap_or(Record {
+                            message: record.raw.clone(),
+                            raw: record.raw.clone(),
+                            ..Default::default()
+                        }))
+                    }
+                    None => {
+                        Message::Record(Record {
+                            message: record.raw.clone(),
+                            raw: record.raw.clone(),
+                            ..Default::default()
+                        })
+                    }
+                }
             }
-            None => {
-                Ok(Some(Record {
-                    message: record.raw.clone(),
-                    raw: record.raw,
-                    ..Default::default()
-                }))
-            }
-        }
+            _ => message,
+        };
+        future::ok(r).boxed()
     }
 }
 
@@ -262,7 +275,8 @@ fn test_mindroid() {
         .parse("E/u-blox  (  247): connectReceiver: Failing to reopen the serial port")
         .is_ok());
     assert!(MindroidFormat::new()
-        .parse("01-01 00:54:21.129 V/u-blox  (  247): checkRecvInitReq: Serial not properly opened")
+        .parse("01-01 00:54:21.129 V/u-blox  (  247): checkRecvInitReq: Serial not properly \
+                opened")
         .is_ok());
 }
 

@@ -17,7 +17,7 @@ pub struct FileReader {
 
 impl Node<Record, Vec<PathBuf>> for FileReader {
     fn new(files: Vec<PathBuf>) -> Result<Box<Self>> {
-        let mut f = vec!();
+        let mut f = vec![];
         for filename in &files {
             f.push(File::open(filename).map_err(|e| format!("Cannot open {:?}: {}", filename, e))?);
         }

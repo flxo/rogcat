@@ -8,28 +8,33 @@
 extern crate clap;
 #[macro_use]
 extern crate error_chain;
+extern crate futures;
+extern crate kabuki;
 extern crate regex;
 extern crate time;
 extern crate terminal_size;
 extern crate term_painter;
 extern crate tempdir;
+extern crate tokio_core;
 
 use clap::{App, Arg, ArgMatches, Shell, SubCommand};
-use record::{Level, Record};
-use node::Nodes;
-use std::path::PathBuf;
+use futures::Future;
+use kabuki::CallError;
+use record::Record;
+// use std::path::PathBuf;
 use std::process::exit;
-use std::str::FromStr;
-use regex::Regex;
+// use std::str::FromStr;
+// use regex::Regex;
+use tokio_core::reactor;
 
 mod errors;
-mod filereader;
-mod filewriter;
+// mod filereader;
+// mod filewriter;
 mod filter;
-mod node;
+// mod node;
 mod parser;
 mod record;
-mod runner;
+// mod runner;
 mod stdinreader;
 mod terminal;
 
@@ -101,12 +106,13 @@ fn main() {
 
     for arg in &["clear", "get-ringbuffer-size", "output-statistics"] {
         if matches.is_present(arg) {
-            let arg = format!("-{}", match arg {
-                &"clear" => "c",
-                &"get-ringbuffer-size" => "g",
-                &"output-statistics" => "S",
-                _ => panic!(""),
-            });
+            let arg = format!("-{}",
+                              match arg {
+                                  &"clear" => "c",
+                                  &"get-ringbuffer-size" => "g",
+                                  &"output-statistics" => "S",
+                                  _ => panic!(""),
+                              });
             let mut child = std::process::Command::new("adb")
                 .arg("logcat")
                 .arg(arg)
@@ -125,86 +131,105 @@ fn main() {
     }
 }
 
+impl<T> From<CallError<T>> for Error {
+    fn from(src: CallError<T>) -> Error {
+        match src {
+            CallError::Full(..) => "actor inbox full!".into(),
+            CallError::Disconnected(..) => "actor shutdown".into(),
+            CallError::Aborted => "actor aborted request".into(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Message {
+    Record(Record),
+    Drop,
+    Finished,
+}
+
 fn run<'a>(args: ArgMatches<'a>) -> Result<()> {
-    let mut nodes = Nodes::<Record>::default();
+    let mut core = reactor::Core::new().unwrap();
 
-    let mut output = if args.is_present("silent") {
-        vec!()
-    } else {
-        vec![(nodes.register::<terminal::Terminal, _>((), None))?]
-    };
-    match args.value_of("output") {
-        Some(o) => {
-            let args = filewriter::Args {
-                filename: PathBuf::from(o),
-                format: match args.value_of("format") {
-                    Some(s) => filewriter::Format::from_str(s)?,
-                    None => filewriter::Format::Raw,
-                },
-                records_per_file: args.value_of("records-per-file")
-                    .and_then(|l|
-                              Regex::new(r"^(\d+)([kMG])$").unwrap().captures(l)
-                              .and_then(|caps|caps.at(1)
-                                        .and_then(|size| u64::from_str(size).ok())
-                                        .and_then(|size| Some((size, caps.at(2)))))
-                              .and_then(|(size, suffix)| {
-                                  match suffix {
-                                      Some("k") => Some(1000 * size),
-                                      Some("M") => Some(1000_000 * size),
-                                      Some("G") => Some(1000_000_000 * size),
-                                      _ => None
-                                  }
-                              })
-                             )
-            };
-            output.push( try!(nodes.register::<filewriter::FileWriter, _>(args, None)));
-        }
-        None => (),
-    }
+    let mut stdinreader = kabuki::Builder::new().spawn(&core.handle(), stdinreader::StdinReader {});
+    let mut parser = kabuki::Builder::new().spawn(&core.handle(), parser::Parser::new());
+    let mut filter = kabuki::Builder::new().spawn(&core.handle(), filter::Filter::new(&args)?);
+    let mut terminal = kabuki::Builder::new().spawn(&core.handle(), terminal::Terminal::new()?);
 
-    let filters = |k| {
-        args.values_of(k)
-            .map(|m| {
-                m.map(|f| f.to_owned())
-                    .collect::<Vec<String>>()
-            })
-    };
-
-    let filter_args = filter::Args {
-        level: Level::from(args.value_of("level").unwrap_or("")),
-        msg: filters("msg"),
-        tag: filters("tag"),
-    };
-
-    let filter = nodes.register::<filter::Filter, _>(filter_args, Some(output))?;
-    let parser = Some(vec![nodes.register::<parser::Parser, _>((), Some(vec![filter]))?]);
-
-    if args.is_present("input") {
-        let files = args.values_of("input")
-            .map(|files| files.map(|f| PathBuf::from(f)).collect::<Vec<PathBuf>>())
-            .ok_or("Failed to parse input file(s) argument(s)".to_owned())?;
-        nodes.register::<filereader::FileReader, _>(files, parser)?;
-    } else {
-        match args.value_of("COMMAND") {
-            Some(c) => {
-                if c == "stdin" {
-                    nodes.register::<stdinreader::StdinReader, _>((), parser)?;
-                } else {
-                    let arg = (c.split_whitespace()
-                               .map(|s| s.to_owned())
-                               .collect::<Vec<String>>(),
-                               args.is_present("restart"));
-                    nodes.register::<runner::Runner, _>(arg, parser)?;
-                }
-            }
-            None => {
-                nodes.register::<runner::Runner, _>((vec!["adb".to_owned(),
-                "logcat".to_owned()],
-                true),
-                parser)?;
-            }
+    loop {
+        if core.run(stdinreader.call(())
+                .and_then(|r| parser.call(r))
+                .and_then(|r| filter.call(r))
+                .and_then(|r| terminal.call(r)))? == Message::Finished {
+            return Ok(());
         }
     }
 
-    nodes.run()
+    // let mut nodes = Nodes::<Record>::default();
+
+    // let mut output = if args.is_present("silent") {
+    //     vec![]
+    // } else {
+    //     vec![(nodes.register::<terminal::Terminal, _>((), None))?]
+    // };
+    // match args.value_of("output") {
+    //     Some(o) => {
+    //         let args = filewriter::Args {
+    //             filename: PathBuf::from(o),
+    //             format: match args.value_of("format") {
+    //                 Some(s) => filewriter::Format::from_str(s)?,
+    //                 None => filewriter::Format::Raw,
+    //             },
+    //             records_per_file: args.value_of("records-per-file")
+    //                 .and_then(|l| {
+    //                     Regex::new(r"^(\d+)([kMG])$")
+    //                         .unwrap()
+    //                         .captures(l)
+    //                         .and_then(|caps| {
+    //                             caps.at(1)
+    //                                 .and_then(|size| u64::from_str(size).ok())
+    //                                 .and_then(|size| Some((size, caps.at(2))))
+    //                         })
+    //                         .and_then(|(size, suffix)| {
+    //                             match suffix {
+    //                                 Some("k") => Some(1000 * size),
+    //                                 Some("M") => Some(1000_000 * size),
+    //                                 Some("G") => Some(1000_000_000 * size),
+    //                                 _ => None,
+    //                             }
+    //                         })
+    //                 }),
+    //         };
+    //         output.push(try!(nodes.register::<filewriter::FileWriter, _>(args, None)));
+    //     }
+    //     None => (),
+    // }
+
+    // if args.is_present("input") {
+    //     let files = args.values_of("input")
+    //         .map(|files| files.map(|f| PathBuf::from(f)).collect::<Vec<PathBuf>>())
+    //         .ok_or("Failed to parse input file(s) argument(s)".to_owned())?;
+    //     nodes.register::<filereader::FileReader, _>(files, parser)?;
+    // } else {
+    //     match args.value_of("COMMAND") {
+    //         Some(c) => {
+    //             if c == "stdin" {
+    //                 nodes.register::<stdinreader::StdinReader, _>((), parser)?;
+    //             } else {
+    //                 let arg = (c.split_whitespace()
+    //                                .map(|s| s.to_owned())
+    //                                .collect::<Vec<String>>(),
+    //                            args.is_present("restart"));
+    //                 nodes.register::<runner::Runner, _>(arg, parser)?;
+    //             }
+    //         }
+    //         None => {
+    //             nodes.register::<runner::Runner, _>((vec!["adb".to_owned(), "logcat".to_owned()],
+    //                                                 true),
+    //                                                parser)?;
+    //         }
+    //     }
+    // }
+
+    // nodes.run()
 }
