@@ -53,8 +53,7 @@ impl FileWriter {
 
             let dir = filename.parent().unwrap_or(Path::new(""));
             if !dir.is_dir() {
-                DirBuilder::new()
-                    .recursive(true)
+                DirBuilder::new().recursive(true)
                     .create(dir)
                     .chain_err(|| "Failed to create directory")?
             }
@@ -130,10 +129,9 @@ fn next_file() {
     use tempdir::TempDir;
     let tempdir = TempDir::new("rogcat").unwrap();
     let file = tempdir.path().join("test");
-    assert_eq!(FileWriter::next_file(&file, None),
-               Ok(file));
-    assert_eq!(FileWriter::next_file(&PathBuf::from("tmp/test"), None),
-               Ok(PathBuf::from("tmp/test")));
+    assert_eq!(FileWriter::next_file(&file, None).unwrap(), file);
+    assert_eq!(FileWriter::next_file(&PathBuf::from("tmp/test"), None).unwrap(),
+               PathBuf::from("tmp/test"));
 }
 
 #[test]
@@ -142,14 +140,14 @@ fn next_file_index() {
     let tempdir = TempDir::new("rogcat").unwrap();
     let file = tempdir.path().join("test");
 
-    assert_eq!(FileWriter::next_file(&file, Some(0)),
-               Ok(tempdir.path().join("test-000")));
-    assert_eq!(FileWriter::next_file(&file, Some(1)),
-               Ok(tempdir.path().join("test-001")));
-    assert_eq!(FileWriter::next_file(&file, Some(2)),
-               Ok(tempdir.path().join("test-002")));
-    assert_eq!(FileWriter::next_file(&file, Some(1000)),
-               Ok(tempdir.path().join("test-1000")));
+    assert_eq!(FileWriter::next_file(&file, Some(0)).unwrap(),
+               tempdir.path().join("test-000"));
+    assert_eq!(FileWriter::next_file(&file, Some(1)).unwrap(),
+               tempdir.path().join("test-001"));
+    assert_eq!(FileWriter::next_file(&file, Some(2)).unwrap(),
+               tempdir.path().join("test-002"));
+    assert_eq!(FileWriter::next_file(&file, Some(1000)).unwrap(),
+               tempdir.path().join("test-1000"));
 }
 
 #[test]
@@ -157,8 +155,8 @@ fn next_file_index_extension() {
     use tempdir::TempDir;
     let tempdir = TempDir::new("rogcat").unwrap();
     let file = tempdir.path().join("test.log");
-    assert_eq!(FileWriter::next_file(&file, Some(0)),
-               Ok(tempdir.path().join("test-000.log")));
-    assert_eq!(FileWriter::next_file(&file, Some(1)),
-               Ok(tempdir.path().join("test-001.log")));
+    assert_eq!(FileWriter::next_file(&file, Some(0)).unwrap(),
+               tempdir.path().join("test-000.log"));
+    assert_eq!(FileWriter::next_file(&file, Some(1)).unwrap(),
+               tempdir.path().join("test-001.log"));
 }
