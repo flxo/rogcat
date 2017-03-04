@@ -5,7 +5,7 @@ authors = ["Felix Obenhuber <felix@obenhuber.de>"]
 
 [dependencies]
 clap = "2.16.2"
-error-chain = "0.7.2"
+error-chain = "0.10.0"
 futures = "0.1"
 kabuki = { git = "https://github.com/carllerche/kabuki" }
 regex = "0.1.73"

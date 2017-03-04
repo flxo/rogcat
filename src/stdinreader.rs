@@ -10,8 +10,15 @@ use kabuki::Actor;
 use std::io::stdin;
 use super::Message;
 use super::record::Record;
+use super::RFuture;
 
 pub struct StdinReader;
+
+impl StdinReader {
+    pub fn new() -> StdinReader {
+        StdinReader {}
+    }
+}
 
 impl Actor for StdinReader {
     type Request = ();
@@ -22,9 +29,9 @@ impl Actor for StdinReader {
     fn call(&mut self, _req: ()) -> Self::Future {
         let mut buffer = String::new();
         let record = match stdin().read_line(&mut buffer) {
-            Ok(_) => {
-                if buffer.is_empty() {
-                    future::ok(Message::Finished)
+            Ok(s) => {
+                if s == 0 {
+                    future::ok(Message::Done)
                 } else {
                     future::ok(Message::Record(Record {
                         timestamp: Some(::time::now()),

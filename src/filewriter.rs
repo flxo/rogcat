@@ -4,12 +4,18 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
+use clap::ArgMatches;
 use errors::*;
+use futures::{future, Future};
+use kabuki::Actor;
+use regex::Regex;
 use std::fs::{DirBuilder, File};
-use std::path::{Path, PathBuf};
 use std::io::Write;
-use super::node::Node;
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
+use super::Message;
 use super::record::Record;
+use super::RFuture;
 
 pub enum Format {
     Raw,
@@ -27,12 +33,6 @@ impl ::std::str::FromStr for Format {
     }
 }
 
-pub struct Args {
-    pub filename: PathBuf,
-    pub format: Format,
-    pub records_per_file: Option<u64>,
-}
-
 pub struct FileWriter {
     filename: PathBuf,
     file: File,
@@ -42,7 +42,49 @@ pub struct FileWriter {
     file_size: u64,
 }
 
-impl FileWriter {
+impl<'a> FileWriter {
+    pub fn new(args: &ArgMatches<'a>) -> Result<Self> {
+        let filename = args.value_of("output")
+            .and_then(|f| Some(PathBuf::from(f)))
+            .ok_or("Invalid output filename!")?;
+
+        let records_per_file = args.value_of("records-per-file")
+            .and_then(|l| {
+                Regex::new(r"^(\d+)([kMG])$")
+                    .unwrap()
+                    .captures(l)
+                    .and_then(|caps| {
+                        caps.at(1)
+                            .and_then(|size| u64::from_str(size).ok())
+                            .and_then(|size| Some((size, caps.at(2))))
+                    })
+                    .and_then(|(size, suffix)| {
+                        match suffix {
+                            Some("k") => Some(1000 * size),
+                            Some("M") => Some(1000_000 * size),
+                            Some("G") => Some(1000_000_000 * size),
+                            _ => None,
+                        }
+                    })
+            });
+
+        let format = match args.value_of("format") {
+            Some(s) => Format::from_str(s)?,
+            None => Format::Raw,
+        };
+
+        let file = Self::next_file(&filename, records_per_file.map(|_| 0))?;
+
+        Ok(FileWriter {
+            file: File::create(file.clone()).chain_err(|| format!("Failed to create output file: {:?}", file.clone()))?,
+            filename: filename,
+            format: format,
+            records_per_file: records_per_file,
+            file_index: 0,
+            file_size: 0,
+        })
+    }
+
     fn next_file(filename: &PathBuf, file_index: Option<u32>) -> Result<PathBuf> {
         if file_index.is_none() {
             Ok(filename.clone())
@@ -73,7 +115,7 @@ impl FileWriter {
         }
     }
 
-    fn format(record: Record, format: &Format) -> Result<String> {
+    fn format(record: &Record, format: &Format) -> Result<String> {
         Ok(match format {
             &Format::Csv => {
                 format!("\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"\n",
@@ -89,38 +131,40 @@ impl FileWriter {
             &Format::Raw => format!("{}\n", record.raw),
         })
     }
-}
 
-impl Node<Record, Args> for FileWriter {
-    fn new(args: Args) -> Result<Box<Self>> {
-        let file = Self::next_file(&args.filename, args.records_per_file.map(|_| 0))?;
-        Ok(Box::new(FileWriter {
-            file: File::create(file).map_err(|e| format!("{}", e))?,
-            filename: args.filename,
-            format: args.format,
-            records_per_file: args.records_per_file,
-            file_index: 0,
-            file_size: 0,
-        }))
-    }
-
-    fn message(&mut self, record: Record) -> Result<Option<Record>> {
+    fn write(&mut self, record: &Record) -> Result<usize> {
         if let Some(records_per_file) = self.records_per_file {
             if self.file_size == records_per_file {
                 self.file_index += 1;
-                self.file = File::create(Self::next_file(&self.filename, Some(self.file_index))?)
-                    .map_err(|e| format!("{}", e))?;
+                let filename = Self::next_file(&self.filename, Some(self.file_index))?;
+                self.file = File::create(filename).chain_err(|| "Failed to create output file")?;
                 self.file_size = 0;
             }
         }
 
+        self.file_size += 1;
         self.file
             .write(Self::format(record, &self.format)?.as_bytes())
-            .map(|_| ())
-            .map_err(|e| format!("{}", e))?;
-        self.file_size += 1;
+            .chain_err(|| "Failed to write to output file")
+    }
+}
 
-        Ok(None)
+impl Actor for FileWriter {
+    type Request = Message;
+    type Response = Message;
+    type Error = Error;
+    type Future = RFuture<Message>;
+
+    fn call(&mut self, message: Message) -> Self::Future {
+        match message {
+            Message::Record(ref record) => {
+                if let Err(e) = self.write(record) {
+                    return future::err(e.into()).boxed();
+                }
+            }
+            _ => (),
+        }
+        future::ok(message).boxed()
     }
 }
 

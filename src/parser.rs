@@ -10,6 +10,7 @@ use kabuki::Actor;
 use regex::Regex;
 use super::Message;
 use super::record::{Level, Record};
+use super::RFuture;
 
 trait Format {
     fn parse(&self, line: &str) -> Result<Record>;

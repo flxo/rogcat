@@ -5,70 +5,77 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use errors::*;
+use futures::{future, Future};
+use kabuki::Actor;
 use std::io::{BufReader, BufRead};
-use std::process::{ChildStdout, Command, Stdio};
-use super::node::Node;
+use std::process::{ChildStdout, ChildStderr, Command, Stdio};
+use super::Message;
 use super::record::Record;
+use super::RFuture;
 
 pub struct Runner {
-    cmd: Vec<String>,
-    restart: bool,
+    _cmd: Vec<String>,
+    _restart: bool,
+    _stderr: BufReader<ChildStderr>,
     stdout: BufReader<ChildStdout>,
 }
 
 impl Runner {
-    fn run(c: &Vec<String>) -> Result<BufReader<ChildStdout>> {
-        Command::new(&c[0])
-            .args(&c[1..])
-            .stdout(Stdio::piped())
-            .spawn()
-            .map_err(|e| format!("Cannot run \"{}\": {}", c[0], e))?
-            .stdout
-            .map(|s| BufReader::new(s))
-            .ok_or(format!("Cannot open stdout of \"{}\"", c[0]).into())
+    pub fn new(cmd: String, restart: bool) -> Result<Self> {
+        let cmd = cmd.split_whitespace()
+            .map(|s| s.to_owned())
+            .collect::<Vec<String>>();
+        let (stderr, stdout) = Runner::run(&cmd)?;
+
+        Ok(Runner {
+            _cmd: cmd,
+            _restart: restart,
+            _stderr: BufReader::new(stderr),
+            stdout: BufReader::new(stdout),
+        })
+    }
+
+    fn run(cmd: &Vec<String>) -> Result<(ChildStderr, ChildStdout)> {
+        if cmd.is_empty() {
+            Err("Invalid cmd".into())
+        } else {
+            let c = Command::new(&cmd[0]).args(&cmd[1..])
+                .stderr(Stdio::piped())
+                .stdout(Stdio::piped())
+                .spawn()?;
+            Ok((c.stderr.ok_or("Failed to open stderr")?, c.stdout.ok_or("Failed to open stdout")?))
+        }
     }
 }
 
-impl Node<Record, (Vec<String>, bool)> for Runner {
-    fn new(args: (Vec<String>, bool)) -> Result<Box<Self>> {
-        let stdout = Runner::run(&args.0)?;
+impl Actor for Runner {
+    type Request = ();
+    type Response = Message;
+    type Error = Error;
+    type Future = RFuture<Message>;
 
-        Ok(Box::new(Runner {
-            cmd: args.0,
-            restart: args.1,
-            stdout: stdout,
-        }))
-    }
-
-    fn start(&mut self, send: &Fn(Record), done: &Fn()) -> Result<()> {
-        loop {
-            loop {
-                let mut buffer: Vec<u8> = vec![];
-                if self.stdout.read_until(b'\n', &mut buffer).map_err(|e| format!("{}", e))? > 0 {
-                    send(Record {
+    fn call(&mut self, _: ()) -> Self::Future {
+        let mut buffer = Vec::new();
+        match self.stdout.read_until(b'\n', &mut buffer) {
+            Ok(s) => {
+                if s > 0 {
+                    let record = Record {
                         timestamp: Some(::time::now()),
                         raw: String::from_utf8_lossy(&buffer).trim().to_string(),
                         ..Default::default()
-                    });
+                    };
+                    future::ok(Message::Record(record)).boxed()
                 } else {
-                    break;
+                    future::ok(Message::Done).boxed()
                 }
             }
-
-            if self.restart {
-                self.stdout = Self::run(&self.cmd)?;
-            } else {
-                done();
-                break;
-            }
+            Err(e) => future::err(e.into()).boxed(),
         }
-        Ok(())
     }
 }
 
-
 #[test]
 fn runner() {
-    assert!(Runner::new((vec!["true".to_string()], false)).is_ok());
-    assert!(Runner::new((vec!["echo".to_string(), "test".to_string()], false)).is_ok());
+    assert!(Runner::new("true".to_owned(), false).is_ok());
+    assert!(Runner::new("echo test".to_owned(), false).is_ok());
 }

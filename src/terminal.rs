@@ -18,6 +18,7 @@ use term_painter::Attr::*;
 use term_painter::{Color, ToStyle};
 use terminal_size::{Width, Height, terminal_size};
 use time::Tm;
+use super::RFuture;
 
 #[cfg(not(target_os = "windows"))]
 const DIMM_COLOR: Color = Color::Custom(243);

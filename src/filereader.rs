@@ -4,47 +4,81 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
+use clap::ArgMatches;
 use errors::*;
+use futures::{future, Future};
+use kabuki::Actor;
 use std::fs::File;
 use std::io::{BufReader, BufRead};
 use std::path::PathBuf;
-use super::node::Node;
+use super::Message;
 use super::record::Record;
+use super::RFuture;
 
-pub struct FileReader {
-    files: Vec<File>,
+enum ReadResult {
+    Empty,
+    Line(String),
 }
 
-impl Node<Record, Vec<PathBuf>> for FileReader {
-    fn new(files: Vec<PathBuf>) -> Result<Box<Self>> {
-        let mut f = vec![];
-        for filename in &files {
-            f.push(File::open(filename).map_err(|e| format!("Cannot open {:?}: {}", filename, e))?);
+pub struct FileReader {
+    files: Vec<Box<BufReader<File>>>,
+}
+
+impl<'a> FileReader {
+    pub fn new(args: &ArgMatches<'a>) -> Result<Self> {
+        let files = args.values_of("input")
+            .map(|f| f.map(|f| PathBuf::from(f)).collect::<Vec<PathBuf>>())
+            .ok_or("Failed to parse input files")?;
+
+        // No early return from iteration....
+        let mut reader = Vec::new();
+        for f in files {
+            let file = File::open(f.clone()).chain_err(|| format!("Failed to open {:?}", f))?;
+            let bufreader = BufReader::new(file);
+            reader.push(Box::new(bufreader));
         }
-        Ok(Box::new(FileReader { files: f }))
+
+        Ok(FileReader { files: reader })
     }
 
-    fn start(&mut self, send: &Fn(Record), done: &Fn()) -> Result<()> {
-        for f in self.files.drain(..) {
-            let mut reader = BufReader::new(f);
-            loop {
-                let mut buffer: Vec<u8> = Vec::new();
-                if let Ok(len) = reader.read_until(b'\n', &mut buffer) {
-                    if len == 0 {
-                        done();
-                        break;
-                    } else {
-                        send(Record {
-                            raw: String::from_utf8_lossy(&buffer).trim().to_string(),
-                            ..Default::default()
-                        });
+    fn read(&mut self) -> Result<ReadResult> {
+        let ref mut reader = self.files[0];
+        let mut buffer = Vec::new();
+        if reader.read_until(b'\n', &mut buffer).chain_err(|| "Failed read")? > 0 {
+            let line = String::from_utf8_lossy(&buffer).trim().to_string();
+            Ok(ReadResult::Line(line))
+        } else {
+            Ok(ReadResult::Empty)
+        }
+    }
+}
+
+impl Actor for FileReader {
+    type Request = ();
+    type Response = Message;
+    type Error = Error;
+    type Future = RFuture<Message>;
+
+    fn call(&mut self, _: ()) -> Self::Future {
+        loop {
+            match self.read() {
+                Ok(v) => {
+                    match v {
+                        ReadResult::Empty => {
+                            if self.files.len() > 1 {
+                                self.files.remove(0);
+                            } else {
+                                return future::ok(Message::Done).boxed();
+                            }
+                        }
+                        ReadResult::Line(line) => {
+                            let record = Record { raw: line, ..Default::default() };
+                            return future::ok(Message::Record(record)).boxed();
+                        }
                     }
                 }
-                // else {
-                //     return Error(::errors::ErrorKind::Other, "Failed to read input file");
-                // }
+                Err(e) => return future::err(e.into()).boxed(),
             }
         }
-        Ok(())
     }
 }

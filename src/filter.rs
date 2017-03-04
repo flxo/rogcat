@@ -11,6 +11,7 @@ use regex::Regex;
 use futures::{future, Future};
 use kabuki::Actor;
 use super::Message;
+use super::RFuture;
 
 pub struct Filter {
     level: Level,
