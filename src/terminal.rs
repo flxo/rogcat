@@ -194,6 +194,10 @@ impl<'a> Terminal {
             let preamble_width = timestamp_width + 1 + self.diff_width + 1 + tag_width + 1 +
                                  2 * self.process_width + 2 +
                                  1 + 8 + 1;
+            // Windows terminal width reported is too big
+            #[cfg(target_os = "windows")]
+            let preamble_width = preamble_width + 1;
+
             let record_len = record.message.chars().count();
             let columns = width as usize;
             if (preamble_width + record_len) > columns {
