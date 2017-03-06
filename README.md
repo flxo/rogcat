@@ -9,7 +9,7 @@ A ``adb logcat`` wrapper with colors and filter and output options written in `R
 ## Usage
 
 ```
-rogcat 0.2.1
+rogcat 0.2.2
 Felix Obenhuber <felix@obenhuber.de>
 A 'adb logcat' wrapper
 
@@ -22,20 +22,24 @@ FLAGS:
     -h, --help                   Prints help information
     -S, --output-statistics      Output statistics
     -r, --restart                Restart command on exit
-    -s, --silent                 Do not print on stdout
+        --shorten-tags           Shorten tag by removing vovels if too long
+        --show-date              Show month and day
+        --show-time-diff         Show time diff of tags
     -V, --version                Prints version information
 
 OPTIONS:
     -f, --format <format>                        Write format to output files [values: raw, csv]
-    -i, --input <INPUT>                          Read from file instead of command. Pass "stdin" to capture stdin
-    -l, --level <level>                          Minimum level [values: trace, debug, info, warn, error, fatal, assert, T, D, I, W, E, F, A]
+    -i, --input <INPUT>...                       Read from file instead of command
+    -l, --level <level>
+            Minimum level [values: trace, debug, info, warn, error, fatal, assert, T, D, I, W, E, F, A]
     -m, --msg <MSG>...                           Message filters in RE2
     -o, --output <OUTPUT>                        Write to file and stdout
-    -n, --records-per-file <records-per-file>    Write n records per file. Use k, M, G suffixes or a number e.g 9k for 9000
+    -n, --records-per-file <records-per-file>
+            Write n records per file. Use k, M, G suffixes or a number e.g 9k for 9000
     -t, --tag <TAG>...                           Tag filters in RE2
 
 ARGS:
-    <COMMAND>    Optional command to run and capture stdout. Pass "stdin" to capture stdin
+    <COMMAND>    Optional command to run and capture stdout. Pass "-" to capture stdin
 
 SUBCOMMANDS:
     completions    Generates completion scripts for your shell

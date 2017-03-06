@@ -4,6 +4,7 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
+use clap::ArgMatches;
 use errors::*;
 use futures::{future, Future};
 use kabuki::Actor;
@@ -25,39 +26,42 @@ pub const DIMM_COLOR: Color = Color::Custom(243);
 #[cfg(target_os = "windows")]
 pub const DIMM_COLOR: Color = Color::White;
 
-pub struct Terminal<'a> {
+pub struct Terminal {
     beginning_of: Regex,
     color: bool,
-    date_format: (&'a str, usize),
-    full_tag: bool,
+    date_format: (String, usize),
+    diff_width: usize,
     process_width: usize,
+    shorten_tag: bool,
     tag_timestamps: HashMap<String, Tm>,
     tag_width: usize,
     thread_width: usize,
-    vovels: Regex,
     time_diff: bool,
-    diff_width: usize,
+    vovels: Regex,
 }
 
-impl<'a> Terminal<'a> {
-    pub fn new() -> Result<Self> {
+impl<'a> Terminal {
+    pub fn new(args: &ArgMatches<'a>) -> Result<Self> {
         Ok(Terminal {
             beginning_of: Regex::new(r"--------- beginning of.*").unwrap(),
             color: true, // ! args.is_present("NO-COLOR"),
-            date_format: if true {
-                ("%m-%d %H:%M:%S.%f", 18)
+            date_format: if args.is_present("show-date") {
+                ("%m-%d %H:%M:%S.%f".to_owned(), 18)
             } else {
-                ("%H:%M:%S.%f", 12)
+                ("%H:%M:%S.%f".to_owned(), 12)
             },
-            full_tag: false, // args.is_present("NO-TAG-SHORTENING"),
+            shorten_tag: args.is_present("shorten-tags"),
             process_width: 0,
             tag_timestamps: HashMap::new(),
             vovels: Regex::new(r"a|e|i|o|u").unwrap(),
-
             tag_width: 20,
             thread_width: 0,
-            diff_width: 8,
-            time_diff: false, // !args.is_present("NO-TIME-DIFF"),
+            diff_width: if args.is_present("show-time-diff") {
+                8
+            } else {
+                0
+            },
+            time_diff: args.is_present("show-time-diff"),
         })
     }
 
@@ -77,8 +81,8 @@ impl<'a> Terminal<'a> {
     // TODO
     // Rework this to use a more column based approach!
     fn print_record(&mut self, record: &Record) {
-        let (timestamp, diff) = if let Some(ts) = record.timestamp {
-            let timestamp = match ::time::strftime(self.date_format.0, &ts) {
+        let (timestamp, mut diff) = if let Some(ts) = record.timestamp {
+            let timestamp = match ::time::strftime(&self.date_format.0, &ts) {
                 Ok(t) => {
                     t.chars()
                         .take(self.date_format.1)
@@ -89,14 +93,13 @@ impl<'a> Terminal<'a> {
 
             let diff = if self.time_diff {
                 if let Some(t) = self.tag_timestamps.get(&record.tag) {
-                    let diff = (ts - *t).num_milliseconds();
-                    let diff = format!("{:>.3}", diff);
+                    let diff = ((ts - *t).num_milliseconds()).abs();
+                    let diff = format!("{}.{:.03}", diff / 1000, diff % 1000);
                     let diff = if diff.chars().count() <= self.diff_width {
                         diff
                     } else {
                         "-.---".to_owned()
                     };
-
                     diff
                 } else {
                     "".to_owned()
@@ -111,28 +114,28 @@ impl<'a> Terminal<'a> {
         };
 
         let tag = {
-            let t = if self.beginning_of.is_match(&record.message) {
+            let mut t = if self.beginning_of.is_match(&record.message) {
+                diff = "".to_owned();
+                self.tag_timestamps.clear();
                 // Print horizontal line if temrinal width is detectable
                 if let Some((Width(width), Height(_))) = terminal_size() {
                     println!("{}", (0..width).map(|_| "─").collect::<String>());
                 }
                 // "beginnig of" messages never have a tag
-                &record.message
+                record.message.clone()
             } else {
-                &record.tag
+                record.tag.clone()
             };
 
-            if self.full_tag {
-                format!("{:>width$}", t, width = self.tag_width)
-            } else if t.chars().count() > self.tag_width {
-                let mut t = self.vovels.replace_all(t, "");
+            if t.chars().count() > self.tag_width {
+                if self.shorten_tag {
+                    t = self.vovels.replace_all(&t, "")
+                }
                 if t.chars().count() > self.tag_width {
                     t.truncate(self.tag_width);
                 }
-                format!("{:>width$}", t, width = self.tag_width)
-            } else {
-                format!("{:>width$}", t, width = self.tag_width)
             }
+            format!("{:>width$}", t, width = self.tag_width)
         };
 
         self.process_width = max(self.process_width, record.process.chars().count());
@@ -232,7 +235,7 @@ impl<'a> Terminal<'a> {
     }
 }
 
-impl<'a> Actor for Terminal<'a> {
+impl<'a> Actor for Terminal {
     type Request = Message;
     type Response = Message;
     type Error = Error;

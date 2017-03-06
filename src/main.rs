@@ -82,14 +82,12 @@ fn build_cli() -> App<'static, 'static> {
              .possible_values(&["trace", "debug", "info", "warn", "error", "fatal", "assert", "T", "D", "I", "W", "E", "F", "A"])
              .help("Minimum level"))
         .arg_from_usage("-r --restart 'Restart command on exit'")
-        //.arg_from_usage("-s --silent 'Do not print on stdout'")
         .arg_from_usage("-c --clear 'Clear (flush) the entire log and exit'")
         .arg_from_usage("-g --get-ringbuffer-size 'Get the size of the log's ring buffer and exit'")
         .arg_from_usage("-S --output-statistics 'Output statistics'")
-        // .arg_from_usage("--no-color 'Monochrome output'")
-        // .arg_from_usage("--no-tag-shortening 'Disable shortening of tag'")
-        // .arg_from_usage("--no-time-diff 'Disable tag time difference'")
-        // .arg_from_usage("--show-date 'Disable month and day display'")
+        .arg_from_usage("--shorten-tags 'Shorten tag by removing vovels if too long'")
+        .arg_from_usage("--show-date 'Show month and day'")
+        .arg_from_usage("--show-time-diff 'Show time diff of tags'")
         .arg_from_usage("[COMMAND] 'Optional command to run and capture stdout. Pass \"-\" to capture stdin'")
         .subcommand(SubCommand::with_name("completions")
                     .about("Generates completion scripts for your shell")
@@ -171,7 +169,7 @@ fn run<'a>(args: ArgMatches<'a>) -> Result<i32> {
     let mut input = input(&args, &core)?;
     let mut parser = Builder::new().spawn(&core.handle(), parser::Parser::new());
     let mut filter = Builder::new().spawn(&core.handle(), filter::Filter::new(&args)?);
-    let mut terminal = Builder::new().spawn(&core.handle(), terminal::Terminal::new()?);
+    let mut terminal = Builder::new().spawn(&core.handle(), terminal::Terminal::new(&args)?);
     let mut filewriter = if args.is_present("output") {
         Some(Builder::new().spawn(&core.handle(), filewriter::FileWriter::new(&args)?))
     } else {
