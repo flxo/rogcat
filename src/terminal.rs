@@ -21,9 +21,9 @@ use time::Tm;
 use super::RFuture;
 
 #[cfg(not(target_os = "windows"))]
-const DIMM_COLOR: Color = Color::Custom(243);
+pub const DIMM_COLOR: Color = Color::Custom(243);
 #[cfg(target_os = "windows")]
-const DIMM_COLOR: Color = Color::White;
+pub const DIMM_COLOR: Color = Color::White;
 
 pub struct Terminal<'a> {
     beginning_of: Regex,

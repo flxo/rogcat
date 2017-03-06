@@ -10,12 +10,14 @@ use kabuki::Actor;
 use std::io::{BufReader, BufRead};
 use std::process::{ChildStdout, ChildStderr, Command, Stdio};
 use super::Message;
-use super::record::Record;
 use super::RFuture;
+use super::record::Record;
+use super::terminal::DIMM_COLOR;
+use term_painter::ToStyle;
 
 pub struct Runner {
-    _cmd: Vec<String>,
-    _restart: bool,
+    cmd: Vec<String>,
+    restart: bool,
     _stderr: BufReader<ChildStderr>,
     stdout: BufReader<ChildStdout>,
 }
@@ -25,11 +27,11 @@ impl Runner {
         let cmd = cmd.split_whitespace()
             .map(|s| s.to_owned())
             .collect::<Vec<String>>();
-        let (stderr, stdout) = Runner::run(&cmd)?;
+        let (stderr, stdout) = Self::run(&cmd)?;
 
         Ok(Runner {
-            _cmd: cmd,
-            _restart: restart,
+            cmd: cmd,
+            restart: restart,
             _stderr: BufReader::new(stderr),
             stdout: BufReader::new(stdout),
         })
@@ -55,21 +57,35 @@ impl Actor for Runner {
     type Future = RFuture<Message>;
 
     fn call(&mut self, _: ()) -> Self::Future {
-        let mut buffer = Vec::new();
-        match self.stdout.read_until(b'\n', &mut buffer) {
-            Ok(s) => {
-                if s > 0 {
-                    let record = Record {
-                        timestamp: Some(::time::now()),
-                        raw: String::from_utf8_lossy(&buffer).trim().to_string(),
-                        ..Default::default()
-                    };
-                    future::ok(Message::Record(record)).boxed()
-                } else {
-                    future::ok(Message::Done).boxed()
+        loop {
+            let mut buffer = Vec::new();
+            match self.stdout.read_until(b'\n', &mut buffer) {
+                Ok(s) => {
+                    if s > 0 {
+                        let record = Record {
+                            timestamp: Some(::time::now()),
+                            raw: String::from_utf8_lossy(&buffer).trim().to_string(),
+                            ..Default::default()
+                        };
+                        return future::ok(Message::Record(record)).boxed()
+                    } else {
+                        if self.restart {
+                            let text = format!("Restarting \"{}\"", self.cmd.join(" "));
+                            println!("{}", DIMM_COLOR.paint(&text));
+                            match Runner::run(&self.cmd) {
+                                Ok((stderr, stdout)) => {
+                                    self._stderr = BufReader::new(stderr);
+                                    self.stdout = BufReader::new(stdout);
+                                }
+                                Err(e) => return future::err(e.into()).boxed(),
+                            }
+                        } else {
+                            return future::ok(Message::Done).boxed()
+                        }
+                    }
                 }
+                Err(e) => return future::err(e.into()).boxed(),
             }
-            Err(e) => future::err(e.into()).boxed(),
         }
     }
 }
