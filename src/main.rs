@@ -50,6 +50,25 @@ pub enum Message {
     Done,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum Format {
+    Csv,
+    Human,
+    Raw,
+}
+
+impl ::std::str::FromStr for Format {
+    type Err = &'static str;
+    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
+        match s {
+            "csv" => Ok(Format::Csv),
+            "human" => Ok(Format::Human),
+            "raw" => Ok(Format::Raw),
+            _ => Err("Format parsing error"),
+        }
+    }
+}
+
 type RFuture<T> = Box<Future<Item = T, Error = Error>>;
 type InputActor = ActorRef<(), Message, errors::Error>;
 
@@ -69,13 +88,21 @@ fn build_cli() -> App<'static, 'static> {
              .takes_value(true)
              .requires("output")
              .help("Write n records per file. Use k, M, G suffixes or a number e.g 9k for 9000"))
-        .arg(Arg::with_name("format")
-             .long("format")
+        .arg(Arg::with_name("file-format")
+             .long("file-format")
              .short("f")
              .takes_value(true)
              .requires("output")
+             .default_value("raw")
              .possible_values(&["raw", "csv"])
              .help("Write format to output files"))
+        .arg(Arg::with_name("terminal-format")
+             .long("terminal-format")
+             .short("e")
+             .takes_value(true)
+             .default_value("human")
+             .possible_values(&["human", "raw", "csv"])
+             .help("Use format on stdout"))
         .arg(Arg::from_usage("-i --input [INPUT] 'Read from file instead of command.")
              .multiple(true))
         .arg(Arg::with_name("level")

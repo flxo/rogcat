@@ -13,25 +13,10 @@ use std::fs::{DirBuilder, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use super::Format;
 use super::Message;
-use super::record::Record;
 use super::RFuture;
-
-pub enum Format {
-    Raw,
-    Csv,
-}
-
-impl ::std::str::FromStr for Format {
-    type Err = &'static str;
-    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
-        match s {
-            "csv" => Ok(Format::Csv),
-            "raw" => Ok(Format::Raw),
-            _ => Err("Format parsing error"),
-        }
-    }
-}
+use super::record::Record;
 
 pub struct FileWriter {
     filename: PathBuf,
@@ -68,7 +53,7 @@ impl<'a> FileWriter {
                     })
             });
 
-        let format = match args.value_of("format") {
+        let format = match args.value_of("file-format") {
             Some(s) => Format::from_str(s)?,
             None => Format::Raw,
         };
@@ -115,23 +100,6 @@ impl<'a> FileWriter {
         }
     }
 
-    fn format(record: &Record, format: &Format) -> Result<String> {
-        Ok(match format {
-            &Format::Csv => {
-                format!("\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"\n",
-                        record.timestamp
-                            .and_then(|ts| ::time::strftime("%m-%d %H:%M:%S.%f", &ts).ok())
-                            .unwrap_or("".to_owned()),
-                        record.tag,
-                        record.process,
-                        record.thread,
-                        record.level,
-                        record.message)
-            }
-            &Format::Raw => format!("{}\n", record.raw),
-        })
-    }
-
     fn write(&mut self, record: &Record) -> Result<usize> {
         if let Some(records_per_file) = self.records_per_file {
             if self.file_size == records_per_file {
@@ -142,10 +110,14 @@ impl<'a> FileWriter {
             }
         }
 
+        let error_msg = "Failed to write to output file";
         self.file_size += 1;
         self.file
-            .write(Self::format(record, &self.format)?.as_bytes())
-            .chain_err(|| "Failed to write to output file")
+            .write(record.format(self.format.clone())?.as_bytes())
+            .chain_err(|| error_msg)?;
+        self.file
+            .write("\n".as_bytes())
+            .chain_err(|| error_msg)
     }
 }
 

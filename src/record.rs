@@ -4,6 +4,9 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
+use super::errors::*;
+use super::Format;
+
 #[derive (Clone, Debug, PartialOrd, PartialEq)]
 pub enum Level {
     None,
@@ -59,7 +62,7 @@ impl<'a> From<&'a str> for Level {
 
 impl ::std::str::FromStr for Level {
     type Err = bool;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
         Ok(Self::from(s))
     }
 }
@@ -73,4 +76,24 @@ pub struct Record {
     pub process: String,
     pub thread: String,
     pub raw: String,
+}
+
+impl Record {
+    pub fn format(&self, format: Format) -> Result<String> {
+        Ok(match format {
+            Format::Csv => {
+                format!("\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"",
+                        self.timestamp
+                            .and_then(|ts| ::time::strftime("%m-%d %H:%M:%S.%f", &ts).ok())
+                            .unwrap_or("".to_owned()),
+                        self.tag,
+                        self.process,
+                        self.thread,
+                        self.level,
+                        self.message)
+            }
+            Format::Raw => self.raw.clone(),
+            Format::Human => panic!("Unimplemented"),
+        })
+    }
 }

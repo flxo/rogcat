@@ -13,12 +13,14 @@ use std::cmp::max;
 use std::collections::HashMap;
 use std::io::Write;
 use std::io::stdout;
+use std::str::FromStr;
 use super::Message;
 use super::record::{Level, Record};
 use term_painter::Attr::*;
 use term_painter::{Color, ToStyle};
 use terminal_size::{Width, Height, terminal_size};
 use time::Tm;
+use super::Format;
 use super::RFuture;
 
 #[cfg(not(target_os = "windows"))]
@@ -31,6 +33,7 @@ pub struct Terminal {
     color: bool,
     date_format: (String, usize),
     diff_width: usize,
+    format: Format,
     process_width: usize,
     shorten_tag: bool,
     tag_timestamps: HashMap<String, Tm>,
@@ -50,6 +53,9 @@ impl<'a> Terminal {
             } else {
                 ("%H:%M:%S.%f".to_owned(), 12)
             },
+            format: args.value_of("terminal-format")
+                .and_then(|f| Format::from_str(f).ok())
+                .unwrap_or(Format::Human),
             shorten_tag: args.is_present("shorten-tags"),
             process_width: 0,
             tag_timestamps: HashMap::new(),
@@ -78,9 +84,29 @@ impl<'a> Terminal {
         }
     }
 
+    fn print_record(&mut self, record: &Record) -> Result<()> {
+        match self.format {
+            Format::Csv => {
+                record.format(Format::Csv)
+                    .and_then(|s| {
+                        println!("{}", s);
+                        Ok(())
+                    })
+            }
+            Format::Human => {
+                self.print_human(record);
+                Ok(())
+            }
+            Format::Raw => {
+                println!("{}", record.raw);
+                Ok(())
+            }
+        }
+    }
+
     // TODO
     // Rework this to use a more column based approach!
-    fn print_record(&mut self, record: &Record) {
+    fn print_human(&mut self, record: &Record) {
         let (timestamp, mut diff) = if let Some(ts) = record.timestamp {
             let timestamp = match ::time::strftime(&self.date_format.0, &ts) {
                 Ok(t) => {
@@ -246,9 +272,11 @@ impl<'a> Actor for Terminal {
     type Future = RFuture<Message>;
 
     fn call(&mut self, message: Message) -> Self::Future {
-        match message {
-            Message::Record(ref record) => self.print_record(record),
-            _ => (),
+        if let Message::Record(ref record) = message {
+            match self.print_record(record) {
+                Ok(_) => (),
+                Err(e) => return future::err(e.into()).boxed(),
+            }
         }
         future::ok(message).boxed()
     }
