@@ -16,6 +16,7 @@ extern crate terminal_size;
 extern crate term_painter;
 extern crate tempdir;
 extern crate tokio_core;
+extern crate which;
 
 use clap::{App, Arg, ArgMatches, Shell, SubCommand};
 use error_chain::ChainedError;
@@ -23,10 +24,12 @@ use futures::Future;
 use futures::future::*;
 use kabuki::{ActorRef, Builder};
 use record::Record;
+use std::env;
 use std::io::Write;
 use std::io::stderr;
 use std::process::exit;
 use tokio_core::reactor;
+use which::which_in;
 
 mod errors;
 mod filereader;
@@ -156,9 +159,13 @@ fn input(args: &ArgMatches, core: &reactor::Core) -> Result<InputActor> {
                 }
             }
             None => {
-                let cmd = "adb logcat".to_owned();
-                let restart = true;
-                Ok(Builder::new().spawn(&core.handle(), runner::Runner::new(cmd, restart)?))
+                which_in("adb", env::var_os("PATH"), env::current_dir()?)
+                    .map_err(|e| format!("Cannot find adb: {}", e).into())
+                    .and_then(|_| {
+                        let cmd = "adb logcat".to_owned();
+                        let restart = true;
+                        Ok(Builder::new().spawn(&core.handle(), runner::Runner::new(cmd, restart)?))
+                    })
             }
         }
     }
