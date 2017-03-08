@@ -16,9 +16,11 @@ use super::terminal::DIMM_COLOR;
 use term_painter::ToStyle;
 
 pub struct Runner {
-    cmd: Vec<String>,
-    restart: bool,
     _stderr: BufReader<ChildStderr>,
+    cmd: Vec<String>,
+    last_line: Option<String>,
+    restart: bool,
+    skip_until: Option<String>,
     stdout: BufReader<ChildStdout>,
 }
 
@@ -30,9 +32,11 @@ impl Runner {
         let (stderr, stdout) = Self::run(&cmd)?;
 
         Ok(Runner {
-            cmd: cmd,
-            restart: restart,
             _stderr: BufReader::new(stderr),
+            cmd: cmd,
+            skip_until: None,
+            last_line: None,
+            restart: restart,
             stdout: BufReader::new(stdout),
         })
     }
@@ -67,9 +71,22 @@ impl Actor for Runner {
                             raw: String::from_utf8_lossy(&buffer).trim().to_string(),
                             ..Default::default()
                         };
-                        return future::ok(Message::Record(record)).boxed()
+                        self.last_line = Some(record.raw.clone());
+
+                        let skip_line = self.skip_until.clone();
+                        let r = match skip_line {
+                            Some(ref sl) => {
+                                if *sl == *record.raw {
+                                    self.skip_until = None;
+                                }
+                                Message::Drop
+                            },
+                            None => Message::Record(record),
+                        };
+                        return future::ok(r).boxed();
                     } else {
                         if self.restart {
+                            self.skip_until = self.last_line.clone();
                             let text = format!("Restarting \"{}\"", self.cmd.join(" "));
                             println!("{}", DIMM_COLOR.paint(&text));
                             match Runner::run(&self.cmd) {

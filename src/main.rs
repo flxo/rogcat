@@ -118,6 +118,7 @@ fn build_cli() -> App<'static, 'static> {
         .arg_from_usage("--shorten-tags 'Shorten tag by removing vovels if too long'")
         .arg_from_usage("--show-date 'Show month and day'")
         .arg_from_usage("--show-time-diff 'Show time diff of tags'")
+        .arg_from_usage("-s --skip-on-restart 'Skip messages on restart until last message from previous run is (re)received'")
         .arg_from_usage("[COMMAND] 'Optional command to run and capture stdout. Pass \"-\" to capture stdin'")
         .subcommand(SubCommand::with_name("completions")
                     .about("Generates completion scripts for your shell")

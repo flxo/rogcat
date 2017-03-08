@@ -25,10 +25,11 @@ FLAGS:
         --shorten-tags           Shorten tag by removing vovels if too long
         --show-date              Show month and day
         --show-time-diff         Show time diff of tags
+    -s, --skip-on-restart        Skip messages on restart until last message from previous run is (re)received
     -V, --version                Prints version information
 
 OPTIONS:
-    -f, --format <format>                        Write format to output files [values: raw, csv]
+    -f, --file-format <file-format>              Write format to output files [default: raw]  [values: raw, csv]
     -i, --input <INPUT>...                       Read from file instead of command
     -l, --level <level>
             Minimum level [values: trace, debug, info, warn, error, fatal, assert, T, D, I, W, E, F, A]
@@ -37,6 +38,7 @@ OPTIONS:
     -n, --records-per-file <records-per-file>
             Write n records per file. Use k, M, G suffixes or a number e.g 9k for 9000
     -t, --tag <TAG>...                           Tag filters in RE2
+    -e, --terminal-format <terminal-format>      Use format on stdout [default: human]  [values: human, raw, csv]
 
 ARGS:
     <COMMAND>    Optional command to run and capture stdout. Pass "-" to capture stdin
