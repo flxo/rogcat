@@ -181,8 +181,9 @@ fn run<'a>(args: ArgMatches<'a>) -> Result<i32> {
     match args.subcommand() {
         ("completions", Some(sub_matches)) => {
             let shell = sub_matches.value_of("SHELL").unwrap();
-            build_cli()
-                .gen_completions_to(crate_name!(), shell.parse::<Shell>().unwrap(), &mut stdout());
+            build_cli().gen_completions_to(crate_name!(),
+                                           shell.parse::<Shell>().unwrap(),
+                                           &mut stdout());
             return Ok(0);
         }
         ("devices", _) => {
@@ -220,8 +221,7 @@ fn run<'a>(args: ArgMatches<'a>) -> Result<i32> {
                                   &"output-statistics" => "S",
                                   _ => panic!(""),
                               });
-            let mut child = Command::new(adb()?)
-                .arg("logcat")
+            let mut child = Command::new(adb()?).arg("logcat")
                 .arg(arg)
                 .spawn()?;
             exit(child.wait()?.code().ok_or("Failed to get exit code")?);

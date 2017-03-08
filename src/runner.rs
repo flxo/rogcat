@@ -82,7 +82,7 @@ impl Actor for Runner {
                                     self.skip_until = None;
                                 }
                                 Message::Drop
-                            },
+                            }
                             None => Message::Record(record),
                         };
                         return future::ok(r).boxed();
@@ -103,7 +103,7 @@ impl Actor for Runner {
                                 Err(e) => return future::err(e.into()).boxed(),
                             }
                         } else {
-                            return future::ok(Message::Done).boxed()
+                            return future::ok(Message::Done).boxed();
                         }
                     }
                 }
