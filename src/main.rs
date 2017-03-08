@@ -118,7 +118,7 @@ fn build_cli() -> App<'static, 'static> {
         .arg_from_usage("--show-date 'Show month and day'")
         .arg_from_usage("--show-time-diff 'Show time diff of tags'")
         .arg_from_usage("-s --skip-on-restart 'Skip messages on restart until last message from previous run is (re)received'")
-        .arg_from_usage("[COMMAND] 'Optional command to run and capture stdout. Pass \"-\" to capture stdin'")
+        .arg_from_usage("[COMMAND] 'Optional command to run and capture stdout. Pass \"-\" to capture stdin'. If omitted, rogcat will run \"adb logcat -b all\"")
         .subcommand(SubCommand::with_name("completions")
                     .about("Generates completion scripts for your shell")
                     .arg(Arg::with_name("SHELL")
@@ -190,7 +190,7 @@ fn input(args: &ArgMatches, core: &reactor::Core) -> Result<InputActor> {
                 which_in("adb", env::var_os("PATH"), env::current_dir()?)
                     .map_err(|e| format!("Cannot find adb: {}", e).into())
                     .and_then(|_| {
-                        let cmd = "adb logcat".to_owned();
+                        let cmd = "adb logcat -b all".to_owned();
                         let restart = true;
                         let skip_on_restart = args.is_present("skip-on-restart");
                         Ok(Builder::new().spawn(&core.handle(), runner::Runner::new(cmd, restart, skip_on_restart)?))
