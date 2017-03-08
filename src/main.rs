@@ -182,7 +182,7 @@ fn input(args: &ArgMatches, core: &reactor::Core) -> Result<InputActor> {
                 } else {
                     let cmd = c.to_owned();
                     let restart = args.is_present("restart");
-                    let skip_on_restart = args.is_present("skip-on-skip-on-restart");
+                    let skip_on_restart = args.is_present("skip-on-restart");
                     Ok(Builder::new().spawn(&core.handle(), runner::Runner::new(cmd, restart, skip_on_restart)?))
                 }
             }
