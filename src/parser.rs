@@ -30,7 +30,7 @@ macro_rules! parser {
 }
 
 parser!(PrintableFormat,
-        r"(\d\d-\d\d \d\d:\d\d:\d\d\.\d\d\d)\s+(\d+)\s+(\d+) (\D)\s([a-zA-Z0-9-_\{\}\[\]=\\/\.\+\s]*)\s*:\s*(.*)");
+        r"(\d\d-\d\d \d\d:\d\d:\d\d\.\d\d\d)\s+(\d+)\s+(\d+) (\D)\s([a-zA-Z0-9@_\{\}\[\]=\\/\.\+\s\(\)-]*)\s*:\s*(.*)");
 
 impl Format for PrintableFormat {
     fn parse(&self, line: &str) -> Result<Record> {
@@ -240,6 +240,12 @@ impl Actor for Parser {
 
 #[test]
 fn test_printable() {
+    assert!(PrintableFormat::new()
+        .parse("03-01 02:19:45.207     0     0 I EXT4-fs (mmcblk3p8): mounted filesystem with ordered data mode. Opts: (null)")
+        .is_ok());
+    assert!(PrintableFormat::new()
+        .parse("03-01 02:19:42.868     0     0 I /soc/aips-bus@02100000/usdhc@0219c000: voltage-ranges unspecified")
+        .is_ok());
     assert!(PrintableFormat::new()
         .parse("11-06 13:58:53.582 31359 31420 I GStreamer+amc: 0:00:00.326067533 0xb8ef2a00 \
                 gstamc.c:1526:scan_codecs Checking codec 'OMX.ffmpeg.flac.decoder")
