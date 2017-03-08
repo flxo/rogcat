@@ -20,7 +20,6 @@ extern crate which;
 
 use clap::{App, Arg, ArgMatches, Shell, SubCommand};
 use error_chain::ChainedError;
-use futures::Future;
 use futures::future::*;
 use kabuki::{ActorRef, Builder};
 use record::Record;
