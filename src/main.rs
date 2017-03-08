@@ -183,7 +183,8 @@ fn input(args: &ArgMatches, core: &reactor::Core) -> Result<InputActor> {
                 } else {
                     let cmd = c.to_owned();
                     let restart = args.is_present("restart");
-                    Ok(Builder::new().spawn(&core.handle(), runner::Runner::new(cmd, restart)?))
+                    let skip_on_restart = args.is_present("skip-on-skip-on-restart");
+                    Ok(Builder::new().spawn(&core.handle(), runner::Runner::new(cmd, restart, skip_on_restart)?))
                 }
             }
             None => {
@@ -192,7 +193,8 @@ fn input(args: &ArgMatches, core: &reactor::Core) -> Result<InputActor> {
                     .and_then(|_| {
                         let cmd = "adb logcat".to_owned();
                         let restart = true;
-                        Ok(Builder::new().spawn(&core.handle(), runner::Runner::new(cmd, restart)?))
+                        let skip_on_restart = args.is_present("skip-on-restart");
+                        Ok(Builder::new().spawn(&core.handle(), runner::Runner::new(cmd, restart, skip_on_restart)?))
                     })
             }
         }

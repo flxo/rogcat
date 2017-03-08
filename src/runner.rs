@@ -20,12 +20,13 @@ pub struct Runner {
     cmd: Vec<String>,
     last_line: Option<String>,
     restart: bool,
+    skip_on_restart: bool,
     skip_until: Option<String>,
     stdout: BufReader<ChildStdout>,
 }
 
 impl Runner {
-    pub fn new(cmd: String, restart: bool) -> Result<Self> {
+    pub fn new(cmd: String, restart: bool, skip_on_restart: bool) -> Result<Self> {
         let cmd = cmd.split_whitespace()
             .map(|s| s.to_owned())
             .collect::<Vec<String>>();
@@ -37,6 +38,7 @@ impl Runner {
             skip_until: None,
             last_line: None,
             restart: restart,
+            skip_on_restart: skip_on_restart,
             stdout: BufReader::new(stdout),
         })
     }
@@ -86,8 +88,12 @@ impl Actor for Runner {
                         return future::ok(r).boxed();
                     } else {
                         if self.restart {
-                            self.skip_until = self.last_line.clone();
-                            let text = format!("Restarting \"{}\"", self.cmd.join(" "));
+                            let text = if self.skip_on_restart {
+                                self.skip_until = self.last_line.clone();
+                                format!("Restarting \"{}\" (skipping)", self.cmd.join(" "))
+                            } else {
+                                format!("Restarting \"{}\"", self.cmd.join(" "))
+                            };
                             println!("{}", DIMM_COLOR.paint(&text));
                             match Runner::run(&self.cmd) {
                                 Ok((stderr, stdout)) => {
