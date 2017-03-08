@@ -115,6 +115,6 @@ impl Actor for Runner {
 
 #[test]
 fn runner() {
-    assert!(Runner::new("true".to_owned(), false).is_ok());
-    assert!(Runner::new("echo test".to_owned(), false).is_ok());
+    assert!(Runner::new("true".to_owned(), false, false).is_ok());
+    assert!(Runner::new("echo test".to_owned(), false, false).is_ok());
 }
