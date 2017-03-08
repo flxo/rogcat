@@ -43,7 +43,7 @@ impl Runner {
         })
     }
 
-    fn run(cmd: &Vec<String>) -> Result<(ChildStderr, ChildStdout)> {
+    fn run(cmd: &[String]) -> Result<(ChildStderr, ChildStdout)> {
         if cmd.is_empty() {
             Err("Invalid cmd".into())
         } else {
@@ -86,25 +86,23 @@ impl Actor for Runner {
                             None => Message::Record(record),
                         };
                         return future::ok(r).boxed();
-                    } else {
-                        if self.restart {
-                            let text = if self.skip_on_restart {
-                                self.skip_until = self.last_line.clone();
-                                format!("Restarting \"{}\" (skipping)", self.cmd.join(" "))
-                            } else {
-                                format!("Restarting \"{}\"", self.cmd.join(" "))
-                            };
-                            println!("{}", DIMM_COLOR.paint(&text));
-                            match Runner::run(&self.cmd) {
-                                Ok((stderr, stdout)) => {
-                                    self._stderr = BufReader::new(stderr);
-                                    self.stdout = BufReader::new(stdout);
-                                }
-                                Err(e) => return future::err(e.into()).boxed(),
-                            }
+                    } else if self.restart {
+                        let text = if self.skip_on_restart {
+                            self.skip_until = self.last_line.clone();
+                            format!("Restarting \"{}\" (skipping)", self.cmd.join(" "))
                         } else {
-                            return future::ok(Message::Done).boxed();
+                            format!("Restarting \"{}\"", self.cmd.join(" "))
+                        };
+                        println!("{}", DIMM_COLOR.paint(&text));
+                        match Runner::run(&self.cmd) {
+                            Ok((stderr, stdout)) => {
+                                self._stderr = BufReader::new(stderr);
+                                self.stdout = BufReader::new(stdout);
+                            }
+                            Err(e) => return future::err(e.into()).boxed(),
                         }
+                    } else {
+                        return future::ok(Message::Done).boxed();
                     }
                 }
                 Err(e) => return future::err(e.into()).boxed(),

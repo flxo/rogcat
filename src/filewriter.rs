@@ -78,7 +78,7 @@ impl<'a> FileWriter {
                 return Err(format!("Output file {:?} is a directory", filename).into());
             }
 
-            let dir = filename.parent().unwrap_or(Path::new(""));
+            let dir = filename.parent().unwrap_or_else(|| Path::new(""));
             if !dir.is_dir() {
                 DirBuilder::new().recursive(true)
                     .create(dir)
@@ -88,9 +88,9 @@ impl<'a> FileWriter {
             let mut name = filename.clone();
             name = PathBuf::from(format!("{}-{:03}",
                                          name.file_stem()
-                                             .ok_or(format!("Invalid path"))?
+                                             .ok_or("Invalid path")?
                                              .to_str()
-                                             .ok_or(format!("Invalid path"))?,
+                                             .ok_or("Invalid path")?,
                                          file_index.unwrap()));
             if let Some(extension) = filename.extension() {
                 name.set_extension(extension);
@@ -116,7 +116,7 @@ impl<'a> FileWriter {
             .write(record.format(self.format.clone())?.as_bytes())
             .chain_err(|| error_msg)?;
         self.file
-            .write("\n".as_bytes())
+            .write(b"\n")
             .chain_err(|| error_msg)
     }
 }
@@ -128,13 +128,10 @@ impl Actor for FileWriter {
     type Future = RFuture<Message>;
 
     fn call(&mut self, message: Message) -> Self::Future {
-        match message {
-            Message::Record(ref record) => {
-                if let Err(e) = self.write(record) {
-                    return future::err(e.into()).boxed();
-                }
+        if let Message::Record(ref record) = message {
+            if let Err(e) = self.write(record) {
+                return future::err(e.into()).boxed();
             }
-            _ => (),
         }
         future::ok(message).boxed()
     }

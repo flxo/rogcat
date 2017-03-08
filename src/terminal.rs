@@ -80,7 +80,7 @@ impl<'a> Terminal {
             c @ 163...165 | c @ 200...201 => Color::Custom(c + 3),
             c @ 207 => Color::Custom(c + 1),
             c @ 232...240 => Color::Custom(c + 9),
-            c @ _ => Color::Custom(c),
+            c => Color::Custom(c),
         }
     }
 
@@ -121,12 +121,11 @@ impl<'a> Terminal {
                 if let Some(t) = self.tag_timestamps.get(&record.tag) {
                     let diff = ((ts - *t).num_milliseconds()).abs();
                     let diff = format!("{}.{:.03}", diff / 1000, diff % 1000);
-                    let diff = if diff.chars().count() <= self.diff_width {
+                    if diff.chars().count() <= self.diff_width {
                         diff
                     } else {
                         "-.---".to_owned()
-                    };
-                    diff
+                    }
                 } else {
                     "".to_owned()
                 }

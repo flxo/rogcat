@@ -38,7 +38,7 @@ impl<'a> Filter {
     /// Try to build regex from args
     fn init_filter(i: Option<Vec<String>>) -> Result<Vec<Regex>> {
         let mut result = vec![];
-        for r in &i.unwrap_or(vec![]) {
+        for r in &i.unwrap_or_else(|| vec!()) {
             match Regex::new(r) {
                 Ok(re) => result.push(re),
                 Err(e) => return Err(e.into()),
@@ -55,25 +55,22 @@ impl Actor for Filter {
     type Future = RFuture<Message>;
 
     fn call(&mut self, message: Message) -> Self::Future {
-        match message {
-            Message::Record(ref record) => {
-                if record.level < self.level {
+        if let Message::Record(ref record) = message {
+            if record.level < self.level {
+                return future::ok(Message::Drop).boxed();
+            }
+
+            for r in &self.msg {
+                if !r.is_match(&record.message) {
                     return future::ok(Message::Drop).boxed();
                 }
+            }
 
-                for r in &self.msg {
-                    if !r.is_match(&record.message) {
-                        return future::ok(Message::Drop).boxed();
-                    }
-                }
-
-                for r in &self.tag {
-                    if !r.is_match(&record.tag) {
-                        return future::ok(Message::Drop).boxed();
-                    }
+            for r in &self.tag {
+                if !r.is_match(&record.tag) {
+                    return future::ok(Message::Drop).boxed();
                 }
             }
-            _ => (),
         }
         future::ok(message).boxed()
     }

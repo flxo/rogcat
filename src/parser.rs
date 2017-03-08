@@ -213,7 +213,7 @@ impl Actor for Parser {
         let r = match message {
             Message::Record(ref record) => {
                 if self.format.is_none() {
-                    self.format = self.detect(&record);
+                    self.format = self.detect(record);
                 }
                 match self.format {
                     Some(ref p) => {

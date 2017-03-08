@@ -132,7 +132,7 @@ fn build_cli() -> App<'static, 'static> {
 }
 
 fn main() {
-    match run(build_cli().get_matches()) {
+    match run(&build_cli().get_matches()) {
         Err(e) => {
             let stderr = &mut stderr();
             let errmsg = "Error writing to stderr";
@@ -150,7 +150,7 @@ fn adb() -> Result<PathBuf> {
 
 fn input(args: &ArgMatches, core: &reactor::Core) -> Result<InputActor> {
     if args.is_present("input") {
-        Ok(Builder::new().spawn(&core.handle(), filereader::FileReader::new(&args)?))
+        Ok(Builder::new().spawn(&core.handle(), filereader::FileReader::new(args)?))
     } else {
         match args.value_of("COMMAND") {
             Some(c) => {
@@ -177,7 +177,7 @@ fn input(args: &ArgMatches, core: &reactor::Core) -> Result<InputActor> {
     }
 }
 
-fn run<'a>(args: ArgMatches<'a>) -> Result<i32> {
+fn run(args: &ArgMatches) -> Result<i32> {
     match args.subcommand() {
         ("completions", Some(sub_matches)) => {
             let shell = sub_matches.value_of("SHELL").unwrap();
@@ -229,12 +229,12 @@ fn run<'a>(args: ArgMatches<'a>) -> Result<i32> {
     }
 
     let mut core = reactor::Core::new().unwrap();
-    let mut input = input(&args, &core)?;
+    let mut input = input(args, &core)?;
     let mut parser = Builder::new().spawn(&core.handle(), parser::Parser::new());
-    let mut filter = Builder::new().spawn(&core.handle(), filter::Filter::new(&args)?);
-    let mut terminal = Builder::new().spawn(&core.handle(), terminal::Terminal::new(&args)?);
+    let mut filter = Builder::new().spawn(&core.handle(), filter::Filter::new(args)?);
+    let mut terminal = Builder::new().spawn(&core.handle(), terminal::Terminal::new(args)?);
     let mut filewriter = if args.is_present("output") {
-        Some(Builder::new().spawn(&core.handle(), filewriter::FileWriter::new(&args)?))
+        Some(Builder::new().spawn(&core.handle(), filewriter::FileWriter::new(args)?))
     } else {
         None
     };

@@ -27,7 +27,7 @@ pub struct FileReader {
 impl<'a> FileReader {
     pub fn new(args: &ArgMatches<'a>) -> Result<Self> {
         let files = args.values_of("input")
-            .map(|f| f.map(|f| PathBuf::from(f)).collect::<Vec<PathBuf>>())
+            .map(|f| f.map(PathBuf::from).collect::<Vec<PathBuf>>())
             .ok_or("Failed to parse input files")?;
 
         // No early return from iteration....
@@ -42,7 +42,7 @@ impl<'a> FileReader {
     }
 
     fn read(&mut self) -> Result<ReadResult> {
-        let ref mut reader = self.files[0];
+        let reader = &mut self.files[0];
         let mut buffer = Vec::new();
         if reader.read_until(b'\n', &mut buffer).chain_err(|| "Failed read")? > 0 {
             let line = String::from_utf8_lossy(&buffer).trim().to_string();
