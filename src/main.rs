@@ -9,7 +9,6 @@ extern crate clap;
 #[macro_use]
 extern crate error_chain;
 extern crate futures;
-extern crate kabuki;
 extern crate regex;
 extern crate time;
 extern crate terminal_size;
@@ -21,7 +20,6 @@ extern crate which;
 use clap::{App, AppSettings, Arg, ArgMatches, Shell, SubCommand};
 use error_chain::ChainedError;
 use futures::future::*;
-use kabuki::{ActorRef, Builder};
 use record::Record;
 use std::env;
 use std::io::{stderr, stdout, Write};
@@ -69,8 +67,12 @@ impl ::std::str::FromStr for Format {
     }
 }
 
-type RFuture<T> = Box<Future<Item = T, Error = Error>>;
-type InputActor = ActorRef<(), Message, errors::Error>;
+type RFuture = Box<Future<Item = Message, Error = Error>>;
+
+pub trait Node {
+    type Input;
+    fn process(&mut self, msg: Self::Input) -> RFuture;
+}
 
 fn build_cli() -> App<'static, 'static> {
     App::new(crate_name!())
@@ -148,30 +150,27 @@ fn adb() -> Result<PathBuf> {
         .map_err(|e| format!("Cannot find adb: {}", e).into())
 }
 
-fn input(args: &ArgMatches, core: &reactor::Core) -> Result<InputActor> {
+fn input(args: &ArgMatches) -> Result<Box<Node<Input = ()>>> {
     if args.is_present("input") {
-        Ok(Builder::new().spawn(&core.handle(), filereader::FileReader::new(args)?))
+        Ok(Box::new(filereader::FileReader::new(args)?))
     } else {
         match args.value_of("COMMAND") {
             Some(c) => {
                 if c == "-" {
-                    Ok(Builder::new().spawn(&core.handle(), stdinreader::StdinReader::new()))
+                    Ok(Box::new(stdinreader::StdinReader::new()))
                 } else {
                     let cmd = c.to_owned();
                     let restart = args.is_present("restart");
                     let skip_on_restart = args.is_present("skip-on-restart");
-                    Ok(Builder::new().spawn(&core.handle(),
-                                            runner::Runner::new(cmd, restart, skip_on_restart)?))
+                    Ok(Box::new(runner::Runner::new(cmd, restart, skip_on_restart)?))
                 }
             }
             None => {
-                adb().and_then(|_| {
-                    let cmd = "adb logcat -b all".to_owned();
-                    let restart = true;
-                    let skip_on_restart = args.is_present("skip-on-restart");
-                    Ok(Builder::new().spawn(&core.handle(),
-                                            runner::Runner::new(cmd, restart, skip_on_restart)?))
-                })
+                adb()?;
+                let cmd = "adb logcat -b all".to_owned();
+                let restart = true;
+                let skip_on_restart = args.is_present("skip-on-restart");
+                Ok(Box::new(runner::Runner::new(cmd, restart, skip_on_restart)?))
             }
         }
     }
@@ -229,28 +228,29 @@ fn run(args: &ArgMatches) -> Result<i32> {
     }
 
     let mut core = reactor::Core::new().unwrap();
-    let mut input = input(args, &core)?;
-    let mut parser = Builder::new().spawn(&core.handle(), parser::Parser::new());
-    let mut filter = Builder::new().spawn(&core.handle(), filter::Filter::new(args)?);
-    let mut terminal = Builder::new().spawn(&core.handle(), terminal::Terminal::new(args)?);
+
+    let mut input = input(args)?;
+    let mut parser = parser::Parser::new();
+    let mut filter = filter::Filter::new(args)?;
+    let mut terminal = terminal::Terminal::new(args)?;
     let mut filewriter = if args.is_present("output") {
-        Some(Builder::new().spawn(&core.handle(), filewriter::FileWriter::new(args)?))
+        Some(filewriter::FileWriter::new(args)?)
     } else {
         None
     };
 
     loop {
-        let input = input.call(())
-            .and_then(|r| parser.call(r))
-            .and_then(|r| filter.call(r))
+        let f = input.process(())
+            .and_then(|r| parser.process(r))
+            .and_then(|r| filter.process(r))
             .and_then(|r| {
                 if let Some(ref mut f) = filewriter {
-                    join_all(vec![terminal.call(r.clone()), f.call(r)])
+                    join_all(vec![terminal.process(r.clone()), f.process(r)])
                 } else {
-                    join_all(vec![terminal.call(r)])
+                    join_all(vec![terminal.process(r)])
                 }
             });
-        if core.run(input)?[0] == Message::Done {
+        if core.run(f)?[0] == Message::Done {
             return Ok(0);
         }
     }

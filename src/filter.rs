@@ -9,9 +9,7 @@ use errors::*;
 use super::record::Level;
 use regex::Regex;
 use futures::{future, Future};
-use kabuki::Actor;
-use super::Message;
-use super::RFuture;
+use super::{Message, Node, RFuture};
 
 pub struct Filter {
     level: Level,
@@ -48,13 +46,10 @@ impl<'a> Filter {
     }
 }
 
-impl Actor for Filter {
-    type Request = Message;
-    type Response = Message;
-    type Error = Error;
-    type Future = RFuture<Message>;
+impl Node for Filter {
+    type Input = Message;
 
-    fn call(&mut self, message: Message) -> Self::Future {
+    fn process(&mut self, message: Message) -> RFuture {
         if let Message::Record(ref record) = message {
             if record.level < self.level {
                 return future::ok(Message::Drop).boxed();

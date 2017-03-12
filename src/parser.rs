@@ -6,11 +6,9 @@
 
 use errors::*;
 use futures::{future, Future};
-use kabuki::Actor;
 use regex::Regex;
-use super::Message;
+use super::{Message, Node, RFuture};
 use super::record::{Level, Record};
-use super::RFuture;
 
 trait Format {
     fn parse(&self, line: &str) -> Result<Record>;
@@ -203,13 +201,10 @@ impl Parser {
     }
 }
 
-impl Actor for Parser {
-    type Request = Message;
-    type Response = Message;
-    type Error = Error;
-    type Future = RFuture<Message>;
+impl Node for Parser {
+    type Input = Message;
 
-    fn call(&mut self, message: Message) -> Self::Future {
+    fn process(&mut self, message: Message) -> RFuture {
         let r = match message {
             Message::Record(ref record) => {
                 if self.format.is_none() {

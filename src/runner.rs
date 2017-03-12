@@ -6,10 +6,10 @@
 
 use errors::*;
 use futures::{future, Future};
-use kabuki::Actor;
 use std::io::{BufReader, BufRead};
 use std::process::{ChildStdout, ChildStderr, Command, Stdio};
 use super::Message;
+use super::Node;
 use super::RFuture;
 use super::record::Record;
 use super::terminal::DIMM_COLOR;
@@ -56,13 +56,10 @@ impl Runner {
     }
 }
 
-impl Actor for Runner {
-    type Request = ();
-    type Response = Message;
-    type Error = Error;
-    type Future = RFuture<Message>;
+impl Node for Runner {
+    type Input = ();
 
-    fn call(&mut self, _: ()) -> Self::Future {
+    fn process(&mut self, _msg: ()) -> RFuture {
         loop {
             let mut buffer = Vec::new();
             match self.stdout.read_until(b'\n', &mut buffer) {

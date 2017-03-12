@@ -7,7 +7,6 @@
 use clap::ArgMatches;
 use errors::*;
 use futures::{future, Future};
-use kabuki::Actor;
 use regex::Regex;
 use std::cmp::max;
 use std::collections::HashMap;
@@ -21,6 +20,7 @@ use term_painter::{Color, ToStyle};
 use terminal_size::{Width, Height, terminal_size};
 use time::Tm;
 use super::Format;
+use super::Node;
 use super::RFuture;
 
 #[cfg(not(target_os = "windows"))]
@@ -264,13 +264,10 @@ impl<'a> Terminal {
     }
 }
 
-impl<'a> Actor for Terminal {
-    type Request = Message;
-    type Response = Message;
-    type Error = Error;
-    type Future = RFuture<Message>;
+impl Node for Terminal {
+    type Input = Message;
 
-    fn call(&mut self, message: Message) -> Self::Future {
+    fn process(&mut self, message: Message) -> RFuture {
         if let Message::Record(ref record) = message {
             match self.print_record(record) {
                 Ok(_) => (),

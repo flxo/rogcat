@@ -4,11 +4,10 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
-use errors::*;
 use futures::{future, Future};
-use kabuki::Actor;
 use std::io::stdin;
 use super::Message;
+use super::Node;
 use super::record::Record;
 use super::RFuture;
 
@@ -20,13 +19,9 @@ impl StdinReader {
     }
 }
 
-impl Actor for StdinReader {
-    type Request = ();
-    type Response = Message;
-    type Error = Error;
-    type Future = RFuture<Message>;
-
-    fn call(&mut self, _req: ()) -> Self::Future {
+impl Node for StdinReader {
+    type Input = ();
+    fn process(&mut self, _: Self::Input) -> RFuture {
         let mut buffer = String::new();
         let record = match stdin().read_line(&mut buffer) {
             Ok(s) => {

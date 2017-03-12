@@ -7,11 +7,11 @@
 use clap::ArgMatches;
 use errors::*;
 use futures::{future, Future};
-use kabuki::Actor;
 use std::fs::File;
 use std::io::{BufReader, BufRead};
 use std::path::PathBuf;
 use super::Message;
+use super::Node;
 use super::record::Record;
 use super::RFuture;
 
@@ -53,13 +53,10 @@ impl<'a> FileReader {
     }
 }
 
-impl Actor for FileReader {
-    type Request = ();
-    type Response = Message;
-    type Error = Error;
-    type Future = RFuture<Message>;
+impl Node for FileReader {
+    type Input = ();
 
-    fn call(&mut self, _: ()) -> Self::Future {
+    fn process(&mut self, _: ()) -> RFuture {
         loop {
             match self.read() {
                 Ok(v) => {

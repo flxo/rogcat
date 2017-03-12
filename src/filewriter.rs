@@ -7,15 +7,12 @@
 use clap::ArgMatches;
 use errors::*;
 use futures::{future, Future};
-use kabuki::Actor;
 use regex::Regex;
 use std::fs::{DirBuilder, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use super::Format;
-use super::Message;
-use super::RFuture;
+use super::{Format, Message, Node, RFuture};
 use super::record::Record;
 
 pub struct FileWriter {
@@ -121,13 +118,10 @@ impl<'a> FileWriter {
     }
 }
 
-impl Actor for FileWriter {
-    type Request = Message;
-    type Response = Message;
-    type Error = Error;
-    type Future = RFuture<Message>;
+impl Node for FileWriter {
+    type Input = Message;
 
-    fn call(&mut self, message: Message) -> Self::Future {
+    fn process(&mut self, message: Message) -> RFuture {
         if let Message::Record(ref record) = message {
             if let Err(e) = self.write(record) {
                 return future::err(e.into()).boxed();

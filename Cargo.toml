@@ -7,7 +7,6 @@ authors = ["Felix Obenhuber <felix@obenhuber.de>"]
 clap = "2.16.2"
 error-chain = "0.10.0"
 futures = "0.1"
-kabuki = { git = "https://github.com/carllerche/kabuki" }
 regex = "0.1.73"
 tempdir = "0.3.4"
 term-painter = "0.2.3"
