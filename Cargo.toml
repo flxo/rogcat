@@ -10,7 +10,7 @@ futures = "0.1"
 regex = "0.1.73"
 tempdir = "0.3.4"
 term-painter = "0.2.3"
-terminal_size = "0.1.6"
+terminal_size = { git = "https://github.com/flxo/terminal-size.git" }
 time = "0.1.35"
 tokio-core = "0.1"
 which = "0.2.1"
