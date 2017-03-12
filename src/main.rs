@@ -94,7 +94,6 @@ fn build_cli() -> App<'static, 'static> {
             .short("f")
             .takes_value(true)
             .requires("output")
-            .default_value("raw")
             .possible_values(&["raw", "csv"])
             .help("Write format to output files"))
         .arg(Arg::with_name("terminal-format")
