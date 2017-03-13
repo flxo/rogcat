@@ -36,7 +36,7 @@ impl<'a> Filter {
     /// Try to build regex from args
     fn init_filter(i: Option<Vec<String>>) -> Result<Vec<Regex>> {
         let mut result = vec![];
-        for r in &i.unwrap_or_else(|| vec!()) {
+        for r in &i.unwrap_or_else(|| vec![]) {
             match Regex::new(r) {
                 Ok(re) => result.push(re),
                 Err(e) => return Err(e.into()),
@@ -55,16 +55,20 @@ impl Node for Filter {
                 return future::ok(Message::Drop).boxed();
             }
 
-            for r in &self.msg {
-                if !r.is_match(&record.message) {
-                    return future::ok(Message::Drop).boxed();
-                }
+            if !self.msg.is_empty() &&
+               self.msg
+                .iter()
+                .map(|r| if r.is_match(&record.message) { 1 } else { 0 })
+                .sum::<usize>() == 0 {
+                return future::ok(Message::Drop).boxed();
             }
 
-            for r in &self.tag {
-                if !r.is_match(&record.tag) {
-                    return future::ok(Message::Drop).boxed();
-                }
+            if !self.tag.is_empty() &&
+               self.tag
+                .iter()
+                .map(|r| if r.is_match(&record.tag) { 1 } else { 0 })
+                .sum::<usize>() == 0 {
+                return future::ok(Message::Drop).boxed();
             }
         }
         future::ok(message).boxed()
