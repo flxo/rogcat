@@ -14,7 +14,6 @@ extern crate time;
 extern crate terminal_size;
 extern crate term_painter;
 extern crate tempdir;
-extern crate tokio_core;
 extern crate which;
 
 use clap::{App, AppSettings, Arg, ArgMatches, Shell, SubCommand};
@@ -26,7 +25,6 @@ use std::io::{stderr, stdout, Write};
 use std::path::PathBuf;
 use std::process::{Command, exit};
 use term_painter::{Color, ToStyle};
-use tokio_core::reactor;
 use which::which_in;
 
 mod errors;
@@ -226,8 +224,6 @@ fn run(args: &ArgMatches) -> Result<i32> {
         }
     }
 
-    let mut core = reactor::Core::new().unwrap();
-
     let mut input = input(args)?;
     let mut parser = parser::Parser::new();
     let mut filter = filter::Filter::new(args)?;
@@ -249,7 +245,7 @@ fn run(args: &ArgMatches) -> Result<i32> {
                     join_all(vec![terminal.process(r)])
                 }
             });
-        if core.run(f)?[0] == Message::Done {
+        if f.wait()?[0] == Message::Done {
             return Ok(0);
         }
     }

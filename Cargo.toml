@@ -12,5 +12,4 @@ tempdir = "0.3.4"
 term-painter = "0.2.3"
 terminal_size = { git = "https://github.com/flxo/terminal-size.git" }
 time = "0.1.35"
-tokio-core = "0.1"
 which = "0.2.1"
