@@ -245,7 +245,8 @@ fn run(args: &ArgMatches) -> Result<i32> {
                     join_all(vec![terminal.process(r)])
                 }
             });
-        if f.wait()?[0] == Message::Done {
+        let res = f.wait()?;
+        if res.iter().all(|r| *r == Message::Done) {
             return Ok(0);
         }
     }
