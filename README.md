@@ -29,22 +29,24 @@ FLAGS:
     -V, --version                Prints version information
 
 OPTIONS:
-    -f, --file-format <file-format>              Write format to output files [default: raw]  [values: raw, csv]
+    -f, --file-format <file-format>              Write format to output files [values: raw, csv]
     -i, --input <INPUT>...                       Read from file instead of command
     -l, --level <level>
             Minimum level [values: trace, debug, info, warn, error, fatal, assert, T, D, I, W, E, F, A]
-    -m, --msg <MSG>...                           Message filters in RE2
+    -m, --message <MSG>...                       Message filters in RE2. The prefix ! inverts the match.
     -o, --output <OUTPUT>                        Write to file and stdout
     -n, --records-per-file <records-per-file>
             Write n records per file. Use k, M, G suffixes or a number e.g 9k for 9000
-    -t, --tag <TAG>...                           Tag filters in RE2
+    -t, --tag <TAG>...                           Tag filters in RE2. The prefix ! inverts the match.
     -e, --terminal-format <terminal-format>      Use format on stdout [default: human]  [values: human, raw, csv]
 
 ARGS:
-    <COMMAND>    Optional command to run and capture stdout. Pass "-" to capture stdin
+    <COMMAND>    Optional command to run and capture stdout. Pass "-" to capture stdin'. If omitted, rogcat will run
+                 "adb logcat -b all
 
 SUBCOMMANDS:
     completions    Generates completion scripts for your shell
+    devices        Show list of available devices
     help           Prints this message or the help of the given subcommand(s)
 ```
 ## Bugs

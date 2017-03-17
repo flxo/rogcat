@@ -13,8 +13,10 @@ use super::{Message, Node, RFuture};
 
 pub struct Filter {
     level: Level,
-    msg: Vec<Regex>,
+    message: Vec<Regex>,
+    message_negative: Vec<Regex>,
     tag: Vec<Regex>,
+    tag_negative: Vec<Regex>,
 }
 
 impl<'a> Filter {
@@ -26,23 +28,29 @@ impl<'a> Filter {
                         .collect::<Vec<String>>()
                 })
         };
+        let (tag, tag_negative) = Self::init_filter(filters("tag"))?;
+        let (message, message_negative) = Self::init_filter(filters("message"))?;
         Ok(Filter {
             level: Level::from(args.value_of("level").unwrap_or("")),
-            msg: Self::init_filter(filters("msg"))?,
-            tag: Self::init_filter(filters("tag"))?,
+            message: message,
+            message_negative: message_negative,
+            tag: tag,
+            tag_negative: tag_negative,
         })
     }
 
     /// Try to build regex from args
-    fn init_filter(i: Option<Vec<String>>) -> Result<Vec<Regex>> {
-        let mut result = vec![];
+    fn init_filter(i: Option<Vec<String>>) -> Result<(Vec<Regex>, Vec<Regex>)> {
+        let mut positive = vec![];
+        let mut negative = vec![];
         for r in &i.unwrap_or_else(|| vec![]) {
-            match Regex::new(r) {
-                Ok(re) => result.push(re),
-                Err(e) => return Err(e.into()),
+            if r.starts_with("!") {
+                negative.push(Regex::new(&r[1..])?)
+            } else {
+                positive.push(Regex::new(r)?)
             }
         }
-        Ok(result)
+        Ok((positive, negative))
     }
 }
 
@@ -55,12 +63,18 @@ impl Node for Filter {
                 return future::ok(Message::Drop).boxed();
             }
 
-            if !self.msg.is_empty() &&
-               self.msg
+            if !self.message.is_empty() &&
+               self.message
                 .iter()
                 .map(|r| if r.is_match(&record.message) { 1 } else { 0 })
                 .sum::<usize>() == 0 {
                 return future::ok(Message::Drop).boxed();
+            }
+
+            for m in &self.message_negative {
+                if m.is_match(&record.message) {
+                    return future::ok(Message::Drop).boxed();
+                }
             }
 
             if !self.tag.is_empty() &&
@@ -69,6 +83,12 @@ impl Node for Filter {
                 .map(|r| if r.is_match(&record.tag) { 1 } else { 0 })
                 .sum::<usize>() == 0 {
                 return future::ok(Message::Drop).boxed();
+            }
+
+            for t in &self.tag_negative {
+                if t.is_match(&record.tag) {
+                    return future::ok(Message::Drop).boxed();
+                }
             }
         }
         future::ok(message).boxed()
@@ -85,30 +105,3 @@ fn filter_args() {
     assert!(Filter::init_filter(Some(vec![".*".to_owned(), ".*".to_owned()])).is_ok());
     assert!(Filter::init_filter(Some(vec!["(".to_owned()])).is_err());
 }
-
-// #[test]
-// fn filter() {
-//     let mut filter = Filter::new(Args {
-//             level: Level::Debug,
-//             msg: Some(vec!["test.*".to_owned()]),
-//             tag: Some(vec!["test.*".to_owned()]),
-//         })
-//         .unwrap();
-
-//     let t = Record { tag: "test".to_owned(), ..Default::default() };
-//     assert_eq!(filter.message(t.clone()).unwrap(), None);
-
-//     let t = Record { message: "test".to_owned(), ..Default::default() };
-//     assert_eq!(filter.message(t.clone()).unwrap(), None);
-
-//     let t = Record { level: Level::None, ..Default::default() };
-//     assert_eq!(filter.message(t).unwrap(), None);
-
-//     let t = Record {
-//         level: Level::Warn,
-//         message: "testasdf".to_owned(),
-//         tag: "test123".to_owned(),
-//         ..Default::default()
-//     };
-//     assert_eq!(filter.message(t.clone()).unwrap(), Some(t));
-// }
