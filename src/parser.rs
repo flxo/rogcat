@@ -7,7 +7,7 @@
 use csv::Reader;
 use errors::*;
 use futures::{future, Future};
-use nom::{digit, IResult, hex_digit, space, anychar};
+use nom::{digit, hex_digit, IResult, rest, space};
 use std::str::from_utf8;
 use super::record::{Level, Record};
 use super::{Message, Node, RFuture};
@@ -77,7 +77,7 @@ named!(printable <Record>,
         space >>
         tag: map_res!(take_until!(":"), from_utf8) >>
         tag!(": ") >>
-        message: many0!(anychar) >>
+        message: map_res!(rest, from_utf8) >>
         (
             Record {
                 timestamp: Some(timestamp),
@@ -85,7 +85,7 @@ named!(printable <Record>,
                 tag: tag.trim().to_owned(),
                 process: process.trim().to_owned(),
                 thread: thread.trim().to_owned(),
-                message: message.into_iter().collect::<String>().trim().to_owned(),
+                message: message.trim().to_owned(),
                 ..Default::default()
             }
         )
@@ -101,14 +101,14 @@ named!(mindroid <Record>,
         char!('(') >>
         process: map_res!(hex_digit, from_utf8) >>
         tag!("): ") >>
-        message: many0!(anychar) >>
+        message: map_res!(rest, from_utf8) >>
         (
             Record {
                 timestamp: None,
                 level: level,
                 tag: tag.trim().to_owned(),
                 process: process.trim().to_owned(),
-                message: message.into_iter().collect::<String>().trim().to_owned(),
+                message: message.trim().to_owned(),
                 ..Default::default()
             }
         )
