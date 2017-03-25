@@ -9,6 +9,8 @@ extern crate clap;
 #[macro_use]
 extern crate error_chain;
 extern crate futures;
+#[macro_use]
+extern crate nom;
 extern crate regex;
 extern crate time;
 extern crate terminal_size;
