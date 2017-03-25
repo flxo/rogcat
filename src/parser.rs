@@ -7,7 +7,7 @@
 use csv::Reader;
 use errors::*;
 use futures::{future, Future};
-use nom::{digit, IResult, space, anychar};
+use nom::{digit, IResult, hex_digit, space, anychar};
 use std::str::from_utf8;
 use super::record::{Level, Record};
 use super::{Message, Node, RFuture};
@@ -69,9 +69,9 @@ named!(printable <Record>,
     do_parse!(
         timestamp: timestamp >>
         many1!(space) >>
-        process: map_res!(digit, from_utf8) >>
+        process: map_res!(hex_digit, from_utf8) >>
         many1!(space) >>
-        thread: map_res!(digit, from_utf8) >>
+        thread: map_res!(hex_digit, from_utf8) >>
         many1!(space) >>
         level: level >>
         space >>
@@ -86,8 +86,30 @@ named!(printable <Record>,
                 process: process.trim().to_owned(),
                 thread: thread.trim().to_owned(),
                 message: message.into_iter().collect::<String>().trim().to_owned(),
-                // TODO: Fix this
-                raw: "".to_owned(),
+                ..Default::default()
+            }
+        )
+    )
+);
+
+// TODO: Extend with timestamp format
+named!(mindroid <Record>,
+    do_parse!(
+        level: level >>
+        char!('/') >>
+        tag: map_res!(take_until!("("), from_utf8) >>
+        char!('(') >>
+        process: map_res!(hex_digit, from_utf8) >>
+        tag!("): ") >>
+        message: many0!(anychar) >>
+        (
+            Record {
+                timestamp: None,
+                level: level,
+                tag: tag.trim().to_owned(),
+                process: process.trim().to_owned(),
+                message: message.into_iter().collect::<String>().trim().to_owned(),
+                ..Default::default()
             }
         )
     )
@@ -100,9 +122,9 @@ impl Parser {
         Parser {}
     }
 
-    fn parse_timestamp(line: &str) -> Result<Tm> {
+    fn parse_timestamp(line: &str) -> Result<Option<Tm>> {
         match timestamp(line.as_bytes()) {
-            IResult::Done(_, v) => Ok(v),
+            IResult::Done(_, v) => Ok(Some(v)),
             IResult::Error(_) => Err("Failed to parse".into()),
             IResult::Incomplete(_) => Err("Not enough data".into()),
         }
@@ -114,8 +136,19 @@ impl Parser {
                 v.raw = line.to_owned();
                 Ok(v)
             }
-            IResult::Error(_) => return Err("Failed to parse".into()),
-            IResult::Incomplete(_) => return Err("Not enough data".into()),
+            IResult::Error(_) => Err("Failed to parse".into()),
+            IResult::Incomplete(_) => Err("Not enough data".into()),
+        }
+    }
+
+    fn parse_mindroid(line: &str) -> Result<Record> {
+        match mindroid(line.as_bytes()) {
+            IResult::Done(_, mut v) => {
+                v.raw = line.to_owned();
+                Ok(v)
+            }
+            IResult::Error(_) => Err("Failed to parse".into()),
+            IResult::Incomplete(_) => Err("Not enough data".into()),
         }
     }
 
@@ -126,7 +159,7 @@ impl Parser {
         let rows: Vec<Row> = reader.decode().collect::<::csv::Result<Vec<Row>>>()?;
         let row = &rows.first().ok_or("Failed to parse CSV")?;
         Ok(Record {
-            timestamp: Some(Self::parse_timestamp(&row.0)?),
+            timestamp: Self::parse_timestamp(&row.0)?,
             level: Level::from(row.4.as_str()),
             tag: row.1.clone(),
             process: row.2.clone(),
@@ -141,24 +174,29 @@ impl Node for Parser {
     type Input = Message;
 
     fn process(&mut self, message: Message) -> RFuture {
-        let r = if let Message::Record(r) = message {
+        if let Message::Record(r) = message {
+
             if let Ok(r) = Self::parse_default(&r.raw) {
-                Message::Record(r)
-            } else {
-                if let Ok(r) = Self::parse_csv(&r.raw) {
-                    Message::Record(r)
-                } else {
-                    Message::Record(Record {
-                        message: r.raw.clone(),
-                        raw: r.raw,
-                        ..Default::default()
-                    })
-                }
+                return future::ok(Message::Record(r)).boxed();
             }
+
+            if let Ok(r) = Self::parse_mindroid(&r.raw) {
+                return future::ok(Message::Record(r)).boxed();
+            }
+
+            if let Ok(r) = Self::parse_csv(&r.raw) {
+                return future::ok(Message::Record(r)).boxed();
+            }
+
+            let r = Record {
+                message: r.raw.clone(),
+                raw: r.raw,
+                ..Default::default()
+            };
+            future::ok(Message::Record(r)).boxed()
         } else {
-            message
-        };
-        future::ok(r).boxed()
+            future::ok(message).boxed()
+        }
     }
 }
 
@@ -220,6 +258,22 @@ fn test_printable() {
     assert_eq!(r.thread, "31420");
     assert_eq!(r.message, "0:00:00.326067533 0xb8ef2a00");
 }
+
+#[test]
+fn test_mindroid() {
+    let t = "D/ServiceManager(123): Service MediaPlayer has been created in process main";
+    let r = Parser::parse_mindroid(t).unwrap();
+    assert_eq!(r.level, Level::Debug);
+    assert_eq!(r.tag, "ServiceManager");
+    assert_eq!(r.process, "123");
+    assert_eq!(r.thread, "");
+    assert_eq!(r.message, "Service MediaPlayer has been created in process main");
+
+    let t = "D/ServiceManager(abc): Service MediaPlayer has been created in process main";
+    let r = Parser::parse_mindroid(t).unwrap();
+    assert_eq!(r.process, "abc");
+}
+
 #[test]
 fn test_csv_unparseable() {
     assert!(Parser::parse_csv("").is_err());
