@@ -81,6 +81,7 @@ pub struct Record {
 impl Record {
     pub fn format(&self, format: Format) -> Result<String> {
         Ok(match format {
+            // TODO: refactor
             Format::Csv => {
                 format!("\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"",
                         self.timestamp

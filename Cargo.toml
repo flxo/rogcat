@@ -5,6 +5,7 @@ authors = ["Felix Obenhuber <felix@obenhuber.de>"]
 
 [dependencies]
 clap = "2.16.2"
+csv = "0.15.0"
 error-chain = "0.10.0"
 futures = "0.1"
 nom = "2.2.0"

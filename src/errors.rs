@@ -6,6 +6,7 @@
 
 error_chain! {
     foreign_links {
+        Csv(::csv::Error);
         Utf8(::std::string::FromUtf8Error);
         Io(::std::io::Error);
         Regex(::regex::Error);

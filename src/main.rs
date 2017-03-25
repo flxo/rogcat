@@ -6,6 +6,7 @@
 
 #[macro_use]
 extern crate clap;
+extern crate csv;
 #[macro_use]
 extern crate error_chain;
 extern crate futures;

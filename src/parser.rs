@@ -4,6 +4,7 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
+use csv::Reader;
 use errors::*;
 use futures::{future, Future};
 use nom::{digit, IResult, space, anychar};
@@ -119,14 +120,18 @@ impl Parser {
     }
 
     fn parse_csv(line: &str) -> Result<Record> {
-        let parts: Vec<&str> = line.split(',').map(|s| s.trim().trim_matches('"')).collect();
+        type Row = (String, String, String, String, String, String);
+
+        let mut reader = Reader::from_string(line).has_headers(false);
+        let rows: Vec<Row> = reader.decode().collect::<::csv::Result<Vec<Row>>>()?;
+        let row = &rows.first().ok_or("Failed to parse CSV")?;
         Ok(Record {
-            timestamp: Self::parse_timestamp(line).ok(),
-            level: Level::from(parts[4]),
-            tag: parts[1].to_owned(),
-            process: parts[2].to_owned(),
-            thread: parts[3].to_owned(),
-            message: parts[5..].iter().map(|s| s.to_string()).collect(),
+            timestamp: Some(Self::parse_timestamp(&row.0)?),
+            level: Level::from(row.4.as_str()),
+            tag: row.1.clone(),
+            process: row.2.clone(),
+            thread: row.3.clone(),
+            message: row.5.clone(),
             raw: line.to_owned(),
         })
     }
@@ -175,6 +180,11 @@ fn test_i32() {
 }
 
 #[test]
+fn test_unparseable() {
+    assert!(Parser::parse_default("").is_err());
+}
+
+#[test]
 fn test_printable() {
     let t = "03-01 02:19:45.207     1     2 I EXT4-fs (mmcblk3p8): mounted filesystem with \
              ordered data mode. Opts: (null)";
@@ -210,6 +220,11 @@ fn test_printable() {
     assert_eq!(r.thread, "31420");
     assert_eq!(r.message, "0:00:00.326067533 0xb8ef2a00");
 }
+#[test]
+fn test_csv_unparseable() {
+    assert!(Parser::parse_csv("").is_err());
+    assert!(Parser::parse_csv(",,,").is_err());
+}
 
 #[test]
 fn test_csv() {
@@ -221,7 +236,7 @@ fn test_csv() {
     assert_eq!(r.thread, "31420");
     assert_eq!(r.message, "0:00:00.326067533 0xb8ef2a00");
 
-    let t = "11-06 13:58:53.582,\"GStreamer+amc\",31359,\"31420,\"A\",0:00:00.326067533 0xb8ef2a00";
+    let t = "11-06 13:58:53.582,GStreamer+amc,31359,31420,A,0:00:00.326067533 0xb8ef2a00";
     let r = Parser::parse_csv(t).unwrap();
     assert_eq!(r.level, Level::Assert);
     assert_eq!(r.tag, "GStreamer+amc");
