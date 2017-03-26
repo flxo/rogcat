@@ -147,11 +147,13 @@ named!(mindroid <Record>,
     )
 );
 
-pub struct Parser {}
+pub struct Parser {
+    last: Option<fn(&str) -> Result<Record>>,
+}
 
 impl Parser {
     pub fn new() -> Self {
-        Parser {}
+        Parser { last: None }
     }
 
     fn parse_timestamp(line: &str) -> Result<Option<Tm>> {
@@ -191,14 +193,14 @@ impl Parser {
         let rows: Vec<Row> = reader.decode().collect::<::csv::Result<Vec<Row>>>()?;
         let row = &rows.first().ok_or("Failed to parse CSV")?;
         Ok(Record {
-            timestamp: Self::parse_timestamp(&row.0)?,
-            level: Level::from(row.4.as_str()),
-            tag: row.1.clone(),
-            process: row.2.clone(),
-            thread: row.3.clone(),
-            message: row.5.clone(),
-            raw: line.to_owned(),
-        })
+               timestamp: Self::parse_timestamp(&row.0)?,
+               level: Level::from(row.4.as_str()),
+               tag: row.1.clone(),
+               process: row.2.clone(),
+               thread: row.3.clone(),
+               message: row.5.clone(),
+               raw: line.to_owned(),
+           })
     }
 }
 
@@ -207,24 +209,30 @@ impl Node for Parser {
 
     fn process(&mut self, message: Message) -> RFuture {
         if let Message::Record(r) = message {
-            if let Ok(r) = Self::parse_default(&r.raw) {
-                return future::ok(Message::Record(r)).boxed();
+            if let Some(p) = self.last {
+                if let Ok(record) = p(&r.raw) {
+                    return future::ok(Message::Record(record)).boxed();
+                }
             }
 
-            if let Ok(r) = Self::parse_mindroid(&r.raw) {
-                return future::ok(Message::Record(r)).boxed();
-            }
-
-            if let Ok(r) = Self::parse_csv(&r.raw) {
-                return future::ok(Message::Record(r)).boxed();
-            }
-
-            let r = Record {
-                message: r.raw.clone(),
-                raw: r.raw,
-                ..Default::default()
+            let record = if let Ok(record) = Self::parse_default(&r.raw) {
+                self.last = Some(Self::parse_default);
+                record
+            } else if let Ok(record) = Self::parse_mindroid(&r.raw) {
+                self.last = Some(Self::parse_mindroid);
+                record
+            } else if let Ok(record) = Self::parse_csv(&r.raw) {
+                self.last = Some(Self::parse_csv);
+                record
+            } else {
+                Record {
+                    message: r.raw.clone(),
+                    raw: r.raw,
+                    ..Default::default()
+                }
             };
-            future::ok(Message::Record(r)).boxed()
+
+            future::ok(Message::Record(record)).boxed()
         } else {
             future::ok(message).boxed()
         }
