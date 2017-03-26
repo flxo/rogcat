@@ -84,8 +84,8 @@ named!(printable <Record>,
         level: level >>
         space >>
         tag: map_res!(take_until!(":"), from_utf8) >>
-        tag!(": ") >>
-        message: map_res!(rest, from_utf8) >>
+        char!(':') >>
+        message: opt!(map_res!(rest, from_utf8)) >>
         (
             Record {
                 timestamp: Some(timestamp),
@@ -93,7 +93,7 @@ named!(printable <Record>,
                 tag: tag.trim().to_owned(),
                 process: process.trim().to_owned(),
                 thread: thread.trim().to_owned(),
-                message: message.trim().to_owned(),
+                message: message.unwrap_or("").trim().to_owned(),
                 ..Default::default()
             }
         )
@@ -109,15 +109,15 @@ named!(mindroid <Record>,
             tag: map_res!(take_until!("("), from_utf8) >>
             char!('(') >>
             process: map_res!(hex_digit, from_utf8) >>
-            tag!("): ") >>
-            message: map_res!(rest, from_utf8) >>
+            tag!("):") >>
+            message: opt!(map_res!(rest, from_utf8)) >>
             (
                 Record {
                     timestamp: None,
                     level: level,
                     tag: tag.trim().to_owned(),
                     process: process.trim().to_owned(),
-                    message: message.trim().to_owned(),
+                    message: message.unwrap_or("").trim().to_owned(),
                     ..Default::default()
                 }
             )
@@ -131,15 +131,15 @@ named!(mindroid <Record>,
             level: level >>
             space >>
             tag: map_res!(take_until!(":"), from_utf8) >>
-            tag!(": ") >>
-            message: map_res!(rest, from_utf8) >>
+            tag!(":") >>
+            message: opt!(map_res!(rest, from_utf8)) >>
             (
                 Record {
                     timestamp: Some(timestamp),
                     level: level,
                     tag: tag.trim().to_owned(),
                     process: process.trim().to_owned(),
-                    message: message.trim().to_owned(),
+                    message: message.unwrap_or("").trim().to_owned(),
                     ..Default::default()
                 }
             )
@@ -296,6 +296,12 @@ fn parse_printable() {
     assert_eq!(r.process, "31359");
     assert_eq!(r.thread, "31420");
     assert_eq!(r.message, "0:00:00.326067533 0xb8ef2a00");
+
+    let t = "03-26 13:17:38.345     0     0 I [114416.534450,0] mdss_dsi_off-:";
+    let r = Parser::parse_default(t).unwrap();
+    assert_eq!(r.level, Level::Info);
+    assert_eq!(r.tag, "[114416.534450,0] mdss_dsi_off-");
+    assert_eq!(r.message, "");
 }
 
 #[test]
@@ -320,6 +326,10 @@ fn parse_mindroid() {
     assert_eq!(r.process, "3b7fe700");
     assert_eq!(r.thread, "");
     assert_eq!(r.message, "Parsing IPV6 address fd53:7cb8:383:4:0:0:0:68");
+
+    let t = "2017-03-25 19:11:19.052  3b7fe700  D SomeThing:";
+    let r = Parser::parse_mindroid(t).unwrap();
+    assert_eq!(r.message, "");
 }
 
 #[test]
