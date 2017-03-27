@@ -8,20 +8,14 @@ use clap::ArgMatches;
 use errors::*;
 use futures::{future, Future};
 use std::fs::File;
-use std::io::{BufReader, BufRead};
 use std::path::PathBuf;
 use super::Message;
 use super::Node;
-use super::record::Record;
 use super::RFuture;
-
-enum ReadResult {
-    Empty,
-    Line(String),
-}
+use line_reader::{LineReader, ReadResult};
 
 pub struct FileReader {
-    files: Vec<Box<BufReader<File>>>,
+    files: Vec<LineReader<File>>,
 }
 
 impl<'a> FileReader {
@@ -34,8 +28,7 @@ impl<'a> FileReader {
         let mut reader = Vec::new();
         for f in files {
             let file = File::open(f.clone()).chain_err(|| format!("Failed to open {:?}", f))?;
-            let bufreader = BufReader::new(file);
-            reader.push(Box::new(bufreader));
+            reader.push(LineReader::new(file));
         }
 
         Ok(FileReader { files: reader })
@@ -43,13 +36,7 @@ impl<'a> FileReader {
 
     fn read(&mut self) -> Result<ReadResult> {
         let reader = &mut self.files[0];
-        let mut buffer = Vec::new();
-        if reader.read_until(b'\n', &mut buffer).chain_err(|| "Failed read")? > 0 {
-            let line = String::from_utf8_lossy(&buffer).trim().to_string();
-            Ok(ReadResult::Line(line))
-        } else {
-            Ok(ReadResult::Empty)
-        }
+        reader.read()
     }
 }
 
@@ -61,17 +48,14 @@ impl Node for FileReader {
             match self.read() {
                 Ok(v) => {
                     match v {
-                        ReadResult::Empty => {
+                        ReadResult::Done => {
                             if self.files.len() > 1 {
                                 self.files.remove(0);
                             } else {
                                 return future::ok(Message::Done).boxed();
                             }
                         }
-                        ReadResult::Line(line) => {
-                            let record = Record { raw: line, ..Default::default() };
-                            return future::ok(Message::Record(record)).boxed();
-                        }
+                        ReadResult::Record(r) => return future::ok(Message::Record(r)).boxed(),
                     }
                 }
                 Err(e) => return future::err(e.into()).boxed(),

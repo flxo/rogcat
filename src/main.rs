@@ -34,6 +34,7 @@ mod errors;
 mod filereader;
 mod filewriter;
 mod filter;
+mod line_reader;
 mod parser;
 mod record;
 mod runner;
