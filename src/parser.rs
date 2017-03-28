@@ -55,6 +55,13 @@ named!(timestamp <Tm>,
         minute: num_i32 >> colon >>
         second: num_i32 >> dot >>
         millisecond: num_i32 >>
+        utcoff: opt!(complete!(do_parse!(
+            space >>
+            sign: map!(alt!(char!('-') | char!('+')), |c| if c == '-' { -1 } else { 1 }) >>
+            utc_off_hours: flat_map!(take!(2), num_i32) >>
+            utc_off_minutes: flat_map!(take!(2), num_i32) >>
+            (sign * (utc_off_hours * 60 * 60 + utc_off_minutes * 60))
+        ))) >>
         (
             Tm {
                 tm_sec: second,
@@ -66,7 +73,7 @@ named!(timestamp <Tm>,
                 tm_wday: 0,
                 tm_yday: 0,
                 tm_isdst: 0,
-                tm_utcoff: 0,
+                tm_utcoff: utcoff.unwrap_or(0),
                 tm_nsec: millisecond * 1000_000,
             }
         )
@@ -147,6 +154,28 @@ named!(mindroid <Record>,
     )
 );
 
+named!(bsw <Record>,
+    do_parse!(
+        timestamp: opt!(timestamp) >>
+        space >>
+        level: level >>
+        char!('/') >>
+        tag: map_res!(take_until!(":"), from_utf8) >>
+        char!(':') >>
+        message: opt!(map_res!(rest, from_utf8)) >>
+        (
+            Record {
+                timestamp: timestamp,
+                level: level,
+                tag: tag.trim().to_owned(),
+                process: String::default(),
+                message: message.unwrap_or("").trim().to_owned(),
+                ..Default::default()
+            }
+        )
+    )
+);
+
 pub struct Parser {
     last: Option<fn(&str) -> Result<Record>>,
 }
@@ -177,6 +206,17 @@ impl Parser {
 
     fn parse_mindroid(line: &str) -> Result<Record> {
         match mindroid(line.as_bytes()) {
+            IResult::Done(_, mut v) => {
+                v.raw = line.to_owned();
+                Ok(v)
+            }
+            IResult::Error(_) => Err("Failed to parse".into()),
+            IResult::Incomplete(_) => Err("Not enough data".into()),
+        }
+    }
+
+    fn parse_bsw(line: &str) -> Result<Record> {
+        match bsw(line.as_bytes()) {
             IResult::Done(_, mut v) => {
                 v.raw = line.to_owned();
                 Ok(v)
@@ -224,6 +264,9 @@ impl Node for Parser {
             } else if let Ok(record) = Self::parse_csv(&r.raw) {
                 self.last = Some(Self::parse_csv);
                 record
+            } else if let Ok(record) = Self::parse_bsw(&r.raw) {
+                self.last = Some(Self::parse_bsw);
+                record
             } else {
                 Record {
                     message: r.raw.clone(),
@@ -237,6 +280,13 @@ impl Node for Parser {
             future::ok(message).boxed()
         }
     }
+}
+
+#[test]
+fn parse_timestamp() {
+    assert_eq!(timestamp("03-07 10:07:59.672 +0100".as_bytes()).unwrap().1.tm_utcoff, 1 * 60 * 60);
+    assert_eq!(timestamp("03-07 10:07:59.672 -0100".as_bytes()).unwrap().1.tm_utcoff, -1 * 60 * 60);
+    assert_eq!(timestamp("03-07 10:07:59.672".as_bytes()).unwrap().1.tm_utcoff, 0);
 }
 
 #[test]
@@ -333,13 +383,13 @@ fn parse_mindroid() {
 }
 
 #[test]
-fn csv_unparseable() {
+fn parse_csv_unparseable() {
     assert!(Parser::parse_csv("").is_err());
     assert!(Parser::parse_csv(",,,").is_err());
 }
 
 #[test]
-fn csv() {
+fn parse_csv() {
     let t = "11-06 13:58:53.582,GStreamer+amc,31359,31420,A,0:00:00.326067533 0xb8ef2a00";
     let r = Parser::parse_csv(t).unwrap();
     assert_eq!(r.level, Level::Assert);
@@ -355,4 +405,15 @@ fn csv() {
     assert_eq!(r.process, "31359");
     assert_eq!(r.thread, "31420");
     assert_eq!(r.message, "0:00:00.326067533 0xb8ef2a00");
+}
+
+#[test]
+fn parse_bsw() {
+    let t = "03-07 10:07:59.672 +0100 D/LIFECYCLE: LifecycleManager::reportInit(BSP)";
+    let r = Parser::parse_bsw(t).unwrap();
+    assert_eq!(r.level, Level::Debug);
+    assert_eq!(r.tag, "LIFECYCLE");
+    assert_eq!(r.process, "");
+    assert_eq!(r.thread, "");
+    assert_eq!(r.message, "LifecycleManager::reportInit(BSP)");
 }
