@@ -217,8 +217,8 @@ impl<'a> Terminal {
 
         if let Some((Width(width), Height(_))) = terminal_size() {
             let preamble_width = timestamp_width + 1 + self.diff_width + 1 + tag_width + 1 +
-                                 2 * self.process_width + 2 +
-                                 1 + 8 + 1;
+                                 1 + self.process_width + if self.thread_width == 0 { 0 } else { 1 } + self.thread_width + 1 +
+                                 1 + 3 + 3;
             // Windows terminal width reported is too big
             #[cfg(target_os = "windows")]
             let preamble_width = preamble_width + 1;
