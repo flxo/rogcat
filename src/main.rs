@@ -13,6 +13,7 @@ extern crate futures;
 #[macro_use]
 extern crate nom;
 extern crate regex;
+extern crate serial;
 extern crate time;
 extern crate terminal_size;
 extern crate term_painter;
@@ -31,14 +32,12 @@ use term_painter::{Color, ToStyle};
 use which::which_in;
 
 mod errors;
-mod filereader;
 mod filewriter;
 mod filter;
-mod line_reader;
 mod parser;
 mod record;
+mod reader;
 mod runner;
-mod stdinreader;
 mod terminal;
 
 use errors::*;
@@ -105,7 +104,7 @@ fn build_cli() -> App<'static, 'static> {
             .default_value("human")
             .possible_values(&["human", "raw", "csv"])
             .help("Use format on stdout"))
-        .arg(Arg::from_usage("-i --input [INPUT] 'Read from file instead of command.")
+        .arg(Arg::from_usage("-i --input [INPUT] 'Read from file instead of command. Use 'serial://COM0@11520,8N1 or similiar for reading serial ports")
             .multiple(true))
         .arg(Arg::with_name("level")
             .short("l")
@@ -153,12 +152,19 @@ fn adb() -> Result<PathBuf> {
 
 fn input(args: &ArgMatches) -> Result<Box<Node<Input = ()>>> {
     if args.is_present("input") {
-        Ok(Box::new(filereader::FileReader::new(args)?))
+        let input = args.value_of("input").ok_or("Invalid input value")?;
+        if reader::SerialReader::parse_serial_arg(input).is_ok() {
+            Ok(Box::new(reader::SerialReader::new(input)?))
+        } else {
+            Ok(Box::new(reader::FileReader::new(args)?))
+        }
     } else {
         match args.value_of("COMMAND") {
             Some(c) => {
                 if c == "-" {
-                    Ok(Box::new(stdinreader::StdinReader::new()))
+                    Ok(Box::new(reader::StdinReader::new()))
+                } else if reader::SerialReader::parse_serial_arg(c).is_ok() {
+                    Ok(Box::new(reader::SerialReader::new(c)?))
                 } else {
                     let cmd = c.to_owned();
                     let restart = args.is_present("restart");

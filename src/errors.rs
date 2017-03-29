@@ -10,5 +10,6 @@ error_chain! {
         Utf8(::std::string::FromUtf8Error);
         Io(::std::io::Error);
         Regex(::regex::Error);
+        Serial(::serial::Error);
     }
 }

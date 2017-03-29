@@ -8,11 +8,15 @@ use clap::ArgMatches;
 use errors::*;
 use futures::{future, Future};
 use record::Record;
+use serial::prelude::*;
 use std::fs::File;
 use std::io::{BufReader, BufRead, Read};
 use std::io::{Stdin, stdin};
 use std::path::PathBuf;
 use super::{Message, Node, RFuture};
+use std::time::Duration;
+use nom::{digit, IResult};
+use std::str::from_utf8;
 
 pub enum ReadResult {
     Record(Record),
@@ -118,4 +122,188 @@ impl Node for StdinReader {
             }
             .boxed()
     }
+}
+
+named!(num_usize <usize>,
+    map_res!(
+        map_res!(
+            digit,
+            from_utf8
+        ),
+        str::parse::<usize>
+    )
+);
+
+named!(baudrate <::serial::BaudRate>,
+       map!(num_usize, |b| {
+           match b {
+                110 => ::serial::Baud110,
+                300 => ::serial::Baud300,
+                600 => ::serial::Baud600,
+                1200 => ::serial::Baud1200,
+                2400 => ::serial::Baud2400,
+                4800 => ::serial::Baud4800,
+                9600 => ::serial::Baud9600,
+                19200 => ::serial::Baud19200,
+                38400 => ::serial::Baud38400,
+                57600 => ::serial::Baud57600,
+                115200 => ::serial::Baud115200,
+                _ => ::serial::BaudOther(b),
+           }
+       })
+);
+
+named!(char_size <::serial::CharSize>,
+   map!(
+       alt!(char!('5') | char!('6') | char!('7') | char!('8')),
+           |b| {
+           match b {
+               '5' => ::serial::Bits5,
+               '6' => ::serial::Bits6,
+               '7' => ::serial::Bits7,
+               '8' => ::serial::Bits8,
+               _ => panic!("Invalid parser"),
+           }
+       })
+);
+
+named!(parity <::serial::Parity>,
+   map!(
+       alt!(char!('N') | char!('O') | char!('E')),
+           |b| {
+           match b {
+               'N' => ::serial::ParityNone,
+               'O' => ::serial::ParityOdd,
+               'E' => ::serial::ParityEven,
+               _ => panic!("Invalid parser"),
+           }
+        })
+);
+
+named!(stop_bits <::serial::StopBits>,
+   map!(
+       alt!(char!('1') | char!('2')),
+           |b| {
+           match b {
+               '1' => ::serial::Stop1,
+               '2' => ::serial::Stop2,
+               _ => panic!("Invalid parser"),
+           }
+        })
+);
+
+named!(serial <(String, ::serial::PortSettings)>,
+       do_parse!(
+           tag!("serial://") >>
+           port: map_res!(take_until!("@"), from_utf8) >>
+           char!('@') >>
+           baudrate: baudrate >>
+           opt!(complete!(char!(','))) >>
+           char_size: opt!(complete!(char_size)) >>
+           parity: opt!(complete!(parity)) >>
+           stop_bits: opt!(complete!(stop_bits)) >>
+           (
+               (port.to_owned(),
+                ::serial::PortSettings {
+                    baud_rate: baudrate,
+                    char_size: char_size.unwrap_or(::serial::Bits8),
+                    parity: parity.unwrap_or(::serial::ParityNone),
+                    stop_bits: stop_bits.unwrap_or(::serial::Stop1),
+                    flow_control: ::serial::FlowNone
+                })
+           )
+       )
+);
+
+pub struct SerialReader {
+    reader: LineReader<Box<SerialPort>>,
+}
+
+impl SerialReader {
+    pub fn new(settings: &str) -> Result<Self> {
+        let args = Self::parse_serial_arg(settings)?;
+        let mut port = ::serial::open(&args.0)?;
+        port.configure(&args.1)?;
+        port.set_timeout(Duration::from_secs(999999999))?;
+
+        Ok(SerialReader { reader: LineReader::new(Box::new(port)) })
+    }
+
+    pub fn parse_serial_arg(arg: &str) -> Result<(String, ::serial::PortSettings)> {
+        match serial(arg.as_bytes()) {
+            IResult::Done(_, v) => Ok(v),
+            IResult::Error(_) => Err("Failed to parse serial arguments".into()),
+            IResult::Incomplete(_) => Err("Not enough data".into()),
+        }
+    }
+}
+
+impl Node for SerialReader {
+    type Input = ();
+    fn process(&mut self, _: Self::Input) -> RFuture {
+        match self.reader.read() {
+                Ok(r) => {
+                    match r {
+                        ReadResult::Done => future::ok(Message::Done),
+                        ReadResult::Record(r) => future::ok(Message::Record(r)),
+                    }
+                }
+                Err(e) => future::err(e.into()),
+            }
+            .boxed()
+    }
+}
+
+#[test]
+fn parse_serial_baudrate() {
+    assert_eq!(baudrate("110".as_bytes()).unwrap().1, ::serial::Baud110);
+    assert_eq!(baudrate("300".as_bytes()).unwrap().1, ::serial::Baud300);
+    assert_eq!(baudrate("600".as_bytes()).unwrap().1, ::serial::Baud600);
+    assert_eq!(baudrate("1200".as_bytes()).unwrap().1, ::serial::Baud1200);
+    assert_eq!(baudrate("2400".as_bytes()).unwrap().1, ::serial::Baud2400);
+    assert_eq!(baudrate("4800".as_bytes()).unwrap().1, ::serial::Baud4800);
+    assert_eq!(baudrate("9600".as_bytes()).unwrap().1, ::serial::Baud9600);
+    assert_eq!(baudrate("19200".as_bytes()).unwrap().1, ::serial::Baud19200);
+    assert_eq!(baudrate("38400".as_bytes()).unwrap().1, ::serial::Baud38400);
+    assert_eq!(baudrate("57600".as_bytes()).unwrap().1, ::serial::Baud57600);
+    assert_eq!(baudrate("115200".as_bytes()).unwrap().1, ::serial::Baud115200);
+    assert_eq!(baudrate("921600".as_bytes()).unwrap().1, ::serial::BaudOther(921600));
+}
+
+#[test]
+fn parse_serial_char_size() {
+    assert_eq!(char_size("5".as_bytes()).unwrap().1, ::serial::Bits5);
+    assert_eq!(char_size("6".as_bytes()).unwrap().1, ::serial::Bits6);
+    assert_eq!(char_size("7".as_bytes()).unwrap().1, ::serial::Bits7);
+    assert_eq!(char_size("8".as_bytes()).unwrap().1, ::serial::Bits8);
+}
+
+#[test]
+fn parse_serial_parity() {
+    assert_eq!(parity("N".as_bytes()).unwrap().1, ::serial::ParityNone);
+    assert_eq!(parity("O".as_bytes()).unwrap().1, ::serial::ParityOdd);
+    assert_eq!(parity("E".as_bytes()).unwrap().1, ::serial::ParityEven);
+}
+
+#[test]
+fn parse_serial_stop_bits() {
+    assert_eq!(stop_bits("1".as_bytes()).unwrap().1, ::serial::Stop1);
+    assert_eq!(stop_bits("2".as_bytes()).unwrap().1, ::serial::Stop2);
+}
+
+#[test]
+fn parse_serial_port() {
+    let s = serial("serial://COM0@115200".as_bytes()).unwrap().1;
+    assert_eq!("COM0", s.0);
+    assert_eq!(::serial::Baud115200, s.1.baud_rate);
+    assert_eq!(::serial::Bits8, s.1.char_size);
+    assert_eq!(::serial::ParityNone, s.1.parity);
+    assert_eq!(::serial::Stop1, s.1.stop_bits);
+
+    let s = serial("serial:///dev/ttyUSB0@115200,7O2".as_bytes()).unwrap().1;
+    assert_eq!("/dev/ttyUSB0", s.0);
+    assert_eq!(::serial::Baud115200, s.1.baud_rate);
+    assert_eq!(::serial::Bits7, s.1.char_size);
+    assert_eq!(::serial::ParityOdd, s.1.parity);
+    assert_eq!(::serial::Stop2, s.1.stop_bits);
 }
