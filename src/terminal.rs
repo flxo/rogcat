@@ -5,6 +5,7 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use clap::ArgMatches;
+use std::env;
 use errors::*;
 use futures::{future, Future};
 use regex::Regex;
@@ -215,7 +216,12 @@ impl<'a> Terminal {
             }
         };
 
-        if let Some((Width(width), Height(_))) = terminal_size() {
+        let width = match terminal_size() {
+            Some((Width(width), Height(_))) => Some(width),
+            None => env::var("COLUMNS").ok().and_then(|e| e.parse::<u16>().ok()),
+        };
+
+        if let Some(width) = width {
             let preamble_width = timestamp_width + 1 + self.diff_width + 1 + tag_width + 1 +
                                  1 + self.process_width + if self.thread_width == 0 { 0 } else { 1 } + self.thread_width + 1 +
                                  1 + 3 + 3;
