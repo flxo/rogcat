@@ -35,6 +35,7 @@ pub struct Terminal {
     date_format: (String, usize),
     diff_width: usize,
     format: Format,
+    highlight: Vec<Regex>,
     process_width: usize,
     shorten_tag: bool,
     tag_timestamps: HashMap<String, Tm>,
@@ -46,6 +47,13 @@ pub struct Terminal {
 
 impl<'a> Terminal {
     pub fn new(args: &ArgMatches<'a>) -> Result<Self> {
+        let mut highlight = vec![];
+        if args.is_present("highlight") {
+            for ref r in values_t!(args.values_of("highlight"), String)? {
+                highlight.push(Regex::new(r)?);
+            }
+        }
+
         Ok(Terminal {
                beginning_of: Regex::new(r"--------- beginning of.*").unwrap(),
                color: true, // ! args.is_present("NO-COLOR"),
@@ -57,6 +65,7 @@ impl<'a> Terminal {
                format: args.value_of("terminal-format")
                    .and_then(|f| Format::from_str(f).ok())
                    .unwrap_or(Format::Human),
+               highlight: highlight,
                shorten_tag: args.is_present("shorten-tags"),
                process_width: 0,
                tag_timestamps: HashMap::new(),
@@ -176,20 +185,25 @@ impl<'a> Terminal {
             Level::Error | Level::Fatal | Level::Assert => Color::Red,
         };
 
+        let h = &self.highlight;
+        let style = |s: &str, c: Color| {
+            if h.iter().any(|r| r.is_match(s)) { Bold.fg(c) } else { Plain.fg(c) }
+        };
+
         let color = self.color;
         let tag_width = self.tag_width;
         let diff_width = self.diff_width;
         let timestamp_width = self.date_format.1;
         let print_msg = |chunk: &str, sign: &str| if color {
             println!("{:<timestamp_width$} {:>diff_width$} {:>tag_width$} ({}{}) {} {} {}",
-                     DIMM_COLOR.paint(&timestamp),
+                     style(&timestamp, DIMM_COLOR).paint(&timestamp),
                      DIMM_COLOR.paint(&diff),
-                     Self::hashed_color(&tag).paint(&tag),
-                     Self::hashed_color(&pid).paint(&pid),
-                     Self::hashed_color(&tid).paint(&tid),
+                     style(&tag, Self::hashed_color(&tag)).paint(&tag),
+                     style(&pid, Self::hashed_color(&pid)).paint(&pid),
+                     style(&tid, Self::hashed_color(&tid)).paint(&tid),
                      Plain.bg(level_color).fg(Color::Black).paint(&level),
                      level_color.paint(sign),
-                     level_color.paint(chunk),
+                     style(&chunk, level_color).paint(&chunk),
                      timestamp_width = timestamp_width,
                      diff_width = diff_width,
                      tag_width = tag_width);

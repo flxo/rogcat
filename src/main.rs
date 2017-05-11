@@ -83,6 +83,7 @@ fn build_cli() -> App<'static, 'static> {
         .about("A 'adb logcat' wrapper")
         .arg(Arg::from_usage("-t --tag [TAG] 'Tag filters in RE2. The prefix ! inverts the match.'").multiple(true))
         .arg(Arg::from_usage("-m --message [MSG] 'Message filters in RE2. The prefix ! inverts the match.'").multiple(true))
+        .arg(Arg::from_usage("-h --highlight [HIGHLIGHT] 'Highlight pattern in RE2.").multiple(true))
         .arg_from_usage("-o --output [OUTPUT] 'Write to file and stdout'")
         .arg(Arg::with_name("records-per-file")
             .short("n")
