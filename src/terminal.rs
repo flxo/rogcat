@@ -47,29 +47,29 @@ pub struct Terminal {
 impl<'a> Terminal {
     pub fn new(args: &ArgMatches<'a>) -> Result<Self> {
         Ok(Terminal {
-            beginning_of: Regex::new(r"--------- beginning of.*").unwrap(),
-            color: true, // ! args.is_present("NO-COLOR"),
-            date_format: if args.is_present("show-date") {
-                ("%m-%d %H:%M:%S.%f".to_owned(), 18)
-            } else {
-                ("%H:%M:%S.%f".to_owned(), 12)
-            },
-            format: args.value_of("terminal-format")
-                .and_then(|f| Format::from_str(f).ok())
-                .unwrap_or(Format::Human),
-            shorten_tag: args.is_present("shorten-tags"),
-            process_width: 0,
-            tag_timestamps: HashMap::new(),
-            vovels: Regex::new(r"a|e|i|o|u").unwrap(),
-            tag_width: 20,
-            thread_width: 0,
-            diff_width: if args.is_present("show-time-diff") {
-                8
-            } else {
-                0
-            },
-            time_diff: args.is_present("show-time-diff"),
-        })
+               beginning_of: Regex::new(r"--------- beginning of.*").unwrap(),
+               color: true, // ! args.is_present("NO-COLOR"),
+               date_format: if args.is_present("show-date") {
+                   ("%m-%d %H:%M:%S.%f".to_owned(), 18)
+               } else {
+                   ("%H:%M:%S.%f".to_owned(), 12)
+               },
+               format: args.value_of("terminal-format")
+                   .and_then(|f| Format::from_str(f).ok())
+                   .unwrap_or(Format::Human),
+               shorten_tag: args.is_present("shorten-tags"),
+               process_width: 0,
+               tag_timestamps: HashMap::new(),
+               vovels: Regex::new(r"a|e|i|o|u").unwrap(),
+               tag_width: 20,
+               thread_width: 0,
+               diff_width: if args.is_present("show-time-diff") {
+                   8
+               } else {
+                   0
+               },
+               time_diff: args.is_present("show-time-diff"),
+           })
     }
 
     /// Filter some unreadable (on dark background) or nasty colors
@@ -88,11 +88,10 @@ impl<'a> Terminal {
     fn print_record(&mut self, record: &Record) -> Result<()> {
         match self.format {
             Format::Csv => {
-                record.format(Format::Csv)
-                    .and_then(|s| {
-                        println!("{}", s);
-                        Ok(())
-                    })
+                record.format(Format::Csv).and_then(|s| {
+                                                        println!("{}", s);
+                                                        Ok(())
+                                                    })
             }
             Format::Human => {
                 self.print_human(record);
@@ -110,11 +109,7 @@ impl<'a> Terminal {
     fn print_human(&mut self, record: &Record) {
         let (timestamp, mut diff) = if let Some(ts) = record.timestamp {
             let timestamp = match ::time::strftime(&self.date_format.0, &ts) {
-                Ok(t) => {
-                    t.chars()
-                        .take(self.date_format.1)
-                        .collect::<String>()
-                }
+                Ok(t) => t.chars().take(self.date_format.1).collect::<String>(),
                 Err(_) => (0..self.date_format.1).map(|_| " ").collect::<String>(),
             };
 
@@ -185,35 +180,33 @@ impl<'a> Terminal {
         let tag_width = self.tag_width;
         let diff_width = self.diff_width;
         let timestamp_width = self.date_format.1;
-        let print_msg = |chunk: &str, sign: &str| {
-            if color {
-                println!("{:<timestamp_width$} {:>diff_width$} {:>tag_width$} ({}{}) {} {} {}",
-                         DIMM_COLOR.paint(&timestamp),
-                         DIMM_COLOR.paint(&diff),
-                         Self::hashed_color(&tag).paint(&tag),
-                         Self::hashed_color(&pid).paint(&pid),
-                         Self::hashed_color(&tid).paint(&tid),
-                         Plain.bg(level_color).fg(Color::Black).paint(&level),
-                         level_color.paint(sign),
-                         level_color.paint(chunk),
-                         timestamp_width = timestamp_width,
-                         diff_width = diff_width,
-                         tag_width = tag_width);
+        let print_msg = |chunk: &str, sign: &str| if color {
+            println!("{:<timestamp_width$} {:>diff_width$} {:>tag_width$} ({}{}) {} {} {}",
+                     DIMM_COLOR.paint(&timestamp),
+                     DIMM_COLOR.paint(&diff),
+                     Self::hashed_color(&tag).paint(&tag),
+                     Self::hashed_color(&pid).paint(&pid),
+                     Self::hashed_color(&tid).paint(&tid),
+                     Plain.bg(level_color).fg(Color::Black).paint(&level),
+                     level_color.paint(sign),
+                     level_color.paint(chunk),
+                     timestamp_width = timestamp_width,
+                     diff_width = diff_width,
+                     tag_width = tag_width);
 
-            } else {
-                println!("{:<timestamp_width$} {:>diff_width$} {:>tag_width$} ({}{}) {} {} {}",
-                         timestamp,
-                         diff,
-                         tag,
-                         pid,
-                         tid,
-                         level,
-                         sign,
-                         chunk,
-                         timestamp_width = timestamp_width,
-                         diff_width = diff_width,
-                         tag_width = tag_width);
-            }
+        } else {
+            println!("{:<timestamp_width$} {:>diff_width$} {:>tag_width$} ({}{}) {} {} {}",
+                     timestamp,
+                     diff,
+                     tag,
+                     pid,
+                     tid,
+                     level,
+                     sign,
+                     chunk,
+                     timestamp_width = timestamp_width,
+                     diff_width = diff_width,
+                     tag_width = tag_width);
         };
 
         let width = match terminal_size() {
@@ -222,9 +215,10 @@ impl<'a> Terminal {
         };
 
         if let Some(width) = width {
-            let preamble_width = timestamp_width + 1 + self.diff_width + 1 + tag_width + 1 +
-                                 1 + self.process_width + if self.thread_width == 0 { 0 } else { 1 } + self.thread_width + 1 +
-                                 1 + 3 + 3;
+            let preamble_width = timestamp_width + 1 + self.diff_width + 1 + tag_width + 1 + 1 +
+                                 self.process_width +
+                                 if self.thread_width == 0 { 0 } else { 1 } +
+                                 self.thread_width + 1 + 1 + 3 + 3;
             // Windows terminal width reported is too big
             #[cfg(target_os = "windows")]
             let preamble_width = preamble_width + 1;
