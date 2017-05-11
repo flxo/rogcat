@@ -17,7 +17,7 @@ USAGE:
     rogcat [FLAGS] [OPTIONS] [COMMAND] [SUBCOMMAND]
 
 FLAGS:
-        --verbose                Print records on stdout even when writing to file
+        --verbose                Print records on stdout even when using the -o option
     -c, --clear                  Clear (flush) the entire log and exit
     -g, --get-ringbuffer-size    Get the size of the log's ring buffer and exit
         --help                   Prints help information
@@ -33,15 +33,14 @@ OPTIONS:
     -f, --file-format <FILE_FORMAT>              Write format to output files [values: raw, csv]
     -l, --level <LEVEL>
             Minimum level [values: trace, debug, info, warn, error, fatal, assert, T, D, I, W, E, F, A]
-    -n, --records-per-file <RECORDS_PER_FILE>
-            Write n records per file. Use k, M, G suffixes or a number e.g 9k for 9000
+    -n, --records-per-file <RECORDS_PER_FILE>    Write n records per file. Use k, M, G suffixes or a plain number
     -e, --terminal-format <TERMINAL_FORMAT>      Use format on stdout [default: human]  [values: human, raw, csv]
     -h, --highlight <HIGHLIGHT>...               Highlight pattern in RE2
     -i, --input <INPUT>...
             Read from file instead of command. Use 'serial://COM0@11520,8N1 or similiar for reading serial port
     -m, --message <MSG>...                       Message filters in RE2. The prefix ! inverts the match.
     -o, --output <OUTPUT>                        Write to file and stdout
-    -t, --tag <TAG>...                           Tag filters in RE2. The prefix ! inverts the match.
+    -t, --tag <TAG>...                           Tag filters in RE2. The prefix ! inverts the match
 
 ARGS:
     <COMMAND>    Optional command to run and capture stdout. Pass "-" to capture stdin'. If omitted, rogcat will run

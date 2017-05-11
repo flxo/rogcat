@@ -48,6 +48,9 @@ impl<'a> FileWriter {
                               Some("G") => Some(1000_000_000 * size),
                               _ => None,
                           })
+                .or_else(|| {
+                    u64::from_str(l).ok()
+                })
         });
 
         let format = match args.value_of("FILE_FORMAT") {
