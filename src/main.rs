@@ -10,6 +10,7 @@ extern crate csv;
 #[macro_use]
 extern crate error_chain;
 extern crate futures;
+extern crate indicatif;
 #[macro_use]
 extern crate nom;
 extern crate regex;
@@ -114,6 +115,10 @@ fn build_cli() -> App<'static, 'static> {
             .possible_values(&["trace", "debug", "info", "warn", "error", "fatal", "assert", "T",
                                "D", "I", "W", "E", "F", "A"])
             .help("Minimum level"))
+        .arg(Arg::with_name("VERBOSE")
+            .long("verbose")
+            .requires("output")
+            .help("Print records on stdout even when using the -o option"))
         .arg_from_usage("-r --restart 'Restart command on exit'")
         .arg_from_usage("-c --clear 'Clear (flush) the entire log and exit'")
         .arg_from_usage("-g --get-ringbuffer-size 'Get the size of the log's ring buffer and exit'")
@@ -251,7 +256,11 @@ fn run(args: &ArgMatches) -> Result<i32> {
             .and_then(|r| filter.process(r))
             .and_then(|r| {
                 if let Some(ref mut f) = filewriter {
-                    join_all(vec![terminal.process(r.clone()), f.process(r)])
+                    if args.is_present("VERBOSE") {
+                        join_all(vec![terminal.process(r.clone()), f.process(r)])
+                    } else {
+                        join_all(vec![f.process(r)])
+                    }
                 } else {
                     join_all(vec![terminal.process(r)])
                 }

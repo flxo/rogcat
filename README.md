@@ -17,6 +17,7 @@ USAGE:
     rogcat [FLAGS] [OPTIONS] [COMMAND] [SUBCOMMAND]
 
 FLAGS:
+        --verbose                Print records on stdout even when writing to file
     -c, --clear                  Clear (flush) the entire log and exit
     -g, --get-ringbuffer-size    Get the size of the log's ring buffer and exit
         --help                   Prints help information
