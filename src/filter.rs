@@ -31,7 +31,7 @@ impl<'a> Filter {
         let (tag, tag_negative) = Self::init_filter(filters("tag"))?;
         let (message, message_negative) = Self::init_filter(filters("message"))?;
         Ok(Filter {
-            level: Level::from(args.value_of("level").unwrap_or("")),
+            level: Level::from(args.value_of("LEVEL").unwrap_or("")),
             message: message,
             message_negative: message_negative,
             tag: tag,

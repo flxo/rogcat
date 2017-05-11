@@ -62,7 +62,7 @@ impl<'a> Terminal {
                } else {
                    ("%H:%M:%S.%f".to_owned(), 12)
                },
-               format: args.value_of("terminal-format")
+               format: args.value_of("TERMINAL_FORMAT")
                    .and_then(|f| Format::from_str(f).ok())
                    .unwrap_or(Format::Human),
                highlight: highlight,

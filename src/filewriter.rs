@@ -30,7 +30,7 @@ impl<'a> FileWriter {
             .and_then(|f| Some(PathBuf::from(f)))
             .ok_or("Invalid output filename!")?;
 
-        let records_per_file = args.value_of("records-per-file")
+        let records_per_file = args.value_of("RECORDS_PER_FILE")
             .and_then(|l| {
                 Regex::new(r"^(\d+)([kMG])$")
                     .unwrap()
@@ -50,7 +50,7 @@ impl<'a> FileWriter {
                     })
             });
 
-        let format = match args.value_of("file-format") {
+        let format = match args.value_of("FILE_FORMAT") {
             Some(s) => Format::from_str(s)?,
             None => Format::Raw,
         };
