@@ -19,7 +19,7 @@ USAGE:
 FLAGS:
     -c, --clear                  Clear (flush) the entire log and exit
     -g, --get-ringbuffer-size    Get the size of the log's ring buffer and exit
-    -h, --help                   Prints help information
+        --help                   Prints help information
     -S, --output-statistics      Output statistics
     -r, --restart                Restart command on exit
         --shorten-tags           Shorten tag by removing vovels if too long
@@ -29,16 +29,18 @@ FLAGS:
     -V, --version                Prints version information
 
 OPTIONS:
-    -f, --file-format <file-format>              Write format to output files [values: raw, csv]
-    -i, --input <INPUT>...                       Read from file instead of command
-    -l, --level <level>
+    -f, --file-format <FILE_FORMAT>              Write format to output files [values: raw, csv]
+    -l, --level <LEVEL>
             Minimum level [values: trace, debug, info, warn, error, fatal, assert, T, D, I, W, E, F, A]
+    -n, --records-per-file <RECORDS_PER_FILE>
+            Write n records per file. Use k, M, G suffixes or a number e.g 9k for 9000
+    -e, --terminal-format <TERMINAL_FORMAT>      Use format on stdout [default: human]  [values: human, raw, csv]
+    -h, --highlight <HIGHLIGHT>...               Highlight pattern in RE2
+    -i, --input <INPUT>...
+            Read from file instead of command. Use 'serial://COM0@11520,8N1 or similiar for reading serial port
     -m, --message <MSG>...                       Message filters in RE2. The prefix ! inverts the match.
     -o, --output <OUTPUT>                        Write to file and stdout
-    -n, --records-per-file <records-per-file>
-            Write n records per file. Use k, M, G suffixes or a number e.g 9k for 9000
     -t, --tag <TAG>...                           Tag filters in RE2. The prefix ! inverts the match.
-    -e, --terminal-format <terminal-format>      Use format on stdout [default: human]  [values: human, raw, csv]
 
 ARGS:
     <COMMAND>    Optional command to run and capture stdout. Pass "-" to capture stdin'. If omitted, rogcat will run
