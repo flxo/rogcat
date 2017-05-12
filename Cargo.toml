@@ -1,9 +1,10 @@
 [package]
+authors = ["Felix Obenhuber <felix@obenhuber.de>"]
 name = "rogcat"
 version = "0.2.2"
-authors = ["Felix Obenhuber <felix@obenhuber.de>"]
 
 [dependencies]
+boolinator = "2.4.0"
 clap = "2.16.2"
 csv = "0.15.0"
 error-chain = "0.10.0"
@@ -14,6 +15,8 @@ regex = "0.1.73"
 serial = "0.3.4"
 tempdir = "0.3.4"
 term-painter = "0.2.3"
-terminal_size = { git = "https://github.com/flxo/terminal-size.git" }
 time = "0.1.35"
 which = "0.2.1"
+
+[dependencies.terminal_size]
+git = "https://github.com/flxo/terminal-size.git"

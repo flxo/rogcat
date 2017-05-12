@@ -32,6 +32,11 @@ FLAGS:
     -V, --version                Prints version information
 
 OPTIONS:
+    -a, --filename-format <FILENAME_FORMAT>
+            Select format for output file names. By passing 'single' the filename provided with the '-o' option is used.
+            'enumerate' will append a file sequence number after the filename passed with '-o' option whenever a new
+            file is created (see 'records-per-file' option). 'date' will prefix the output filename with the current
+            local date when a new file is created [values: single, enumerate, date]
     -f, --file-format <FILE_FORMAT>              Select format for output files [values: raw, csv]
     -l, --level <LEVEL>
             Minimum level [values: trace, debug, info, warn, error, fatal, assert, T, D, I, W, E, F, A]

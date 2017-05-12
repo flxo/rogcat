@@ -4,6 +4,7 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
+extern crate boolinator;
 #[macro_use]
 extern crate clap;
 extern crate csv;
@@ -99,6 +100,16 @@ fn build_cli() -> App<'static, 'static> {
             .requires("output")
             .possible_values(&["raw", "csv"])
             .help("Select format for output files"))
+        .arg(Arg::with_name("FILENAME_FORMAT")
+            .long("filename-format")
+            .short("a")
+            .takes_value(true)
+            .requires("output")
+            .possible_values(&["single", "enumerate", "date"])
+            .help("Select format for output file names. By passing 'single' the filename provided with the '-o' option is used. \
+                  'enumerate' will append a file sequence number after the filename passed with '-o' option whenever a new file is \
+                  created (see 'records-per-file' option). 'date' will prefix the output filename with the current local date \
+                  when a new file is created"))
         .arg(Arg::with_name("TERMINAL_FORMAT")
             .long("terminal-format")
             .short("e")
@@ -204,9 +215,9 @@ fn run(args: &ArgMatches) -> Result<i32> {
         }
         ("devices", _) => {
             let output = String::from_utf8(Command::new(adb()?)
-                .arg("devices")
-                .output()?
-                .stdout)?;
+                                               .arg("devices")
+                                               .output()?
+                                               .stdout)?;
             let error_msg = "Failed to parse adb output";
             let mut lines = output.lines();
             println!("{}:", lines.next().ok_or(error_msg)?);
@@ -240,7 +251,9 @@ fn run(args: &ArgMatches) -> Result<i32> {
             let mut child = Command::new(adb()?).arg("logcat")
                 .arg(arg)
                 .spawn()?;
-            exit(child.wait()?.code().ok_or("Failed to get exit code")?);
+            exit(child.wait()?
+                     .code()
+                     .ok_or("Failed to get exit code")?);
         }
     }
 
@@ -258,17 +271,15 @@ fn run(args: &ArgMatches) -> Result<i32> {
         let f = input.process(())
             .and_then(|r| parser.process(r))
             .and_then(|r| filter.process(r))
-            .and_then(|r| {
-                if let Some(ref mut f) = filewriter {
-                    if args.is_present("VERBOSE") {
-                        join_all(vec![terminal.process(r.clone()), f.process(r)])
-                    } else {
-                        join_all(vec![f.process(r)])
-                    }
-                } else {
-                    join_all(vec![terminal.process(r)])
-                }
-            });
+            .and_then(|r| if let Some(ref mut f) = filewriter {
+                          if args.is_present("VERBOSE") {
+                              join_all(vec![terminal.process(r.clone()), f.process(r)])
+                          } else {
+                              join_all(vec![f.process(r)])
+                          }
+                      } else {
+                          join_all(vec![terminal.process(r)])
+                      });
         let res = f.wait()?;
         if res.iter().all(|r| *r == Message::Done) {
             return Ok(0);

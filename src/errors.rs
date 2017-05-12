@@ -12,5 +12,6 @@ error_chain! {
         Io(::std::io::Error);
         Regex(::regex::Error);
         Serial(::serial::Error);
+        Time(::time::ParseError);
     }
 }
