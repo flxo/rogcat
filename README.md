@@ -17,6 +17,7 @@ USAGE:
     rogcat [FLAGS] [OPTIONS] [COMMAND] [SUBCOMMAND]
 
 FLAGS:
+        --overwrite              Overwrite file if needed
         --verbose                Print records on stdout even when using the -o option
     -c, --clear                  Clear (flush) the entire log and exit
     -g, --get-ringbuffer-size    Get the size of the log's ring buffer and exit
@@ -35,10 +36,10 @@ OPTIONS:
             Minimum level [values: trace, debug, info, warn, error, fatal, assert, T, D, I, W, E, F, A]
     -n, --records-per-file <RECORDS_PER_FILE>    Write n records per file. Use k, M, G suffixes or a plain number
     -e, --terminal-format <TERMINAL_FORMAT>      Use format on stdout [default: human]  [values: human, raw, csv]
-    -h, --highlight <HIGHLIGHT>...               Highlight pattern in RE2
+    -h, --highlight <HIGHLIGHT>...               Highlight pattern in RE
     -i, --input <INPUT>...
             Read from file instead of command. Use 'serial://COM0@11520,8N1 or similiar for reading serial port
-    -m, --message <MSG>...                       Message filters in RE2. The prefix ! inverts the match.
+    -m, --message <MSG>...                       Message filters in RE2. The prefix ! inverts the match
     -o, --output <OUTPUT>                        Write to file and stdout
     -t, --tag <TAG>...                           Tag filters in RE2. The prefix ! inverts the match
 

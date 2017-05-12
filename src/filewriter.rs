@@ -18,11 +18,11 @@ use super::record::Record;
 
 pub struct FileWriter {
     file: File,
-    file_index: u32,
     file_size: u64,
     filename: PathBuf,
     format: Format,
     records_per_file: Option<u64>,
+    overwrite: bool,
     path: Option<PathBuf>,
     process: Option<ProgressBar>,
 }
@@ -57,8 +57,9 @@ impl<'a> FileWriter {
             Some(s) => Format::from_str(s)?,
             None => Format::Raw,
         };
+        let overwrite = args.is_present("OVERWRITE");
 
-        let file = Self::next_file(&filename, records_per_file.map(|_| 0))?;
+        let file = Self::next_file(&filename, records_per_file.is_some(), overwrite)?;
 
         let progress = if !args.is_present("VERBOSE") {
             let (pb, chars, template) = if let Some(n) = records_per_file {
@@ -78,19 +79,23 @@ impl<'a> FileWriter {
                    File::create(file.clone()).chain_err(|| {
                                       format!("Failed to create output file: {:?}", file.clone())
                                   })?,
-               file_index: 0,
                file_size: 0,
                filename: filename,
                format: format,
                records_per_file: records_per_file,
+               overwrite: overwrite,
                path: None,
                process: progress,
            })
     }
 
-    fn next_file(filename: &PathBuf, file_index: Option<u32>) -> Result<PathBuf> {
-        if file_index.is_none() {
-            Ok(filename.clone())
+    fn next_file(filename: &PathBuf, indexed: bool, overwrite: bool) -> Result<PathBuf> {
+        if !indexed {
+            if filename.exists() && !overwrite {
+                Err(format!("{:?} exists. Use overwrite flag to force!", filename).into())
+            } else {
+                Ok(filename.clone())
+            }
         } else {
             if filename.as_path().is_dir() {
                 return Err(format!("Output file {:?} is a directory", filename).into());
@@ -103,26 +108,35 @@ impl<'a> FileWriter {
                     .chain_err(|| "Failed to create directory")?
             }
 
-            let mut name = filename.clone();
-            name = PathBuf::from(format!("{}-{:03}",
-                                         name.file_stem()
-                                             .ok_or("Invalid path")?
-                                             .to_str()
-                                             .ok_or("Invalid path")?,
-                                         file_index.unwrap()));
-            if let Some(extension) = filename.extension() {
-                name.set_extension(extension);
+            let next = |index| -> Result<PathBuf> {
+                let mut name = filename.clone();
+                name = PathBuf::from(format!("{}-{:03}",
+                                             name.file_stem()
+                                                 .ok_or("Invalid path")?
+                                                 .to_str()
+                                                 .ok_or("Invalid path")?,
+                                             index));
+                if let Some(extension) = filename.extension() {
+                    name.set_extension(extension);
+                }
+                Ok(dir.join(name))
+            };
+
+            for index in 0.. {
+                let n = next(index)?;
+                if !n.exists() {
+                    return Ok(n);
+                }
             }
 
-            Ok(dir.join(name))
+            Err("Unable find next file index".into())
         }
     }
 
     fn write(&mut self, record: &Record) -> Result<usize> {
         if let Some(records_per_file) = self.records_per_file {
             if self.file_size == records_per_file {
-                self.file_index += 1;
-                let file = Self::next_file(&self.filename, Some(self.file_index))?;
+                let file = Self::next_file(&self.filename, true, self.overwrite)?;
                 self.file = File::create(&file).chain_err(|| "Failed to create output file")?;
                 if let Some(ref pb) = self.process {
                     pb.set_message(file.to_str().ok_or("Failed to render file name")?);
@@ -164,8 +178,8 @@ fn next_file() {
     use tempdir::TempDir;
     let tempdir = TempDir::new("rogcat").unwrap();
     let file = tempdir.path().join("test");
-    assert_eq!(FileWriter::next_file(&file, None).unwrap(), file);
-    assert_eq!(FileWriter::next_file(&PathBuf::from("tmp/test"), None).unwrap(),
+    assert_eq!(FileWriter::next_file(&file, false, false).unwrap(), file);
+    assert_eq!(FileWriter::next_file(&PathBuf::from("tmp/test"), false, false).unwrap(),
                PathBuf::from("tmp/test"));
 }
 
@@ -175,14 +189,12 @@ fn next_file_index() {
     let tempdir = TempDir::new("rogcat").unwrap();
     let file = tempdir.path().join("test");
 
-    assert_eq!(FileWriter::next_file(&file, Some(0)).unwrap(),
-               tempdir.path().join("test-000"));
-    assert_eq!(FileWriter::next_file(&file, Some(1)).unwrap(),
-               tempdir.path().join("test-001"));
-    assert_eq!(FileWriter::next_file(&file, Some(2)).unwrap(),
-               tempdir.path().join("test-002"));
-    assert_eq!(FileWriter::next_file(&file, Some(1000)).unwrap(),
-               tempdir.path().join("test-1000"));
+    assert_eq!(FileWriter::next_file(&file, true, false).unwrap(), tempdir.path().join("test-000"));
+    File::create(tempdir.path().join("test-000")).unwrap();
+    assert_eq!(FileWriter::next_file(&file, true, false).unwrap(), tempdir.path().join("test-001"));
+    File::create(tempdir.path().join("test-001")).unwrap();
+    assert_eq!(FileWriter::next_file(&file, true, false).unwrap(), tempdir.path().join("test-002"));
+    File::create(tempdir.path().join("test-002")).unwrap();
 }
 
 #[test]
@@ -190,8 +202,9 @@ fn next_file_index_extension() {
     use tempdir::TempDir;
     let tempdir = TempDir::new("rogcat").unwrap();
     let file = tempdir.path().join("test.log");
-    assert_eq!(FileWriter::next_file(&file, Some(0)).unwrap(),
+    assert_eq!(FileWriter::next_file(&file, true, false).unwrap(),
                tempdir.path().join("test-000.log"));
-    assert_eq!(FileWriter::next_file(&file, Some(1)).unwrap(),
+    File::create(tempdir.path().join("test-000.log")).unwrap();
+    assert_eq!(FileWriter::next_file(&file, true, false).unwrap(),
                tempdir.path().join("test-001.log"));
 }
