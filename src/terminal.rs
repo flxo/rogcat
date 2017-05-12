@@ -186,8 +186,10 @@ impl<'a> Terminal {
         };
 
         let h = &self.highlight;
-        let style = |s: &str, c: Color| {
-            if h.iter().any(|r| r.is_match(s)) { Bold.fg(c) } else { Plain.fg(c) }
+        let style = |s: &str, c: Color| if h.iter().any(|r| r.is_match(s)) {
+            Bold.fg(c)
+        } else {
+            Plain.fg(c)
         };
 
         let color = self.color;

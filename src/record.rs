@@ -81,9 +81,9 @@ pub struct Record {
 impl Record {
     pub fn format(&self, format: Format) -> Result<String> {
         Ok(match format {
-            // TODO: refactor
-            Format::Csv => {
-                format!("\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"",
+               // TODO: refactor
+               Format::Csv => {
+                   format!("\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"",
                         self.timestamp
                             .and_then(|ts| ::time::strftime("%m-%d %H:%M:%S.%f", &ts).ok())
                             .unwrap_or("".to_owned()),
@@ -92,9 +92,9 @@ impl Record {
                         self.thread,
                         self.level,
                         self.message)
-            }
-            Format::Raw => self.raw.clone(),
-            Format::Human => panic!("Unimplemented"),
-        })
+               }
+               Format::Raw => self.raw.clone(),
+               Format::Human => panic!("Unimplemented"),
+           })
     }
 }

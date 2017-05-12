@@ -27,20 +27,18 @@ pub struct Runner {
 
 impl Runner {
     pub fn new(cmd: String, restart: bool, skip_on_restart: bool) -> Result<Self> {
-        let cmd = cmd.split_whitespace()
-            .map(|s| s.to_owned())
-            .collect::<Vec<String>>();
+        let cmd = cmd.split_whitespace().map(|s| s.to_owned()).collect::<Vec<String>>();
         let (stderr, stdout) = Self::run(&cmd)?;
 
         Ok(Runner {
-            _stderr: BufReader::new(stderr),
-            cmd: cmd,
-            skip_until: None,
-            last_line: None,
-            restart: restart,
-            skip_on_restart: skip_on_restart,
-            stdout: BufReader::new(stdout),
-        })
+               _stderr: BufReader::new(stderr),
+               cmd: cmd,
+               skip_until: None,
+               last_line: None,
+               restart: restart,
+               skip_on_restart: skip_on_restart,
+               stdout: BufReader::new(stdout),
+           })
     }
 
     fn run(cmd: &[String]) -> Result<(ChildStderr, ChildStdout)> {
