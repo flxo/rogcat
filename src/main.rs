@@ -8,13 +8,19 @@ extern crate boolinator;
 #[macro_use]
 extern crate clap;
 extern crate csv;
+extern crate crc;
 #[macro_use]
 extern crate error_chain;
+extern crate handlebars;
 extern crate futures;
 extern crate indicatif;
 #[macro_use]
 extern crate nom;
 extern crate regex;
+extern crate serde;
+extern crate serde_json;
+#[macro_use]
+extern crate serde_derive;
 extern crate serial;
 extern crate time;
 extern crate terminal_size;
@@ -54,6 +60,7 @@ pub enum Message {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Format {
     Csv,
+    Html,
     Human,
     Raw,
 }
@@ -63,6 +70,7 @@ impl ::std::str::FromStr for Format {
     fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
         match s {
             "csv" => Ok(Format::Csv),
+            "html" => Ok(Format::Html),
             "human" => Ok(Format::Human),
             "raw" => Ok(Format::Raw),
             _ => Err("Format parsing error"),
@@ -98,7 +106,8 @@ fn build_cli() -> App<'static, 'static> {
             .short("f")
             .takes_value(true)
             .requires("output")
-            .possible_values(&["raw", "csv"])
+            .possible_values(&["csv", "html", "raw"])
+            .requires_if("html", "input")
             .help("Select format for output files"))
         .arg(Arg::with_name("FILENAME_FORMAT")
             .long("filename-format")

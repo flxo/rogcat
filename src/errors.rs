@@ -8,10 +8,11 @@ error_chain! {
     foreign_links {
         Clap(::clap::Error);
         Csv(::csv::Error);
-        Utf8(::std::string::FromUtf8Error);
+        Handlebars(::handlebars::RenderError);
         Io(::std::io::Error);
         Regex(::regex::Error);
         Serial(::serial::Error);
         Time(::time::ParseError);
+        Utf8(::std::string::FromUtf8Error);
     }
 }

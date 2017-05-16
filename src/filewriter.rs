@@ -6,32 +6,231 @@
 
 use boolinator::Boolinator;
 use clap::ArgMatches;
+use crc::{crc32, Hasher32};
 use errors::*;
 use futures::{future, Future};
+use handlebars::{Handlebars, RenderContext, RenderError, Helper, JsonRender, to_json};
 use indicatif::{ProgressBar, ProgressStyle};
 use regex::Regex;
+use serde_json::value::{Value as Json, Map};
 use std::fs::{DirBuilder, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use super::{Format, Message, Node, RFuture};
+use std::str;
 use super::record::Record;
+use super::{Format, Message, Node, RFuture};
 use time::{now, strftime};
 
-pub struct FileWriter {
-    file: Option<File>,
-    file_size: u64,
+/// Interface for a output file format
+trait Writer {
+    fn new(filename: &PathBuf, format: &Format) -> Result<Box<Self>> where Self: Sized;
+    fn write(&mut self, record: &Record, index: usize) -> Result<()>;
+}
+
+const TEMPLATE: &str = r#"
+<!doctype HTML>
+<title>Rogcat</title>
+<link href='http://fonts.googleapis.com/css?family=Source+Code+Pro' rel='stylesheet' type='text/css'>
+<style>
+body {background: black; color: #BBBBBB; font-family: 'Source Code Pro', Monaco, monospace; font-size: 12px}
+.green, .I {color: #A8FF60}
+.white {color: #EEEEEE}
+.red, .E, .A, .F {color: #FF6C60}
+.yellow, .W {color: #FFFFB6}
+.black {color: #4F4F4F}
+.blue {color: #96CBFE}
+.cyan {color: #C6C5FE}
+.magenta {color: #FF73FD}
+tr.hover { background: #260041 }
+table {
+    border-spacing: 0;
+    width: 100%;
+}
+td {
+    vertical-align: top;
+    padding-bottom: 0;
+    padding-left: 2ex;
+    padding-right: 2ex;
+    white-space: nowrap;
+}
+tr:hover {
+    color: yellow;
+}
+td.level-D {
+	color: white;
+	background: #555;
+}
+td.level-I {
+    color: black;
+	background: #A8FF60;
+}
+td.level-W {
+    color: black;
+	background: #FFFFB6;
+}
+td.level-E {
+    color: black;
+	background: #FF6C60;
+}
+td.level-A {
+    color: black;
+	background: #FF6C60;
+}
+td.level-F {
+    color: black;
+	background: #FF6C60;
+}
+table tr td:first-child + td + td {
+    text-align: right
+}
+table tr td:first-child + td + td + td {
+}
+table tr td:first-child + td + td + td + td {
+    text-align: right
+}
+table tr td:first-child + td + td + td + td + td {
+}
+</style>
+
+<table>
+
+{{#each records as |t| ~}}
+    <tr>
+    <td>{{t.index}}</td>
+    <td>{{t.record.timestamp}}</td>
+    <td><a>{{color t.record.tag}}</a></td>
+    <td>{{color t.record.process}}</td>
+    <td>{{color t.record.thread}}</td>
+    <td class="level-{{t.record.level}}">{{t.record.level}}</td>
+    <td>{{t.record.message}}</td>
+    </tr>
+{{/each~}}
+
+</table>
+"#;
+
+#[derive(Serialize)]
+struct HtmlRecord {
+    index: usize,
+    record: Record,
+}
+
+/// Simple static html file
+#[derive(Default)]
+struct Html {
     filename: PathBuf,
-    filename_format: FilenameFormat,
+    records: Vec<HtmlRecord>,
+}
+
+impl Html {
+    // TODO: ensure readability
+    fn hash_color(value: &str) -> String {
+        let mut digest = crc32::Digest::new(crc32::IEEE);
+        digest.write(value.as_bytes());
+        let h = digest.sum32();
+        let r = (h & 0x000000FF) >>  0;
+        let g = (h & 0x0000FF00) >>  8;
+        let b = (h & 0x00FF0000) >> 16;
+        format!("#{:02x}{:02x}{:02x}", r, g, b)
+    }
+
+    fn color_helper(h: &Helper,
+                    _: &Handlebars,
+                    rc: &mut RenderContext)
+                    -> ::std::result::Result<(), RenderError> {
+        let param = h.param(0)
+            .ok_or(RenderError::new("Param 0 is required for format helper."))?;
+        let value = param.value().render();
+        let rendered = if value.len() == 0 || value == "0" {
+            format!("<span style=\"color:grey\">{}</span>", value)
+        } else {
+            format!("<span style=\"color:{}\">{}</span>", Self::hash_color(&value), value)
+        };
+        rc.writer.write(rendered.into_bytes().as_ref())?;
+        Ok(())
+    }
+
+    fn flush(&mut self) -> Result<()> {
+        let mut hb = Handlebars::new();
+        let mut data: Map<String, Json> = Map::new();
+        data.insert("records".to_owned(), to_json(&self.records));
+        let mut output_file = File::create(&self.filename)?;
+        hb.register_helper("color", Box::new(Self::color_helper));
+        hb.register_template_string("t1", TEMPLATE).ok();
+        hb.renderw("t1", &data, &mut output_file)?;
+        Ok(())
+    }
+}
+
+impl Writer for Html {
+    fn new(filename: &PathBuf, _: &Format) -> Result<Box<Self>> {
+        let html = Html {
+            filename: filename.clone(),
+            records: Vec::new(),
+        };
+        Ok(Box::new(html))
+    }
+
+    fn write(&mut self, record: &Record, index: usize) -> Result<()> {
+        let r = HtmlRecord {
+            index: index,
+            record: record.clone(),
+        };
+        Ok(self.records.push(r))
+    }
+}
+
+impl Drop for Html {
+    fn drop(&mut self) {
+        self.flush().ok();
+    }
+}
+
+/// Textfile with format
+struct Textfile {
+    file: File,
     format: Format,
-    process: Option<ProgressBar>,
+}
+
+impl Writer for Textfile {
+    fn new(filename: &PathBuf, format: &Format) -> Result<Box<Self>> {
+        let file = File::create(filename).chain_err(|| {
+                           format!("Failed to create output file: {:?}",
+                                   filename.display())
+                       })?;
+        let textfile = Textfile {
+            file: file,
+            format: format.clone(),
+        };
+        Ok(Box::new(textfile))
+    }
+
+    fn write(&mut self, record: &Record, _index: usize) -> Result<()> {
+        self.file
+            .write(record.format(self.format.clone())?.as_bytes())
+            .chain_err(|| "Failed to write")?;
+        self.file.write(b"\n").chain_err(|| "Failed to write")?;
+        Ok(())
+    }
 }
 
 #[derive(Clone)]
 enum FilenameFormat {
-    Single(bool),
-    Enumerate(bool, u64),
     Date(bool, u64),
+    Enumerate(bool, u64),
+    Single(bool),
+}
+
+pub struct FileWriter {
+    current_filename: PathBuf,
+    file_size: u64,
+    filename: PathBuf,
+    filename_format: FilenameFormat,
+    format: Format,
+    index: usize,
+    progress: Option<ProgressBar>,
+    writer: Option<Box<Writer>>,
 }
 
 impl<'a> FileWriter {
@@ -40,29 +239,29 @@ impl<'a> FileWriter {
             .and_then(|f| Some(PathBuf::from(f)))
             .ok_or("Invalid output filename!")?;
 
-        let records_per_file = args.value_of("RECORDS_PER_FILE").and_then(|l| {
-            Regex::new(r"^(\d+)([kMG])$")
-                .unwrap()
-                .captures(l)
-                .and_then(|caps| {
-                              caps.at(1)
-                                  .and_then(|size| u64::from_str(size).ok())
-                                  .and_then(|size| Some((size, caps.at(2))))
-                          })
-                .and_then(|(size, suffix)| match suffix {
-                              Some("k") => Some(1000 * size),
-                              Some("M") => Some(1000_000 * size),
-                              Some("G") => Some(1000_000_000 * size),
-                              _ => None,
-                          })
-                .or_else(|| u64::from_str(l).ok())
-        });
+        let records_per_file = args.value_of("RECORDS_PER_FILE")
+            .and_then(|l| {
+                Regex::new(r"^(\d+)([kMG])$")
+                    .unwrap()
+                    .captures(l)
+                    .and_then(|caps| {
+                                  caps.at(1)
+                                      .and_then(|size| u64::from_str(size).ok())
+                                      .and_then(|size| Some((size, caps.at(2))))
+                              })
+                    .and_then(|(size, suffix)| match suffix {
+                                  Some("k") => Some(1000 * size),
+                                  Some("M") => Some(1000_000 * size),
+                                  Some("G") => Some(1000_000_000 * size),
+                                  _ => None,
+                              })
+                    .or_else(|| u64::from_str(l).ok())
+            });
 
         let format = match args.value_of("FILE_FORMAT") {
             Some(s) => Format::from_str(s)?,
             None => Format::Raw,
         };
-
         let overwrite = args.is_present("OVERWRITE");
 
         let records = records_per_file.unwrap_or(::std::u64::MAX);
@@ -90,19 +289,23 @@ impl<'a> FileWriter {
                  " • ",
                  "{spinner:.yellow} Writing {msg:.dim.bold} {pos:>7.dim} {elapsed_precise:.dim}")
             };
-            pb.set_style(ProgressStyle::default_bar().template(template).progress_chars(chars));
+            pb.set_style(ProgressStyle::default_bar()
+                             .template(template)
+                             .progress_chars(chars));
             Some(pb)
         } else {
             None
         };
 
         Ok(FileWriter {
-               file: None,
+               current_filename: filename.clone(),
                file_size: 0,
                filename: filename,
-               format: format,
                filename_format: filename_format,
-               process: progress,
+               format: format,
+               index: 0,
+               progress: progress,
+               writer: None,
            })
     }
 
@@ -188,31 +391,34 @@ impl<'a> FileWriter {
         }
     }
 
-    fn write(&mut self, record: &Record) -> Result<usize> {
-        let error_msg = "Failed to write to output file";
-        let r = match self.file {
-            Some(ref mut file) => {
-                file.write(record.format(self.format.clone())?.as_bytes()).chain_err(|| error_msg)?;
-                file.write(b"\n").chain_err(|| error_msg)
+    fn write(&mut self, record: &Record) -> Result<()> {
+        match self.writer {
+            Some(ref mut writer) => {
+                writer.write(record, self.index)?;
+                self.index += 1;
             }
             None => {
-                let next_file = self.next_file()?;
-                let mut file = File::create(next_file.clone()).chain_err(|| {
-                                   format!("Failed to create output file: {:?}",
-                                           next_file.display())
-                               })?;
-                if let Some(ref pb) = self.process {
-                    pb.set_message(next_file.to_str().ok_or("Failed to render file name")?);
+                self.current_filename = self.next_file()?;
+                let mut writer = match self.format {
+                    Format::Raw | Format::Csv => {
+                        Textfile::new(&self.current_filename, &self.format)? as Box<Writer>
+                    }
+                    Format::Html => Html::new(&self.current_filename, &self.format)? as Box<Writer>,
+                    Format::Human => panic!("Unsupported format human in output file"),
+                };
+                if let Some(ref pb) = self.progress {
+                    let message = format!("Writing {}", self.current_filename.display());
+                    pb.set_message(&message);
                 }
-                file.write(record.format(self.format.clone())?.as_bytes()).chain_err(|| error_msg)?;
-                let r = file.write(b"\n").chain_err(|| error_msg);
-                self.file = Some(file);
-                r
+                writer.write(record, self.index)?;
+                self.index += 1;
+                self.writer = Some(writer);
             }
-        };
+        }
+
         self.file_size += 1;
 
-        if let Some(ref pb) = self.process {
+        if let Some(ref pb) = self.progress {
             pb.set_position(self.file_size);
         }
 
@@ -221,13 +427,12 @@ impl<'a> FileWriter {
             FilenameFormat::Date(_, n) => {
                 if self.file_size >= n {
                     self.file_size = 0;
-                    self.file = None
+                    self.writer = None;
                 }
+                Ok(())
             }
-            _ => (),
+            _ => Ok(()),
         }
-
-        r
     }
 }
 
@@ -235,10 +440,13 @@ impl Node for FileWriter {
     type Input = Message;
 
     fn process(&mut self, message: Message) -> RFuture {
-        if let Message::Record(ref record) = message {
-            if let Err(e) = self.write(record) {
-                return future::err(e.into()).boxed();
+        match message {
+            Message::Record(ref record) => {
+                if let Err(e) = self.write(record) {
+                    return future::err(e.into()).boxed();
+                }
             }
+            Message::Done | Message::Drop => {}
         }
         future::ok(message).boxed()
     }

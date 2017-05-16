@@ -4,6 +4,8 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
+use serde::{Serialize, Serializer};
+use serde::ser::SerializeMap;
 use super::errors::*;
 use super::Format;
 
@@ -78,6 +80,28 @@ pub struct Record {
     pub raw: String,
 }
 
+impl Serialize for Record {
+    fn serialize<S>(&self, serializer: S) -> ::std::result::Result<S::Ok, S::Error>
+        where S: Serializer
+    {
+        let mut map = serializer.serialize_map(Some(6 + if self.timestamp.is_some() { 1 } else { 0 }))?;
+        if let Some(timestamp) = self.timestamp {
+            let t = ::time::strftime("%m-%d %H:%M:%S.%f", &timestamp).unwrap_or("".to_owned());
+            let t = &t[..(t.len()-6)];
+            map.serialize_entry("timestamp", &t)?;
+        } else {
+            map.serialize_entry("timestamp", "")?;
+        };
+        map.serialize_entry("message", &self.message)?;
+        map.serialize_entry("level", &format!("{}", self.level))?;
+        map.serialize_entry("tag", &self.tag)?;
+        map.serialize_entry("process", &self.process)?;
+        map.serialize_entry("thread", &self.thread)?;
+        map.serialize_entry("raw", &self.raw)?;
+        map.end()
+    }
+}
+
 impl Record {
     pub fn format(&self, format: Format) -> Result<String> {
         Ok(match format {
@@ -94,7 +118,7 @@ impl Record {
                         self.message)
                }
                Format::Raw => self.raw.clone(),
-               Format::Human => panic!("Unimplemented"),
+               Format::Human | Format::Html => panic!("Unimplemented"),
            })
     }
 }
