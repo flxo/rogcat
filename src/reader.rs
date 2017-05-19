@@ -6,14 +6,14 @@
 
 use clap::ArgMatches;
 use errors::*;
-use futures::{future, Future};
+use futures::{Async, Stream, Poll};
 use record::Record;
 use serial::prelude::*;
 use std::fs::File;
 use std::io::{BufReader, BufRead, Read};
 use std::io::{Stdin, stdin};
 use std::path::PathBuf;
-use super::{Message, Node, RFuture};
+use super::Message;
 use std::time::Duration;
 use nom::{digit, IResult};
 use std::str::from_utf8;
@@ -40,7 +40,10 @@ impl<T: Read> LineReader<T> {
                .read_until(b'\n', &mut buffer)
                .chain_err(|| "Failed read")? > 0 {
             let line = String::from_utf8(buffer)?.trim().to_string();
-            let record = Record { raw: line, ..Default::default() };
+            let record = Record {
+                raw: line,
+                ..Default::default()
+            };
             Ok(ReadResult::Record(record))
         } else {
             Ok(ReadResult::Done)
@@ -74,26 +77,27 @@ impl<'a> FileReader {
     }
 }
 
-impl Node for FileReader {
-    type Input = ();
+impl Stream for FileReader {
+    type Item = Message;
+    type Error = Error;
 
-    fn process(&mut self, _: ()) -> RFuture {
-        loop {
-            match self.read() {
-                Ok(v) => {
-                    match v {
-                        ReadResult::Done => {
-                            if self.files.len() > 1 {
-                                self.files.remove(0);
-                            } else {
-                                return future::ok(Message::Done).boxed();
-                            }
+    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        match self.read() {
+            Ok(v) => {
+                match v {
+                    ReadResult::Done => {
+                        if self.files.len() > 1 {
+                            self.files.remove(0);
+                            // TODO multi file feature
+                            Ok(Async::Ready(Some(Message::Done)))
+                        } else {
+                            Ok(Async::Ready(Some(Message::Done)))
                         }
-                        ReadResult::Record(r) => return future::ok(Message::Record(r)).boxed(),
                     }
+                    ReadResult::Record(r) => Ok(Async::Ready(Some(Message::Record(r)))),
                 }
-                Err(e) => return future::err(e.into()).boxed(),
             }
+            Err(e) => Err(e),
         }
     }
 }
@@ -108,19 +112,17 @@ impl StdinReader {
     }
 }
 
-impl Node for StdinReader {
-    type Input = ();
-    fn process(&mut self, _: Self::Input) -> RFuture {
-        match self.reader.read() {
-                Ok(r) => {
-                    match r {
-                        ReadResult::Done => future::ok(Message::Done),
-                        ReadResult::Record(r) => future::ok(Message::Record(r)),
-                    }
-                }
-                Err(e) => future::err(e.into()),
-            }
-            .boxed()
+impl Stream for StdinReader {
+    type Item = Message;
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        self.reader
+            .read()
+            .map(|r| match r {
+                     ReadResult::Done => Async::Ready(None),
+                     ReadResult::Record(r) => Async::Ready(Some(Message::Record(r))),
+                 })
     }
 }
 
@@ -238,19 +240,21 @@ impl SerialReader {
     }
 }
 
-impl Node for SerialReader {
-    type Input = ();
-    fn process(&mut self, _: Self::Input) -> RFuture {
+impl Stream for SerialReader {
+    type Item = Message;
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         match self.reader.read() {
-                Ok(r) => {
-                    match r {
-                        ReadResult::Done => future::ok(Message::Done),
-                        ReadResult::Record(r) => future::ok(Message::Record(r)),
-                    }
+            Ok(r) => {
+                match r {
+                    ReadResult::Done => Ok(Async::Ready(None)),
+                    ReadResult::Record(r) => Ok(Async::Ready(Some(Message::Record(r)))),
                 }
-                Err(e) => future::err(e.into()),
             }
-            .boxed()
+
+            Err(e) => Err(e),
+        }
     }
 }
 
@@ -300,7 +304,9 @@ fn parse_serial_port() {
     assert_eq!(::serial::ParityNone, s.1.parity);
     assert_eq!(::serial::Stop1, s.1.stop_bits);
 
-    let s = serial("serial:///dev/ttyUSB0@115200,7O2".as_bytes()).unwrap().1;
+    let s = serial("serial:///dev/ttyUSB0@115200,7O2".as_bytes())
+        .unwrap()
+        .1;
     assert_eq!("/dev/ttyUSB0", s.0);
     assert_eq!(::serial::Baud115200, s.1.baud_rate);
     assert_eq!(::serial::Bits7, s.1.char_size);

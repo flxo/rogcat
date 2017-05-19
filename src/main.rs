@@ -13,6 +13,9 @@ extern crate crc;
 extern crate error_chain;
 extern crate handlebars;
 extern crate futures;
+extern crate futures_cpupool;
+#[macro_use]
+extern crate futures_error_chain;
 extern crate indicatif;
 #[macro_use]
 extern crate nom;
@@ -25,19 +28,26 @@ extern crate serial;
 extern crate time;
 extern crate terminal_size;
 extern crate term_painter;
+extern crate tokio_core;
+extern crate tokio_process;
+extern crate tokio_signal;
 extern crate tempdir;
 extern crate which;
 
 use clap::{App, AppSettings, Arg, ArgMatches, Shell, SubCommand};
 use error_chain::ChainedError;
 use futures::future::*;
+use futures::{future, Future, Stream};
 use record::Record;
 use std::env;
 use std::io::{stderr, stdout, Write};
 use std::path::PathBuf;
 use std::process::{Command, exit};
 use term_painter::{Color, ToStyle};
+use tokio_core::reactor::{Core, Handle};
+use tokio_signal::ctrl_c;
 use which::which_in;
+use futures_cpupool::CpuPool;
 
 mod errors;
 mod filewriter;
@@ -79,11 +89,6 @@ impl ::std::str::FromStr for Format {
 }
 
 type RFuture = Box<Future<Item = Message, Error = Error>>;
-
-pub trait Node {
-    type Input;
-    fn process(&mut self, msg: Self::Input) -> RFuture;
-}
 
 fn build_cli() -> App<'static, 'static> {
     App::new(crate_name!())
@@ -150,8 +155,8 @@ fn build_cli() -> App<'static, 'static> {
         .arg_from_usage("--shorten-tags 'Shorten tag by removing vovels if too long'")
         .arg_from_usage("--show-date 'Show month and day when printing on stdout'")
         .arg_from_usage("--show-time-diff 'Show time diff of tags after timestamp'")
-        .arg_from_usage("-s --skip-on-restart 'Skip messages on restart until last message from \
-                         previous run is (re)received. Use with caution!'")
+        // .arg_from_usage("-s --skip-on-restart 'Skip messages on restart until last message from \
+        //                  previous run is (re)received. Use with caution!'")
         .arg_from_usage("[COMMAND] 'Optional command to run and capture stdout from. Pass \"-\" to \
                          capture stdin'. If omitted, rogcat will run \"adb logcat -b all\"")
         .subcommand(SubCommand::with_name("completions")
@@ -180,7 +185,7 @@ fn adb() -> Result<PathBuf> {
         .map_err(|e| format!("Cannot find adb: {}", e).into())
 }
 
-fn input(args: &ArgMatches) -> Result<Box<Node<Input = ()>>> {
+fn input(args: &ArgMatches, pool : &CpuPool) -> Result<Box<Stream<Item = Message, Error = Error>>> {
     if args.is_present("input") {
         let input = args.value_of("input").ok_or("Invalid input value")?;
         if reader::SerialReader::parse_serial_arg(input).is_ok() {
@@ -199,7 +204,7 @@ fn input(args: &ArgMatches) -> Result<Box<Node<Input = ()>>> {
                     let cmd = c.to_owned();
                     let restart = args.is_present("restart");
                     let skip_on_restart = args.is_present("skip-on-restart");
-                    Ok(Box::new(runner::Runner::new(cmd, restart, skip_on_restart)?))
+                    Ok(Box::new(runner::Runner::new(cmd, restart, skip_on_restart, pool)?))
                 }
             }
             None => {
@@ -207,7 +212,7 @@ fn input(args: &ArgMatches) -> Result<Box<Node<Input = ()>>> {
                 let cmd = "adb logcat -b all".to_owned();
                 let restart = true;
                 let skip_on_restart = args.is_present("skip-on-restart");
-                Ok(Box::new(runner::Runner::new(cmd, restart, skip_on_restart)?))
+                Ok(Box::new(runner::Runner::new(cmd, restart, skip_on_restart, pool)?))
             }
         }
     }
@@ -223,10 +228,7 @@ fn run(args: &ArgMatches) -> Result<i32> {
             return Ok(0);
         }
         ("devices", _) => {
-            let output = String::from_utf8(Command::new(adb()?)
-                                               .arg("devices")
-                                               .output()?
-                                               .stdout)?;
+            let output = String::from_utf8(Command::new(adb()?).arg("devices").output()?.stdout)?;
             let error_msg = "Failed to parse adb output";
             let mut lines = output.lines();
             println!("{}:", lines.next().ok_or(error_msg)?);
@@ -248,6 +250,7 @@ fn run(args: &ArgMatches) -> Result<i32> {
         (_, _) => (),
     }
 
+
     for arg in &["clear", "get-ringbuffer-size", "output-statistics"] {
         if args.is_present(arg) {
             let arg = format!("-{}",
@@ -257,41 +260,51 @@ fn run(args: &ArgMatches) -> Result<i32> {
                                   &"output-statistics" => "S",
                                   _ => panic!(""),
                               });
-            let mut child = Command::new(adb()?).arg("logcat")
-                .arg(arg)
-                .spawn()?;
-            exit(child.wait()?
-                     .code()
-                     .ok_or("Failed to get exit code")?);
+            let mut child = Command::new(adb()?).arg("logcat").arg(arg).spawn()?;
+            exit(child.wait()?.code().ok_or("Failed to get exit code")?);
         }
     }
 
-    let mut input = input(args)?;
+
+
+    let mut core = Core::new()?;
+    let mut pool = CpuPool::new_num_cpus();
     let mut parser = parser::Parser::new();
     let mut filter = filter::Filter::new(args)?;
     let mut terminal = terminal::Terminal::new(args)?;
-    let mut filewriter = if args.is_present("output") {
-        Some(filewriter::FileWriter::new(args)?)
+    let (mut filewriter, verbose) = if args.is_present("output") {
+        (Some(filewriter::FileWriter::new(args)?), args.is_present("VERBOSE"))
     } else {
-        None
+        (None, true)
     };
 
-    loop {
-        let f = input.process(())
-            .and_then(|r| parser.process(r))
-            .and_then(|r| filter.process(r))
-            .and_then(|r| if let Some(ref mut f) = filewriter {
-                          if args.is_present("VERBOSE") {
-                              join_all(vec![terminal.process(r.clone()), f.process(r)])
-                          } else {
-                              join_all(vec![f.process(r)])
-                          }
-                      } else {
-                          join_all(vec![terminal.process(r)])
-                      });
-        let res = f.wait()?;
-        if res.iter().all(|r| *r == Message::Done) {
-            return Ok(0);
-        }
-    }
+    let handle = core.handle();
+    let ctrlc = core.run(ctrl_c(&handle))?
+        .map(|_| Message::Done)
+        .map_err(|e| e.into());
+
+    let r = input(args, &pool)?
+        .select(ctrlc)
+        .take_while(|r| ok(r != &Message::Done))
+        .for_each(|r| {
+            parser.process(r)
+                .and_then(|r| filter.process(r))
+                .and_then(|r| {
+                    if let Some(ref mut filewriter) = filewriter {
+                        filewriter.process(r)
+                    } else {
+                        future::ok(r).boxed()
+                    }
+                })
+                .and_then(|r| {
+                    if verbose {
+                        terminal.process(r)
+                    } else {
+                        future::ok(r).boxed()
+                    }
+                })
+                .wait().map(|_| ())
+        });
+
+    core.run(r).map(|_| 0)
 }

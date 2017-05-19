@@ -16,3 +16,5 @@ error_chain! {
         Utf8(::std::string::FromUtf8Error);
     }
 }
+
+future_chain!{}

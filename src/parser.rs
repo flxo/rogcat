@@ -10,7 +10,7 @@ use futures::{future, Future};
 use nom::{digit, hex_digit, IResult, rest, space};
 use std::str::from_utf8;
 use super::record::{Level, Record};
-use super::{Message, Node, RFuture};
+use super::{Message, RFuture};
 use time::Tm;
 
 named!(colon <char>, char!(':'));
@@ -242,12 +242,8 @@ impl Parser {
                raw: line.to_owned(),
            })
     }
-}
 
-impl Node for Parser {
-    type Input = Message;
-
-    fn process(&mut self, message: Message) -> RFuture {
+    pub fn process(&mut self, message: Message) -> RFuture {
         if let Message::Record(r) = message {
             if let Some(p) = self.last {
                 if let Ok(record) = p(&r.raw) {

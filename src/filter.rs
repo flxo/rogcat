@@ -9,7 +9,7 @@ use errors::*;
 use super::record::Level;
 use regex::Regex;
 use futures::{future, Future};
-use super::{Message, Node, RFuture};
+use super::{Message, RFuture};
 
 pub struct Filter {
     level: Level,
@@ -21,8 +21,10 @@ pub struct Filter {
 
 impl<'a> Filter {
     pub fn new(args: &ArgMatches<'a>) -> Result<Self> {
-        let filters =
-            |k| args.values_of(k).map(|m| m.map(|f| f.to_owned()).collect::<Vec<String>>());
+        let filters = |k| {
+            args.values_of(k)
+                .map(|m| m.map(|f| f.to_owned()).collect::<Vec<String>>())
+        };
         let (tag, tag_negative) = Self::init_filter(filters("tag"))?;
         let (message, message_negative) = Self::init_filter(filters("message"))?;
         Ok(Filter {
@@ -47,12 +49,8 @@ impl<'a> Filter {
         }
         Ok((positive, negative))
     }
-}
 
-impl Node for Filter {
-    type Input = Message;
-
-    fn process(&mut self, message: Message) -> RFuture {
+    pub fn process(&mut self, message: Message) -> RFuture {
         if let Message::Record(ref record) = message {
             if record.level < self.level {
                 return future::ok(Message::Drop).boxed();
@@ -89,7 +87,6 @@ impl Node for Filter {
         future::ok(message).boxed()
     }
 }
-
 
 #[test]
 fn filter_args() {

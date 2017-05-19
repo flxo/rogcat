@@ -20,6 +20,7 @@ use std::str::FromStr;
 use std::str;
 use super::record::Record;
 use super::{Format, Message, Node, RFuture};
+use super::{Format, Message, RFuture};
 use time::{now, strftime};
 
 /// Interface for a output file format
@@ -434,10 +435,6 @@ impl<'a> FileWriter {
             _ => Ok(()),
         }
     }
-}
-
-impl Node for FileWriter {
-    type Input = Message;
 
     fn process(&mut self, message: Message) -> RFuture {
         match message {
@@ -448,6 +445,13 @@ impl Node for FileWriter {
             }
             Message::Done | Message::Drop => {}
         }
-        future::ok(message).boxed()
+        future::ok(message.clone()).boxed()
+    }
+}
+
+impl Drop for FileWriter {
+    fn drop(&mut self) {
+        self.file_size = 0;
+        self.file = None;
     }
 }

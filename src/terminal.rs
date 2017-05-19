@@ -21,7 +21,6 @@ use term_painter::{Color, ToStyle};
 use terminal_size::{Width, Height, terminal_size};
 use time::Tm;
 use super::Format;
-use super::Node;
 use super::RFuture;
 
 #[cfg(not(target_os = "windows"))]
@@ -233,7 +232,11 @@ impl<'a> Terminal {
 
         let width = match terminal_size() {
             Some((Width(width), Height(_))) => Some(width),
-            None => env::var("COLUMNS").ok().and_then(|e| e.parse::<u16>().ok()),
+            None => {
+                env::var("COLUMNS")
+                    .ok()
+                    .and_then(|e| e.parse::<u16>().ok())
+            }
         };
 
         if let Some(width) = width {
@@ -284,12 +287,8 @@ impl<'a> Terminal {
 
         stdout().flush().unwrap();
     }
-}
 
-impl Node for Terminal {
-    type Input = Message;
-
-    fn process(&mut self, message: Message) -> RFuture {
+    pub fn process(&mut self, message: Message) -> RFuture {
         if let Message::Record(ref record) = message {
             match self.print_record(record) {
                 Ok(_) => (),
