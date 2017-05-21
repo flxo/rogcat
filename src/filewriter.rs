@@ -129,8 +129,8 @@ impl Html {
         let mut digest = crc32::Digest::new(crc32::IEEE);
         digest.write(value.as_bytes());
         let h = digest.sum32();
-        let r = (h & 0x000000FF) >>  0;
-        let g = (h & 0x0000FF00) >>  8;
+        let r = (h & 0x000000FF) >> 0;
+        let g = (h & 0x0000FF00) >> 8;
         let b = (h & 0x00FF0000) >> 16;
         format!("#{:02x}{:02x}{:02x}", r, g, b)
     }
@@ -145,7 +145,9 @@ impl Html {
         let rendered = if value.len() == 0 || value == "0" {
             format!("<span style=\"color:grey\">{}</span>", value)
         } else {
-            format!("<span style=\"color:{}\">{}</span>", Self::hash_color(&value), value)
+            format!("<span style=\"color:{}\">{}</span>",
+                    Self::hash_color(&value),
+                    value)
         };
         rc.writer.write(rendered.into_bytes().as_ref())?;
         Ok(())

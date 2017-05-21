@@ -96,7 +96,12 @@ impl<'a> Terminal {
     fn print_record(&mut self, record: &Record) -> Result<()> {
         match self.format {
             Format::Csv => {
-                record.format(Format::Csv).and_then(|s| { println!("{}", s); Ok(()) })
+                record
+                    .format(Format::Csv)
+                    .and_then(|s| {
+                                  println!("{}", s);
+                                  Ok(())
+                              })
             }
             Format::Human => {
                 self.print_human(record);

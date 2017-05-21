@@ -7,7 +7,6 @@
 use errors::*;
 use futures::{Async, Poll, Stream};
 use std::io::BufReader;
-use std::io;
 use std::process::{Command, Stdio};
 use super::Message;
 use super::record::Record;
@@ -49,7 +48,7 @@ impl Runner {
             .spawn_async(&handle)?;
 
         let stdout = child.stdout().take().unwrap();
-        let reader = io::BufReader::new(stdout);
+        let reader = BufReader::new(stdout);
         Ok((child, lines(reader)))
     }
 }

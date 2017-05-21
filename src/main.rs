@@ -40,11 +40,14 @@ use futures::future::*;
 use futures::{future, Future, Stream};
 use record::Record;
 use std::env;
+use std::io::BufReader;
 use std::io::{stderr, stdout, Write};
 use std::path::PathBuf;
-use std::process::{Command, exit};
+use std::process::{exit, Command, Stdio};
 use term_painter::{Color, ToStyle};
 use tokio_core::reactor::{Core, Handle};
+use tokio_io::io::lines;
+use tokio_process::CommandExt;
 use tokio_signal::ctrl_c;
 use which::which_in;
 
@@ -218,6 +221,8 @@ fn input(handle: Handle, args: &ArgMatches) -> Result<Box<Stream<Item = Message,
 }
 
 fn run(args: &ArgMatches) -> Result<i32> {
+    let mut core = Core::new()?;
+
     match args.subcommand() {
         ("completions", Some(sub_matches)) => {
             let shell = sub_matches.value_of("SHELL").unwrap();
@@ -227,28 +232,36 @@ fn run(args: &ArgMatches) -> Result<i32> {
             return Ok(0);
         }
         ("devices", _) => {
-            let output = String::from_utf8(Command::new(adb()?).arg("devices").output()?.stdout)?;
-            let error_msg = "Failed to parse adb output";
-            let mut lines = output.lines();
-            println!("{}:", lines.next().ok_or(error_msg)?);
-            for l in lines {
-                if !l.is_empty() && !l.starts_with("* daemon") {
-                    let mut s = l.split_whitespace();
-                    let id = s.next().ok_or(error_msg)?;
-                    let name = s.next().ok_or(error_msg)?;
-                    println!("{} {}",
-                             terminal::DIMM_COLOR.paint(id),
-                             match name {
-                                 "unauthorized" => Color::Red.paint(name),
-                                 _ => Color::Green.paint(name),
-                             })
-                }
-            }
-            return Ok(0);
+            let mut child = Command::new(adb()?).arg("devices")
+                .stdout(Stdio::piped())
+                .spawn_async(&core.handle())?;
+            let stdout = child.stdout()
+                .take()
+                .ok_or("Failed to read stdout of adb")?;
+            let reader = BufReader::new(stdout);
+            let lines = lines(reader);
+            let result = lines
+                .skip(1)
+                .for_each(|l| {
+                    if !l.is_empty() && !l.starts_with("* daemon") {
+                        let mut s = l.split_whitespace();
+                        let id: &str = s.next().unwrap_or("unknown");
+                        let name: &str = s.next().unwrap_or("unknown");
+                        println!("{} {}",
+                                 terminal::DIMM_COLOR.paint(id),
+                                 match name {
+                                     "unauthorized" => Color::Red.paint(name),
+                                     _ => Color::Green.paint(name),
+                                 })
+                    }
+                    Ok(())
+                });
+
+            let output = core.run(result.join(child.wait_with_output()))?.1;
+            exit(output.status.code().ok_or("Failed to get exit code")?);
         }
         (_, _) => (),
     }
-
 
     for arg in &["clear", "get-ringbuffer-size", "output-statistics"] {
         if args.is_present(arg) {
@@ -259,12 +272,14 @@ fn run(args: &ArgMatches) -> Result<i32> {
                                   &"output-statistics" => "S",
                                   _ => panic!(""),
                               });
-            let mut child = Command::new(adb()?).arg("logcat").arg(arg).spawn()?;
-            exit(child.wait()?.code().ok_or("Failed to get exit code")?);
+            let child = Command::new(adb()?).arg("logcat")
+                .arg(arg)
+                .spawn_async(&core.handle())?;
+            let output = core.run(child)?;
+            exit(output.code().ok_or("Failed to get exit code")?);
         }
     }
 
-    let mut core = Core::new()?;
     let mut parser = parser::Parser::new();
     let mut filter = filter::Filter::new(args)?;
     let mut terminal = terminal::Terminal::new(args)?;
@@ -276,30 +291,30 @@ fn run(args: &ArgMatches) -> Result<i32> {
 
     let handle = core.handle();
     let ctrlc = core.run(ctrl_c(&handle))?
-        .map(|_| Message::Done )
+        .map(|_| Message::Done)
         .map_err(|e| e.into());
 
     let handle = core.handle();
-    core.run(input(handle, args)?
-        .select(ctrlc)
-        .take_while(|r| ok(r != &Message::Done))
-        .for_each(|r| {
-            parser.process(r)
+    let input = input(handle, args)?;
+    core.run(input
+                 .select(ctrlc)
+                 .take_while(|r| ok(r != &Message::Done))
+                 .for_each(|r| {
+            parser
+                .process(r)
                 .and_then(|r| filter.process(r))
-                .and_then(|r| {
-                    if let Some(ref mut filewriter) = filewriter {
-                        filewriter.process(r)
-                    } else {
-                        future::ok(r).boxed()
-                    }
-                })
-                .and_then(|r| {
-                    if verbose {
-                        terminal.process(r)
-                    } else {
-                        future::ok(r).boxed()
-                    }
-                })
-                .wait().map(|_| ())
-        })).map(|_| 0)
+                .and_then(|r| if let Some(ref mut filewriter) = filewriter {
+                              filewriter.process(r)
+                          } else {
+                              future::ok(r).boxed()
+                          })
+                .and_then(|r| if verbose {
+                              terminal.process(r)
+                          } else {
+                              future::ok(r).boxed()
+                          })
+                .wait()
+                .map(|_| ())
+        }))
+        .map(|_| 0)
 }
