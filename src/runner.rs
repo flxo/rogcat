@@ -6,115 +6,83 @@
 
 use errors::*;
 use futures::{Async, Poll, Stream};
-use std::io::{BufReader, BufRead};
-use std::process::{ChildStdout, ChildStderr, Command, Stdio};
+use std::io::BufReader;
+use std::io;
+use std::process::{Command, Stdio};
 use super::Message;
 use super::record::Record;
 use super::terminal::DIMM_COLOR;
 use term_painter::ToStyle;
-use std::sync::mpsc::{channel, Sender, Receiver};
+use tokio_core::reactor::Handle;
+use tokio_io::io::{lines, Lines};
+use tokio_process::{Child, ChildStdout, CommandExt};
 
-use futures::Future;
-use futures_cpupool::CpuPool;
+type StdoutLines = Lines<BufReader<ChildStdout>>;
 
-pub struct Runner<'a> {
-    _stderr: BufReader<ChildStderr>,
-    cmd: Vec<String>,
-    pool: &'a CpuPool,
-    //last_line: Option<String>,
+pub struct Runner {
+    child: Child,
+    cmd: String,
+    handle: Handle,
+    lines: StdoutLines,
     restart: bool,
-    //skip_on_restart: bool,
-    //skip_until: Option<String>,
-    stdout: BufReader<ChildStdout>,
-    rx: Receiver<Message>,
-    tx: Sender<Message>,
 }
 
-impl<'a> Runner<'a> {
-    pub fn new(cmd: String, restart: bool, _skip_on_restart: bool, pool: &'a CpuPool) -> Result<Self> {
-        let cmd = cmd.split_whitespace()
-            .map(|s| s.to_owned())
-            .collect::<Vec<String>>();
-        let (stderr, stdout) = Self::run(&cmd)?;
-
-        let (tx, rx) = channel();
-
+impl Runner {
+    pub fn new(handle: Handle, cmd: String, restart: bool, _skip_on_restart: bool) -> Result<Self> {
+        let (child, lines) = Self::run(&cmd, &handle)?;
         Ok(Runner {
-               _stderr: BufReader::new(stderr),
-               cmd: cmd,
-               pool: pool,
-               //skip_until: None,
-               //last_line: None,
+               child: child,
+               cmd: cmd.clone(),
+               handle: handle,
+               lines: lines,
                restart: restart,
-               //skip_on_restart: skip_on_restart,
-               stdout: BufReader::new(stdout),
-               rx: rx,
-               tx: tx,
            })
     }
 
-    fn run(cmd: &[String]) -> Result<(ChildStderr, ChildStdout)> {
-        if cmd.is_empty() {
-            Err("Invalid cmd".into())
-        } else {
-            let c = Command::new(&cmd[0]).args(&cmd[1..])
-                .stderr(Stdio::piped())
-                .stdout(Stdio::piped())
-                .spawn()?;
-            Ok((c.stderr.ok_or("Failed to open stderr")?, c.stdout.ok_or("Failed to open stdout")?))
-        }
-    }
+    fn run(cmd: &str, handle: &Handle) -> Result<(Child, StdoutLines)> {
+        let cmd = cmd.split_whitespace()
+            .map(|s| s.to_owned())
+            .collect::<Vec<String>>();
 
-    fn read(&mut self) -> Result<Message> {
-        let mut buffer = Vec::new();
-        self.stdout.read_until(b'\n', &mut buffer)
-            .and_then(|s| {
-                if s > 0 {
-                    let record = Record {
-                        timestamp: Some(::time::now()),
-                        raw: String::from_utf8_lossy(&buffer).trim().to_string(),
-                        ..Default::default()
-                    };
-                    Ok(Message::Record(record))
-                } else {
-                    Ok(Message::Done)
-                }
-            }).map_err(|e| e.into())
+        let mut child = Command::new(&cmd[0]).args(&cmd[1..])
+            .stdout(Stdio::piped())
+            .spawn_async(&handle)?;
+
+        let stdout = child.stdout().take().unwrap();
+        let reader = io::BufReader::new(stdout);
+        Ok((child, lines(reader)))
     }
 }
 
-impl<'a> Stream for Runner<'a> {
+impl Stream for Runner {
     type Item = Message;
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        self.read().and_then(|message| {
-            match message {
-                Message::Done => {
-                    if self.restart {
-                        let text = format!("Restarting \"{}\"", self.cmd.join(" "));
-                        println!("{}", DIMM_COLOR.paint(&text));
-                        let (stderr, stdout) = Self::run(&self.cmd)?;
-                        self._stderr = BufReader::new(stderr);
-                        self.stdout = BufReader::new(stdout);
-                        match self.read() {
-                            Ok(Message::Record(r)) => Ok(Async::Ready(Some(Message::Record(r)))),
-                            // TODO: make this nice
-                            _ => Err(format!("Command {:?} exited without any output", &self.cmd).into()),
-                        }
+        loop {
+            match self.lines.poll() {
+                Ok(Async::Ready(t)) => {
+                    if let Some(s) = t {
+                        let r = Record {
+                            raw: s,
+                            ..Default::default()
+                        };
+                        return Ok(Async::Ready(Some(Message::Record(r))));
                     } else {
-                        Ok(Async::Ready(None))
+                        if self.restart {
+                            let text = format!("Restarting \"{}\"", self.cmd);
+                            println!("{}", DIMM_COLOR.paint(&text));
+                            let (child, lines) = Self::run(&self.cmd, &self.handle)?;
+                            self.lines = lines;
+                            self.child = child;
+                        } else {
+                            return Ok(Async::Ready(Some(Message::Done)));
+                        }
                     }
                 }
-                Message::Drop => Ok(Async::Ready(None)),
-                Message::Record(r) => Ok(Async::Ready(Some(Message::Record(r)))),
+                Ok(Async::NotReady) => return Ok(Async::NotReady),
+                Err(e) => return Err(e.into()),
             }
-        })
+        }
     }
-}
-
-#[test]
-fn runner() {
-    assert!(Runner::new("true".to_owned(), false, false).is_ok());
-    assert!(Runner::new("echo test".to_owned(), false, false).is_ok());
 }

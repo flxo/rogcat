@@ -13,7 +13,6 @@ extern crate crc;
 extern crate error_chain;
 extern crate handlebars;
 extern crate futures;
-extern crate futures_cpupool;
 #[macro_use]
 extern crate futures_error_chain;
 extern crate indicatif;
@@ -29,6 +28,7 @@ extern crate time;
 extern crate terminal_size;
 extern crate term_painter;
 extern crate tokio_core;
+extern crate tokio_io;
 extern crate tokio_process;
 extern crate tokio_signal;
 extern crate tempdir;
@@ -47,7 +47,6 @@ use term_painter::{Color, ToStyle};
 use tokio_core::reactor::{Core, Handle};
 use tokio_signal::ctrl_c;
 use which::which_in;
-use futures_cpupool::CpuPool;
 
 mod errors;
 mod filewriter;
@@ -185,7 +184,7 @@ fn adb() -> Result<PathBuf> {
         .map_err(|e| format!("Cannot find adb: {}", e).into())
 }
 
-fn input(args: &ArgMatches, pool : &CpuPool) -> Result<Box<Stream<Item = Message, Error = Error>>> {
+fn input(handle: Handle, args: &ArgMatches) -> Result<Box<Stream<Item = Message, Error = Error>>> {
     if args.is_present("input") {
         let input = args.value_of("input").ok_or("Invalid input value")?;
         if reader::SerialReader::parse_serial_arg(input).is_ok() {
@@ -204,7 +203,7 @@ fn input(args: &ArgMatches, pool : &CpuPool) -> Result<Box<Stream<Item = Message
                     let cmd = c.to_owned();
                     let restart = args.is_present("restart");
                     let skip_on_restart = args.is_present("skip-on-restart");
-                    Ok(Box::new(runner::Runner::new(cmd, restart, skip_on_restart, pool)?))
+                    Ok(Box::new(runner::Runner::new(handle, cmd, restart, skip_on_restart)?))
                 }
             }
             None => {
@@ -212,7 +211,7 @@ fn input(args: &ArgMatches, pool : &CpuPool) -> Result<Box<Stream<Item = Message
                 let cmd = "adb logcat -b all".to_owned();
                 let restart = true;
                 let skip_on_restart = args.is_present("skip-on-restart");
-                Ok(Box::new(runner::Runner::new(cmd, restart, skip_on_restart, pool)?))
+                Ok(Box::new(runner::Runner::new(handle, cmd, restart, skip_on_restart)?))
             }
         }
     }
@@ -265,10 +264,7 @@ fn run(args: &ArgMatches) -> Result<i32> {
         }
     }
 
-
-
     let mut core = Core::new()?;
-    let mut pool = CpuPool::new_num_cpus();
     let mut parser = parser::Parser::new();
     let mut filter = filter::Filter::new(args)?;
     let mut terminal = terminal::Terminal::new(args)?;
@@ -280,10 +276,11 @@ fn run(args: &ArgMatches) -> Result<i32> {
 
     let handle = core.handle();
     let ctrlc = core.run(ctrl_c(&handle))?
-        .map(|_| Message::Done)
+        .map(|_| Message::Done )
         .map_err(|e| e.into());
 
-    let r = input(args, &pool)?
+    let handle = core.handle();
+    core.run(input(handle, args)?
         .select(ctrlc)
         .take_while(|r| ok(r != &Message::Done))
         .for_each(|r| {
@@ -304,7 +301,5 @@ fn run(args: &ArgMatches) -> Result<i32> {
                     }
                 })
                 .wait().map(|_| ())
-        });
-
-    core.run(r).map(|_| 0)
+        })).map(|_| 0)
 }

@@ -19,7 +19,6 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::str;
 use super::record::Record;
-use super::{Format, Message, Node, RFuture};
 use super::{Format, Message, RFuture};
 use time::{now, strftime};
 
@@ -436,7 +435,7 @@ impl<'a> FileWriter {
         }
     }
 
-    fn process(&mut self, message: Message) -> RFuture {
+    pub fn process(&mut self, message: Message) -> RFuture {
         match message {
             Message::Record(ref record) => {
                 if let Err(e) = self.write(record) {
@@ -452,6 +451,6 @@ impl<'a> FileWriter {
 impl Drop for FileWriter {
     fn drop(&mut self) {
         self.file_size = 0;
-        self.file = None;
+        self.writer = None;
     }
 }
