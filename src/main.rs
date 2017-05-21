@@ -13,8 +13,6 @@ extern crate crc;
 extern crate error_chain;
 extern crate handlebars;
 extern crate futures;
-#[macro_use]
-extern crate futures_error_chain;
 extern crate indicatif;
 #[macro_use]
 extern crate nom;
@@ -232,12 +230,11 @@ fn run(args: &ArgMatches) -> Result<i32> {
             return Ok(0);
         }
         ("devices", _) => {
-            let mut child = Command::new(adb()?).arg("devices")
+            let mut child = Command::new(adb()?)
+                .arg("devices")
                 .stdout(Stdio::piped())
                 .spawn_async(&core.handle())?;
-            let stdout = child.stdout()
-                .take()
-                .ok_or("Failed to read stdout of adb")?;
+            let stdout = child.stdout().take().ok_or("Failed to read stdout of adb")?;
             let reader = BufReader::new(stdout);
             let lines = lines(reader);
             let result = lines
@@ -247,12 +244,10 @@ fn run(args: &ArgMatches) -> Result<i32> {
                         let mut s = l.split_whitespace();
                         let id: &str = s.next().unwrap_or("unknown");
                         let name: &str = s.next().unwrap_or("unknown");
-                        println!("{} {}",
-                                 terminal::DIMM_COLOR.paint(id),
-                                 match name {
-                                     "unauthorized" => Color::Red.paint(name),
-                                     _ => Color::Green.paint(name),
-                                 })
+                        println!("{} {}", terminal::DIMM_COLOR.paint(id), match name {
+                            "unauthorized" => Color::Red.paint(name),
+                            _ => Color::Green.paint(name),
+                        })
                     }
                     Ok(())
                 });
@@ -265,14 +260,14 @@ fn run(args: &ArgMatches) -> Result<i32> {
 
     for arg in &["clear", "get-ringbuffer-size", "output-statistics"] {
         if args.is_present(arg) {
-            let arg = format!("-{}",
-                              match arg {
-                                  &"clear" => "c",
-                                  &"get-ringbuffer-size" => "g",
-                                  &"output-statistics" => "S",
-                                  _ => panic!(""),
-                              });
-            let child = Command::new(adb()?).arg("logcat")
+            let arg = format!("-{}", match arg {
+                &"clear" => "c",
+                &"get-ringbuffer-size" => "g",
+                &"output-statistics" => "S",
+                _ => panic!(""),
+            });
+            let child = Command::new(adb()?)
+                .arg("logcat")
                 .arg(arg)
                 .spawn_async(&core.handle())?;
             let output = core.run(child)?;

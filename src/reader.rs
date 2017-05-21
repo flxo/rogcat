@@ -64,7 +64,8 @@ impl<'a> FileReader {
         // No early return from iteration....
         let mut reader = Vec::new();
         for f in files {
-            let file = File::open(f.clone()).chain_err(|| format!("Failed to open {:?}", f))?;
+            let file = File::open(f.clone())
+                .chain_err(|| format!("Failed to open {:?}", f))?;
             reader.push(LineReader::new(file));
         }
 

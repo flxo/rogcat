@@ -43,7 +43,8 @@ impl Runner {
             .map(|s| s.to_owned())
             .collect::<Vec<String>>();
 
-        let mut child = Command::new(&cmd[0]).args(&cmd[1..])
+        let mut child = Command::new(&cmd[0])
+            .args(&cmd[1..])
             .stdout(Stdio::piped())
             .spawn_async(&handle)?;
 

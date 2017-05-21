@@ -24,19 +24,17 @@ pub enum Level {
 
 impl ::std::fmt::Display for Level {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        write!(f,
-               "{}",
-               match *self {
-                   Level::None => "-",
-                   Level::Trace => "T",
-                   Level::Verbose => "V",
-                   Level::Debug => "D",
-                   Level::Info => "I",
-                   Level::Warn => "W",
-                   Level::Error => "E",
-                   Level::Fatal => "F",
-                   Level::Assert => "A",
-               })
+        write!(f, "{}", match *self {
+            Level::None => "-",
+            Level::Trace => "T",
+            Level::Verbose => "V",
+            Level::Debug => "D",
+            Level::Info => "I",
+            Level::Warn => "W",
+            Level::Error => "E",
+            Level::Fatal => "F",
+            Level::Assert => "A",
+        })
     }
 }
 
@@ -84,8 +82,8 @@ impl Serialize for Record {
     fn serialize<S>(&self, serializer: S) -> ::std::result::Result<S::Ok, S::Error>
         where S: Serializer
     {
-        let mut map =
-            serializer.serialize_map(Some(6 + if self.timestamp.is_some() { 1 } else { 0 }))?;
+        let mut map = serializer
+            .serialize_map(Some(6 + if self.timestamp.is_some() { 1 } else { 0 }))?;
         if let Some(timestamp) = self.timestamp {
             let t = ::time::strftime("%m-%d %H:%M:%S.%f", &timestamp)
                 .unwrap_or("".to_owned());
@@ -110,14 +108,14 @@ impl Record {
                // TODO: refactor
                Format::Csv => {
                    format!("\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"",
-                        self.timestamp
-                            .and_then(|ts| ::time::strftime("%m-%d %H:%M:%S.%f", &ts).ok())
-                            .unwrap_or("".to_owned()),
-                        self.tag,
-                        self.process,
-                        self.thread,
-                        self.level,
-                        self.message)
+                           self.timestamp
+                               .and_then(|ts| ::time::strftime("%m-%d %H:%M:%S.%f", &ts).ok())
+                               .unwrap_or("".to_owned()),
+                           self.tag,
+                           self.process,
+                           self.thread,
+                           self.level,
+                           self.message)
                }
                Format::Raw => self.raw.clone(),
                Format::Human | Format::Html => panic!("Unimplemented"),

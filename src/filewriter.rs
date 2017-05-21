@@ -197,10 +197,9 @@ struct Textfile {
 
 impl Writer for Textfile {
     fn new(filename: &PathBuf, format: &Format) -> Result<Box<Self>> {
-        let file = File::create(filename).chain_err(|| {
-                           format!("Failed to create output file: {:?}",
-                                   filename.display())
-                       })?;
+        let file =
+            File::create(filename)
+                .chain_err(|| format!("Failed to create output file: {:?}", filename.display()))?;
         let textfile = Textfile {
             file: file,
             format: format.clone(),
@@ -327,7 +326,8 @@ impl<'a> FileWriter {
 
                 let dir = self.filename.parent().unwrap_or(Path::new(""));
                 if !dir.is_dir() {
-                    DirBuilder::new().recursive(true)
+                    DirBuilder::new()
+                        .recursive(true)
                         .create(dir)
                         .chain_err(|| "Failed to create outfile parent directory")?
                 }
@@ -364,7 +364,8 @@ impl<'a> FileWriter {
                 loop {
                     let dir = self.filename.parent().unwrap_or(Path::new(""));
                     if !dir.is_dir() {
-                        DirBuilder::new().recursive(true)
+                        DirBuilder::new()
+                            .recursive(true)
                             .create(dir)
                             .chain_err(|| {
                                            format!("Failed to create outfile parent directory: {}",
