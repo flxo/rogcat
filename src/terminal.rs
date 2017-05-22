@@ -196,16 +196,22 @@ impl<'a> Terminal {
         let tag_width = self.tag_width;
         let diff_width = self.diff_width;
         let timestamp_width = self.date_format.1;
+        let timestamp_style = style(&timestamp, DIMM_COLOR);
+        let msg_style = style(&record.message, level_color);
+        let tag_style = style(&tag, Self::hashed_color(&tag));
+        let pid_style = style(&pid, Self::hashed_color(&pid));
+        let tid_style = style(&tid, Self::hashed_color(&tid));
+        let level_style = Plain.bg(level_color).fg(Color::Black);
         let print_msg = |chunk: &str, sign: &str| if color {
             println!("{:<timestamp_width$} {:>diff_width$} {:>tag_width$} ({}{}) {} {} {}",
-                     style(&timestamp, DIMM_COLOR).paint(&timestamp),
+                     timestamp_style.paint(&timestamp),
                      DIMM_COLOR.paint(&diff),
-                     style(&tag, Self::hashed_color(&tag)).paint(&tag),
-                     style(&pid, Self::hashed_color(&pid)).paint(&pid),
-                     style(&tid, Self::hashed_color(&tid)).paint(&tid),
-                     Plain.bg(level_color).fg(Color::Black).paint(&level),
+                     tag_style.paint(&tag),
+                     pid_style.paint(&pid),
+                     tid_style.paint(&tid),
+                     level_style.paint(&level),
                      level_color.paint(sign),
-                     style(&chunk, level_color).paint(&chunk),
+                     msg_style.paint(&chunk),
                      timestamp_width = timestamp_width,
                      diff_width = diff_width,
                      tag_width = tag_width);
