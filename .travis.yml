@@ -1,12 +1,19 @@
 language: rust
 rust:
-  - stable
-  - beta
-  - nightly
+- stable
+- beta
+- nightly
 matrix:
   allow_failures:
-    - rust: nightly
-    - rust: beta 
+  - rust: nightly
+  - rust: beta
 os:
-  - linux
-  - osx
+- linux
+- osx
+deploy:
+  provider: releases
+  api_key:
+    secure: REt9wNmve1blcRxVor+nUAaGX09oBqe3HwiEohwAvVus8XGv1OVd9EMa8o08hb24DOnIKV+T4Gr/tsZ8Yro02wZgjX+FhaBTrImu5KRBnQN/ja6ggn99rfnMriPgOGgL/oUd287qzODqe3s+fFv1K7O02Jor4DfWVAxKk3vKn0vJm90FUQ1vb8i+8McESdWibyzBtPyUsdyA+godHazeAVbri+GMVwEkmzFYo22Au4nGZjD4UHYAEP0u7GFKL5naLFbXkHkPo10epZVWQMAFKE/nRxxvgwfENkvvJI6AVOAROFp/lKAexo+fwNROya1gXY9s+T9nUP8mZwmBevE6Kf3PDHIOQilqGeU32NtM/XfNewYU9D5xiAJADrA5oVJlpmo2vqa1Rnz49qwR6PfnLAhJdpmb/qj4B/5UT/pd+nTc8XVFwWZmrO0TXVsQb2Sc6RLT1ZNc2w2+MdIMKqYNqQDUikx3HFHd77HuAU6ML4LhyNWZEi+oyT1NI+UbLBTzebXEOvF4Arpg+Bu/rbWANSsZJ/oPp9fjGDxwzB5eP3qW/hG3WOOiHVaI5IwPsTsTUHR2GzqXUekAT5J7qyb/Sr99MRltHmesrVGeT4lKWHxSjJkwO6TkJdQqmUtIs5NSo166sZno0VmxeHtY1doVA67pglrrCjyBUQ2rJdhygQU=
+  file: target/release/rogcat
+  on:
+    repo: flxo/rogcat
