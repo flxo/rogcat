@@ -20,10 +20,8 @@ pub struct Filter {
 
 impl<'a> Filter {
     pub fn new(args: &ArgMatches<'a>) -> Result<Self> {
-        let filters = |k| {
-            args.values_of(k)
-                .map(|m| m.map(|f| f.to_owned()).collect::<Vec<String>>())
-        };
+        let filters =
+            |k| args.values_of(k).map(|m| m.map(|f| f.to_owned()).collect::<Vec<String>>());
         let (tag, tag_negative) = Self::init_filter(filters("tag"))?;
         let (message, message_negative) = Self::init_filter(filters("message"))?;
         Ok(Filter {
@@ -52,23 +50,24 @@ impl<'a> Filter {
     pub fn process(&mut self, message: Message) -> Result<Message> {
         if let Message::Record(ref record) = message {
             if record.level < self.level {
-                return Ok(Message::Drop)
+                return Ok(Message::Drop);
             }
 
-            if !self.message.is_empty() && !self.message.iter().any(|m| m.is_match(&record.message)) {
-                return Ok(Message::Drop)
+            if !self.message.is_empty() &&
+               !self.message.iter().any(|m| m.is_match(&record.message)) {
+                return Ok(Message::Drop);
             }
 
             if self.message_negative.iter().any(|m| m.is_match(&record.message)) {
-                return Ok(Message::Drop)
+                return Ok(Message::Drop);
             }
 
             if !self.tag.is_empty() && !self.tag.iter().any(|m| m.is_match(&record.tag)) {
-                return Ok(Message::Drop)
+                return Ok(Message::Drop);
             }
 
             if self.tag_negative.iter().any(|m| m.is_match(&record.tag)) {
-                return Ok(Message::Drop)
+                return Ok(Message::Drop);
             }
         }
         Ok(message)

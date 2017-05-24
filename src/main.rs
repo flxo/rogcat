@@ -42,6 +42,7 @@ use std::io::BufReader;
 use std::io::{stderr, stdout, Write};
 use std::path::PathBuf;
 use std::process::{exit, Command, Stdio};
+use std::str::FromStr;
 use term_painter::{Color, ToStyle};
 use tokio_core::reactor::{Core, Handle};
 use tokio_io::io::lines;
@@ -69,9 +70,9 @@ use terminal::Terminal;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Message {
-    Record(Record),
-    Drop,
     Done,
+    Drop,
+    Record(Record),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -86,7 +87,7 @@ trait Output {
     fn process(&mut self, message: Message) -> Result<Message>;
 }
 
-impl ::std::str::FromStr for Format {
+impl FromStr for Format {
     type Err = &'static str;
     fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
         match s {
@@ -239,30 +240,31 @@ fn run(args: &ArgMatches) -> Result<i32> {
             return Ok(0);
         }
         ("devices", _) => {
-            let mut child = Command::new(adb()?)
-                .arg("devices")
+            let mut child = Command::new(adb()?).arg("devices")
                 .stdout(Stdio::piped())
                 .spawn_async(&core.handle())?;
-            let stdout = child.stdout().take().ok_or("Failed to read stdout of adb")?;
+            let stdout = child.stdout()
+                .take()
+                .ok_or("Failed to read stdout of adb")?;
             let reader = BufReader::new(stdout);
             let lines = lines(reader);
-            let result = lines
-                .skip(1)
-                .for_each(|l| {
-                    if !l.is_empty() && !l.starts_with("* daemon") {
-                        let mut s = l.split_whitespace();
-                        let id: &str = s.next().unwrap_or("unknown");
-                        let name: &str = s.next().unwrap_or("unknown");
-                        println!("{} {}", terminal::DIMM_COLOR.paint(id), match name {
+            let result = lines.skip(1).for_each(|l| {
+                if !l.is_empty() && !l.starts_with("* daemon") {
+                    let mut s = l.split_whitespace();
+                    let id: &str = s.next().unwrap_or("unknown");
+                    let name: &str = s.next().unwrap_or("unknown");
+                    println!("{} {}", terminal::DIMM_COLOR.paint(id), match name {
                             "unauthorized" => Color::Red.paint(name),
                             _ => Color::Green.paint(name),
                         })
-                    }
-                    Ok(())
-                });
+                }
+                Ok(())
+            });
 
             let output = core.run(result.join(child.wait_with_output()))?.1;
-            exit(output.status.code().ok_or("Failed to get exit code")?);
+            exit(output.status
+                     .code()
+                     .ok_or("Failed to get exit code")?);
         }
         (_, _) => (),
     }
@@ -275,8 +277,7 @@ fn run(args: &ArgMatches) -> Result<i32> {
                 &"output-statistics" => "S",
                 _ => panic!(""),
             });
-            let child = Command::new(adb()?)
-                .arg("logcat")
+            let child = Command::new(adb()?).arg("logcat")
                 .arg(arg)
                 .spawn_async(&core.handle())?;
             let output = core.run(child)?;
@@ -298,12 +299,12 @@ fn run(args: &ArgMatches) -> Result<i32> {
         .map_err(|e| e.into());
 
     let result = input(core.handle(), args)?
-                    .select(ctrlc)
-                    .and_then(|m| parser.process(m))
-                    .and_then(|m| filter.process(m))
-                    .and_then(|m| output.process(m))
-                    .take_while(|r| ok(r != &Message::Done))
-                    .for_each(|_| ok(()));
+        .select(ctrlc)
+        .and_then(|m| parser.process(m))
+        .and_then(|m| filter.process(m))
+        .and_then(|m| output.process(m))
+        .take_while(|r| ok(r != &Message::Done))
+        .for_each(|_| ok(()));
 
     core.run(result).map(|_| 0)
 }

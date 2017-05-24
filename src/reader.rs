@@ -40,10 +40,7 @@ impl<T: Read> LineReader<T> {
                .read_until(b'\n', &mut buffer)
                .chain_err(|| "Failed read")? > 0 {
             let line = String::from_utf8(buffer)?.trim().to_string();
-            let record = Record {
-                raw: line,
-                ..Default::default()
-            };
+            let record = Record { raw: line, ..Default::default() };
             Ok(ReadResult::Record(record))
         } else {
             Ok(ReadResult::Done)
@@ -64,8 +61,7 @@ impl<'a> FileReader {
         // No early return from iteration....
         let mut reader = Vec::new();
         for f in files {
-            let file = File::open(f.clone())
-                .chain_err(|| format!("Failed to open {:?}", f))?;
+            let file = File::open(f.clone()).chain_err(|| format!("Failed to open {:?}", f))?;
             reader.push(LineReader::new(file));
         }
 
@@ -118,12 +114,10 @@ impl Stream for StdinReader {
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        self.reader
-            .read()
-            .map(|r| match r {
-                     ReadResult::Done => Async::Ready(None),
-                     ReadResult::Record(r) => Async::Ready(Some(Message::Record(r))),
-                 })
+        self.reader.read().map(|r| match r {
+                                   ReadResult::Done => Async::Ready(None),
+                                   ReadResult::Record(r) => Async::Ready(Some(Message::Record(r))),
+                               })
     }
 }
 
@@ -305,9 +299,7 @@ fn parse_serial_port() {
     assert_eq!(::serial::ParityNone, s.1.parity);
     assert_eq!(::serial::Stop1, s.1.stop_bits);
 
-    let s = serial("serial:///dev/ttyUSB0@115200,7O2".as_bytes())
-        .unwrap()
-        .1;
+    let s = serial("serial:///dev/ttyUSB0@115200,7O2".as_bytes()).unwrap().1;
     assert_eq!("/dev/ttyUSB0", s.0);
     assert_eq!(::serial::Baud115200, s.1.baud_rate);
     assert_eq!(::serial::Bits7, s.1.char_size);

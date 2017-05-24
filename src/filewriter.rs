@@ -8,7 +8,6 @@ use boolinator::Boolinator;
 use clap::ArgMatches;
 use crc::{crc32, Hasher32};
 use errors::*;
-use futures::{Poll, Async, Sink, StartSend, AsyncSink};
 use handlebars::{Handlebars, RenderContext, RenderError, Helper, JsonRender, to_json};
 use indicatif::{ProgressBar, ProgressStyle};
 use regex::Regex;
@@ -139,8 +138,7 @@ impl Html {
                     _: &Handlebars,
                     rc: &mut RenderContext)
                     -> ::std::result::Result<(), RenderError> {
-        let param = h.param(0)
-            .ok_or(RenderError::new("Param 0 is required for format helper."))?;
+        let param = h.param(0).ok_or(RenderError::new("Param 0 is required for format helper."))?;
         let value = param.value().render();
         let rendered = if value.len() == 0 || value == "0" {
             format!("<span style=\"color:grey\">{}</span>", value)
@@ -211,7 +209,9 @@ impl Writer for Textfile {
         self.file
             .write(record.format(self.format.clone())?.as_bytes())
             .chain_err(|| "Failed to write")?;
-        self.file.write(b"\n").chain_err(|| "Failed to write")?;
+        self.file
+            .write(b"\n")
+            .chain_err(|| "Failed to write")?;
         Ok(())
     }
 }
@@ -240,24 +240,23 @@ impl<'a> FileWriter {
             .and_then(|f| Some(PathBuf::from(f)))
             .ok_or("Invalid output filename!")?;
 
-        let records_per_file = args.value_of("RECORDS_PER_FILE")
-            .and_then(|l| {
-                Regex::new(r"^(\d+)([kMG])$")
-                    .unwrap()
-                    .captures(l)
-                    .and_then(|caps| {
-                                  caps.at(1)
-                                      .and_then(|size| u64::from_str(size).ok())
-                                      .and_then(|size| Some((size, caps.at(2))))
-                              })
-                    .and_then(|(size, suffix)| match suffix {
-                                  Some("k") => Some(1000 * size),
-                                  Some("M") => Some(1000_000 * size),
-                                  Some("G") => Some(1000_000_000 * size),
-                                  _ => None,
-                              })
-                    .or_else(|| u64::from_str(l).ok())
-            });
+        let records_per_file = args.value_of("RECORDS_PER_FILE").and_then(|l| {
+            Regex::new(r"^(\d+)([kMG])$")
+                .unwrap()
+                .captures(l)
+                .and_then(|caps| {
+                              caps.at(1)
+                                  .and_then(|size| u64::from_str(size).ok())
+                                  .and_then(|size| Some((size, caps.at(2))))
+                          })
+                .and_then(|(size, suffix)| match suffix {
+                              Some("k") => Some(1000 * size),
+                              Some("M") => Some(1000_000 * size),
+                              Some("G") => Some(1000_000_000 * size),
+                              _ => None,
+                          })
+                .or_else(|| u64::from_str(l).ok())
+        });
 
         let format = match args.value_of("FILE_FORMAT") {
             Some(s) => Format::from_str(s)?,
@@ -290,9 +289,7 @@ impl<'a> FileWriter {
                  " • ",
                  "{spinner:.yellow} Writing {msg:.dim.bold} {pos:>7.dim} {elapsed_precise:.dim}")
             };
-            pb.set_style(ProgressStyle::default_bar()
-                             .template(template)
-                             .progress_chars(chars));
+            pb.set_style(ProgressStyle::default_bar().template(template).progress_chars(chars));
             Some(pb)
         } else {
             None
@@ -326,8 +323,7 @@ impl<'a> FileWriter {
 
                 let dir = self.filename.parent().unwrap_or(Path::new(""));
                 if !dir.is_dir() {
-                    DirBuilder::new()
-                        .recursive(true)
+                    DirBuilder::new().recursive(true)
                         .create(dir)
                         .chain_err(|| "Failed to create outfile parent directory")?
                 }
@@ -364,8 +360,7 @@ impl<'a> FileWriter {
                 loop {
                     let dir = self.filename.parent().unwrap_or(Path::new(""));
                     if !dir.is_dir() {
-                        DirBuilder::new()
-                            .recursive(true)
+                        DirBuilder::new().recursive(true)
                             .create(dir)
                             .chain_err(|| {
                                            format!("Failed to create outfile parent directory: {}",

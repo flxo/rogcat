@@ -82,8 +82,8 @@ impl Serialize for Record {
     fn serialize<S>(&self, serializer: S) -> ::std::result::Result<S::Ok, S::Error>
         where S: Serializer
     {
-        let mut map = serializer
-            .serialize_map(Some(6 + if self.timestamp.is_some() { 1 } else { 0 }))?;
+        let mut map =
+            serializer.serialize_map(Some(6 + if self.timestamp.is_some() { 1 } else { 0 }))?;
         if let Some(timestamp) = self.timestamp {
             let t = ::time::strftime("%m-%d %H:%M:%S.%f", &timestamp)
                 .unwrap_or("".to_owned());

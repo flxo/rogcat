@@ -246,7 +246,7 @@ impl Parser {
         if let Message::Record(r) = message {
             if let Some(p) = self.last {
                 if let Ok(record) = p(&r.raw) {
-                    return Ok(Message::Record(record))
+                    return Ok(Message::Record(record));
                 }
             }
 
