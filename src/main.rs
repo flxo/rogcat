@@ -122,7 +122,6 @@ fn build_cli() -> App<'static, 'static> {
             .takes_value(true)
             .requires("output")
             .possible_values(&["csv", "html", "raw"])
-            .requires_if("html", "input")
             .help("Select format for output files"))
         .arg(Arg::with_name("FILENAME_FORMAT")
             .long("filename-format")
@@ -298,8 +297,8 @@ fn run(args: &ArgMatches) -> Result<i32> {
         .map(|_| Message::Done)
         .map_err(|e| e.into());
 
-    let result = input(core.handle(), args)?
-        .select(ctrlc)
+    let input = input(core.handle(), args)?;
+    let result = input.select(ctrlc)
         .and_then(|m| parser.process(m))
         .and_then(|m| filter.process(m))
         .and_then(|m| output.process(m))

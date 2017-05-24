@@ -25,6 +25,9 @@ use time::{now, strftime};
 trait Writer {
     fn new(filename: &PathBuf, format: &Format) -> Result<Box<Self>> where Self: Sized;
     fn write(&mut self, record: &Record, index: usize) -> Result<()>;
+    fn flush(&mut self) -> Result<()> {
+        Ok(())
+    }
 }
 
 const TEMPLATE: &str = r#"
@@ -424,30 +427,37 @@ impl<'a> FileWriter {
             FilenameFormat::Enumerate(_, n) |
             FilenameFormat::Date(_, n) => {
                 if self.file_size >= n {
-                    self.file_size = 0;
-                    self.writer = None;
+                    self.flush()
+                } else {
+                    Ok(())
                 }
-                Ok(())
             }
             _ => Ok(()),
         }
+    }
+
+    fn flush(&mut self) -> Result<()> {
+        if let Some(ref mut writer) = self.writer {
+            writer.flush()?;
+        }
+        self.file_size = 0;
+        self.writer = None;
+        Ok(())
     }
 }
 
 impl Output for FileWriter {
     fn process(&mut self, message: Message) -> Result<Message> {
-        if let Message::Record(ref record) = message {
-            if let Err(e) = self.write(record) {
-                return Err(e);
-            }
+        match message {
+            Message::Record(ref record) => {
+                if let Err(e) = self.write(record) {
+                    return Err(e);
+                }
+            },
+            Message::Done => self.flush()?,
+            _ => (),
+
         }
         Ok(message)
-    }
-}
-
-impl Drop for FileWriter {
-    fn drop(&mut self) {
-        self.file_size = 0;
-        self.writer = None;
     }
 }
