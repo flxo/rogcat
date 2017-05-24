@@ -8,8 +8,7 @@ use clap::ArgMatches;
 use errors::*;
 use super::record::Level;
 use regex::Regex;
-use futures::{future, Future};
-use super::{Message, RFuture};
+use super::Message;
 
 pub struct Filter {
     level: Level,
@@ -50,41 +49,29 @@ impl<'a> Filter {
         Ok((positive, negative))
     }
 
-    pub fn process(&mut self, message: Message) -> RFuture {
+    pub fn process(&mut self, message: Message) -> Result<Message> {
         if let Message::Record(ref record) = message {
             if record.level < self.level {
-                return future::ok(Message::Drop).boxed();
+                return Ok(Message::Drop)
             }
 
-            if !self.message.is_empty() &&
-               self.message
-                   .iter()
-                   .map(|r| if r.is_match(&record.message) { 1 } else { 0 })
-                   .sum::<usize>() == 0 {
-                return future::ok(Message::Drop).boxed();
+            if !self.message.is_empty() && !self.message.iter().any(|m| m.is_match(&record.message)) {
+                return Ok(Message::Drop)
             }
 
-            for m in &self.message_negative {
-                if m.is_match(&record.message) {
-                    return future::ok(Message::Drop).boxed();
-                }
+            if self.message_negative.iter().any(|m| m.is_match(&record.message)) {
+                return Ok(Message::Drop)
             }
 
-            if !self.tag.is_empty() &&
-               self.tag
-                   .iter()
-                   .map(|r| if r.is_match(&record.tag) { 1 } else { 0 })
-                   .sum::<usize>() == 0 {
-                return future::ok(Message::Drop).boxed();
+            if !self.tag.is_empty() && !self.tag.iter().any(|m| m.is_match(&record.tag)) {
+                return Ok(Message::Drop)
             }
 
-            for t in &self.tag_negative {
-                if t.is_match(&record.tag) {
-                    return future::ok(Message::Drop).boxed();
-                }
+            if self.tag_negative.iter().any(|m| m.is_match(&record.tag)) {
+                return Ok(Message::Drop)
             }
         }
-        future::ok(message).boxed()
+        Ok(message)
     }
 }
 

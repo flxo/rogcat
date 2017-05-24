@@ -5,23 +5,21 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use clap::ArgMatches;
-use std::env;
 use errors::*;
-use futures::{future, Future};
+use futures::{Poll, Async, Sink, StartSend, AsyncSink};
 use regex::Regex;
 use std::cmp::max;
 use std::collections::HashMap;
+use std::env;
 use std::io::Write;
 use std::io::stdout;
 use std::str::FromStr;
-use super::Message;
+use super::{Format, Message, Output};
 use super::record::{Level, Record};
 use term_painter::Attr::*;
 use term_painter::{Color, ToStyle};
 use terminal_size::{Width, Height, terminal_size};
 use time::Tm;
-use super::Format;
-use super::RFuture;
 
 #[cfg(not(target_os = "windows"))]
 pub const DIMM_COLOR: Color = Color::Custom(243);
@@ -288,14 +286,15 @@ impl<'a> Terminal {
 
         stdout().flush().unwrap();
     }
+}
 
-    pub fn process(&mut self, message: Message) -> RFuture {
+impl Output for Terminal {
+    fn process(&mut self, message: Message) -> Result<Message> {
         if let Message::Record(ref record) = message {
-            match self.print_record(record) {
-                Ok(_) => (),
-                Err(e) => return future::err(e.into()).boxed(),
+            if let Err(e) = self.print_record(record) {
+                return Err(e);
             }
         }
-        future::ok(message).boxed()
+        Ok(message)
     }
 }

@@ -8,7 +8,7 @@ use boolinator::Boolinator;
 use clap::ArgMatches;
 use crc::{crc32, Hasher32};
 use errors::*;
-use futures::{future, Future};
+use futures::{Poll, Async, Sink, StartSend, AsyncSink};
 use handlebars::{Handlebars, RenderContext, RenderError, Helper, JsonRender, to_json};
 use indicatif::{ProgressBar, ProgressStyle};
 use regex::Regex;
@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::str;
 use super::record::Record;
-use super::{Format, Message, RFuture};
+use super::{Format, Message, Output};
 use time::{now, strftime};
 
 /// Interface for a output file format
@@ -437,17 +437,16 @@ impl<'a> FileWriter {
             _ => Ok(()),
         }
     }
+}
 
-    pub fn process(&mut self, message: Message) -> RFuture {
-        match message {
-            Message::Record(ref record) => {
-                if let Err(e) = self.write(record) {
-                    return future::err(e.into()).boxed();
-                }
+impl Output for FileWriter {
+    fn process(&mut self, message: Message) -> Result<Message> {
+        if let Message::Record(ref record) = message {
+            if let Err(e) = self.write(record) {
+                return Err(e);
             }
-            Message::Done | Message::Drop => {}
         }
-        future::ok(message.clone()).boxed()
+        Ok(message)
     }
 }
 

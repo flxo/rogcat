@@ -35,7 +35,7 @@ extern crate which;
 use clap::{App, AppSettings, Arg, ArgMatches, Shell, SubCommand};
 use error_chain::ChainedError;
 use futures::future::*;
-use futures::{future, Future, Stream};
+use futures::{Future, Stream};
 use record::Record;
 use std::env;
 use std::io::BufReader;
@@ -59,6 +59,13 @@ mod runner;
 mod terminal;
 
 use errors::*;
+use filewriter::FileWriter;
+use filter::Filter;
+use parser::Parser;
+use reader::{FileReader, SerialReader, StdinReader};
+use runner::Runner;
+use terminal::Terminal;
+
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Message {
@@ -75,6 +82,10 @@ pub enum Format {
     Raw,
 }
 
+trait Output {
+    fn process(&mut self, message: Message) -> Result<Message>;
+}
+
 impl ::std::str::FromStr for Format {
     type Err = &'static str;
     fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
@@ -87,8 +98,6 @@ impl ::std::str::FromStr for Format {
         }
     }
 }
-
-type RFuture = Box<Future<Item = Message, Error = Error>>;
 
 fn build_cli() -> App<'static, 'static> {
     App::new(crate_name!())
@@ -188,23 +197,23 @@ fn adb() -> Result<PathBuf> {
 fn input(handle: Handle, args: &ArgMatches) -> Result<Box<Stream<Item = Message, Error = Error>>> {
     if args.is_present("input") {
         let input = args.value_of("input").ok_or("Invalid input value")?;
-        if reader::SerialReader::parse_serial_arg(input).is_ok() {
-            Ok(Box::new(reader::SerialReader::new(input)?))
+        if SerialReader::parse_serial_arg(input).is_ok() {
+            Ok(Box::new(SerialReader::new(input)?))
         } else {
-            Ok(Box::new(reader::FileReader::new(args)?))
+            Ok(Box::new(FileReader::new(args)?))
         }
     } else {
         match args.value_of("COMMAND") {
             Some(c) => {
                 if c == "-" {
-                    Ok(Box::new(reader::StdinReader::new()))
-                } else if reader::SerialReader::parse_serial_arg(c).is_ok() {
-                    Ok(Box::new(reader::SerialReader::new(c)?))
+                    Ok(Box::new(StdinReader::new()))
+                } else if SerialReader::parse_serial_arg(c).is_ok() {
+                    Ok(Box::new(SerialReader::new(c)?))
                 } else {
                     let cmd = c.to_owned();
                     let restart = args.is_present("restart");
                     let skip_on_restart = args.is_present("skip-on-restart");
-                    Ok(Box::new(runner::Runner::new(handle, cmd, restart, skip_on_restart)?))
+                    Ok(Box::new(Runner::new(handle, cmd, restart, skip_on_restart)?))
                 }
             }
             None => {
@@ -212,7 +221,7 @@ fn input(handle: Handle, args: &ArgMatches) -> Result<Box<Stream<Item = Message,
                 let cmd = "adb logcat -b all".to_owned();
                 let restart = true;
                 let skip_on_restart = args.is_present("skip-on-restart");
-                Ok(Box::new(runner::Runner::new(handle, cmd, restart, skip_on_restart)?))
+                Ok(Box::new(Runner::new(handle, cmd, restart, skip_on_restart)?))
             }
         }
     }
@@ -275,41 +284,26 @@ fn run(args: &ArgMatches) -> Result<i32> {
         }
     }
 
-    let mut parser = parser::Parser::new();
-    let mut filter = filter::Filter::new(args)?;
-    let mut terminal = terminal::Terminal::new(args)?;
-    let (mut filewriter, verbose) = if args.is_present("output") {
-        (Some(filewriter::FileWriter::new(args)?), args.is_present("VERBOSE"))
+    let mut output = if args.is_present("output") {
+        Box::new(FileWriter::new(args)?) as Box<Output>
     } else {
-        (None, true)
+        Box::new(Terminal::new(args)?) as Box<Output>
     };
+    let mut parser = Parser::new();
+    let mut filter = Filter::new(args)?;
 
     let handle = core.handle();
     let ctrlc = core.run(ctrl_c(&handle))?
         .map(|_| Message::Done)
         .map_err(|e| e.into());
 
-    let handle = core.handle();
-    let input = input(handle, args)?;
-    core.run(input
-                 .select(ctrlc)
-                 .take_while(|r| ok(r != &Message::Done))
-                 .for_each(|r| {
-            parser
-                .process(r)
-                .and_then(|r| filter.process(r))
-                .and_then(|r| if let Some(ref mut filewriter) = filewriter {
-                              filewriter.process(r)
-                          } else {
-                              future::ok(r).boxed()
-                          })
-                .and_then(|r| if verbose {
-                              terminal.process(r)
-                          } else {
-                              future::ok(r).boxed()
-                          })
-                .wait()
-                .map(|_| ())
-        }))
-        .map(|_| 0)
+    let result = input(core.handle(), args)?
+                    .select(ctrlc)
+                    .and_then(|m| parser.process(m))
+                    .and_then(|m| filter.process(m))
+                    .and_then(|m| output.process(m))
+                    .take_while(|r| ok(r != &Message::Done))
+                    .for_each(|_| ok(()));
+
+    core.run(result).map(|_| 0)
 }

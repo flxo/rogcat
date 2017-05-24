@@ -6,11 +6,10 @@
 
 use csv::Reader;
 use errors::*;
-use futures::{future, Future};
 use nom::{digit, hex_digit, IResult, rest, space};
 use std::str::from_utf8;
 use super::record::{Level, Record};
-use super::{Message, RFuture};
+use super::Message;
 use time::Tm;
 
 named!(colon <char>, char!(':'));
@@ -243,11 +242,11 @@ impl Parser {
            })
     }
 
-    pub fn process(&mut self, message: Message) -> RFuture {
+    pub fn process(&mut self, message: Message) -> Result<Message> {
         if let Message::Record(r) = message {
             if let Some(p) = self.last {
                 if let Ok(record) = p(&r.raw) {
-                    return future::ok(Message::Record(record)).boxed();
+                    return Ok(Message::Record(record))
                 }
             }
 
@@ -271,9 +270,9 @@ impl Parser {
                 }
             };
 
-            future::ok(Message::Record(record)).boxed()
+            Ok(Message::Record(record))
         } else {
-            future::ok(message).boxed()
+            Ok(message)
         }
     }
 }
