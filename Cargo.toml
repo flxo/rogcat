@@ -1,7 +1,7 @@
 [package]
 authors = ["Felix Obenhuber <felix@obenhuber.de>"]
 name = "rogcat"
-version = "0.2.2"
+version = "0.2.3"
 [dependencies]
 boolinator = "2.4.0"
 clap = "2.16.2"
