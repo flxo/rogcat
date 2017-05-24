@@ -149,10 +149,6 @@ fn build_cli() -> App<'static, 'static> {
             .possible_values(&["trace", "debug", "info", "warn", "error", "fatal", "assert", "T",
                                "D", "I", "W", "E", "F", "A"])
             .help("Minimum level"))
-        .arg(Arg::with_name("VERBOSE")
-            .long("verbose")
-            .requires("output")
-            .help("Print records on stdout even when using the -o option"))
         .arg(Arg::with_name("OVERWRITE")
             .long("overwrite")
             .requires("output")

@@ -233,7 +233,7 @@ pub struct FileWriter {
     filename_format: FilenameFormat,
     format: Format,
     index: usize,
-    progress: Option<ProgressBar>,
+    progress: ProgressBar,
     writer: Option<Box<Writer>>,
 }
 
@@ -282,7 +282,7 @@ impl<'a> FileWriter {
             }
         };
 
-        let progress = if !args.is_present("VERBOSE") {
+        let progress = {
             let (pb, chars, template) = if let Some(n) = records_per_file {
                 (ProgressBar::new(n),
                  "•• ",
@@ -293,9 +293,7 @@ impl<'a> FileWriter {
                  "{spinner:.yellow} Writing {msg:.dim.bold} {pos:>7.dim} {elapsed_precise:.dim}")
             };
             pb.set_style(ProgressStyle::default_bar().template(template).progress_chars(chars));
-            Some(pb)
-        } else {
-            None
+            pb
         };
 
         Ok(FileWriter {
@@ -407,10 +405,8 @@ impl<'a> FileWriter {
                     Format::Html => Html::new(&self.current_filename, &self.format)? as Box<Writer>,
                     Format::Human => panic!("Unsupported format human in output file"),
                 };
-                if let Some(ref pb) = self.progress {
-                    let message = format!("Writing {}", self.current_filename.display());
-                    pb.set_message(&message);
-                }
+                let message = format!("Writing {}", self.current_filename.display());
+                self.progress.set_message(&message);
                 writer.write(record, self.index)?;
                 self.index += 1;
                 self.writer = Some(writer);
@@ -418,10 +414,7 @@ impl<'a> FileWriter {
         }
 
         self.file_size += 1;
-
-        if let Some(ref pb) = self.progress {
-            pb.set_position(self.file_size);
-        }
+        self.progress.set_position(self.file_size);
 
         match self.filename_format {
             FilenameFormat::Enumerate(_, n) |
