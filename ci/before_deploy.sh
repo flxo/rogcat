@@ -1,5 +1,3 @@
-# This script takes care of building your crate and packaging it for release
-
 set -ex
 
 main() {
@@ -17,11 +15,9 @@ main() {
 
     test -f Cargo.lock || cargo generate-lockfile
 
-    # TODO Update this to build the artifacts that matter to you
-    cross rustc --bin hello --target $TARGET --release -- -C lto
+    cross rustc --bin rogcat --target $TARGET --release -- -C lto
 
-    # TODO Update this to package the right artifacts
-    cp target/$TARGET/release/hello $stage/
+    cp target/$TARGET/release/rogcat $stage/
 
     cd $stage
     tar czf $src/$CRATE_NAME-$TRAVIS_TAG-$TARGET.tar.gz *

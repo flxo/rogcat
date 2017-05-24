@@ -133,7 +133,7 @@ fn build_cli() -> App<'static, 'static> {
                   'enumerate' will append a file sequence number after the filename passed with '-o' option whenever a new file is \
                   created (see 'records-per-file' option). 'date' will prefix the output filename with the current local date \
                   when a new file is created"))
-        .arg(Arg::with_name("TERMINAL_FORMAT")
+        .arg(Arg::new("TERMINAL_FORMAT")
             .long("terminal-format")
             .short("e")
             .takes_value(true)
