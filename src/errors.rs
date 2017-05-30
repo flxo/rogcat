@@ -14,5 +14,6 @@ error_chain! {
         Serial(::serial::Error);
         Time(::time::ParseError);
         Utf8(::std::string::FromUtf8Error);
+        Zip(::zip::result::ZipError);
     }
 }

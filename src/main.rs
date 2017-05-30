@@ -31,6 +31,7 @@ extern crate tokio_process;
 extern crate tokio_signal;
 extern crate tempdir;
 extern crate which;
+extern crate zip;
 
 use clap::{App, AppSettings, Arg, ArgMatches, Shell, SubCommand};
 use error_chain::ChainedError;
@@ -50,6 +51,7 @@ use tokio_process::CommandExt;
 use tokio_signal::ctrl_c;
 use which::which_in;
 
+mod bugreport;
 mod errors;
 mod filewriter;
 mod filter;
@@ -171,6 +173,17 @@ fn build_cli() -> App<'static, 'static> {
                 .possible_values(&["bash", "fish", "zsh"])
                 .help("The shell to generate the script for")))
         .subcommand(SubCommand::with_name("devices").about("Show list of available devices"))
+        .subcommand(SubCommand::with_name("bugreport")
+            .about("Capture bugreport")
+            .arg(Arg::with_name("ZIP")
+                .short("z")
+                .long("zip")
+                .help("Zip report"))
+            .arg(Arg::with_name("OVERWRITE")
+                .long("overwrite")
+                .help("Overwrite report file if present"))
+            .arg(Arg::with_name("FILE")
+                .help("Output file name - defaults to <date>-bugreport")))
 }
 
 fn main() {
@@ -261,6 +274,7 @@ fn run(args: &ArgMatches) -> Result<i32> {
                      .code()
                      .ok_or("Failed to get exit code")?);
         }
+        ("bugreport", Some(sub_matches)) => exit(bugreport::create(sub_matches, &mut core)?),
         (_, _) => (),
     }
 
