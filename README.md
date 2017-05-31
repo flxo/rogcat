@@ -10,7 +10,7 @@ A ``adb logcat`` wrapper with colors and filter and output options written in `R
 ## Usage
 
 ```
-rogcat 0.2.2
+rogcat 0.2.4-pre
 Felix Obenhuber <felix@obenhuber.de>
 A 'adb logcat' wrapper
 
@@ -30,8 +30,9 @@ FLAGS:
     -V, --version                Prints version information
 
 OPTIONS:
-    -a, --filename-format <FILENAME_FORMAT>      Select format for output file names. By passing 'single' the filename provided with the '-o' option is used. 'enumerate' will append a file sequence number after the filename passed with '-o' option whenever a new file is created (see
-                                                 'records-per-file' option). 'date' will prefix the output filename with the current local date when a new file is created [values: single, enumerate, date]
+    -a, --filename-format <FILENAME_FORMAT>      Select format for output file names. By passing 'single' the filename provided with the '-o' option is used. 'enumerate' will append a file sequence number after
+                                                 the filename passed with '-o' option whenever a new file is created (see 'records-per-file' option). 'date' will prefix the output filename with the current local
+                                                 date when a new file is created [values: single, enumerate, date]
     -f, --file-format <FILE_FORMAT>              Select format for output files [values: csv, html, raw]
     -l, --level <LEVEL>                          Minimum level [values: trace, debug, info, warn, error, fatal, assert, T, D, I, W, E, F, A]
     -n, --records-per-file <RECORDS_PER_FILE>    Write n records per file. Use k, M, G suffixes or a plain number
@@ -46,6 +47,7 @@ ARGS:
     <COMMAND>    Optional command to run and capture stdout from. Pass "-" to capture stdin'. If omitted, rogcat will run "adb logcat -b all
 
 SUBCOMMANDS:
+    bugreport      Capture bugreport
     completions    Generates completion scripts for your shell
     devices        Show list of available devices
     help           Prints this message or the help of the given subcommand(s)
