@@ -175,6 +175,31 @@ named!(bsw <Record>,
     )
 );
 
+named!(bugreport_section <(String, String)>,
+    do_parse!(
+        tag: map_res!(take_until!("("), from_utf8) >>
+        char!('(') >>
+        msg: map_res!(take_until!(")"), from_utf8) >>
+        char!(')') >>
+        (
+            (tag.to_owned(), msg.to_owned())
+        )
+    )
+);
+
+named!(property <(String, String)>,
+    do_parse!(
+        char!('[') >>
+        prop: map_res!(take_until!("]"), from_utf8) >>
+        tag!("]: [") >>
+        value: map_res!(take_until!("]"), from_utf8) >>
+        char!(']') >>
+        (
+            (prop.to_owned(), value.to_owned())
+        )
+    )
+);
+
 pub struct Parser {
     last: Option<fn(&str) -> Result<Record>>,
 }
@@ -187,7 +212,7 @@ impl Parser {
     fn parse_timestamp(line: &str) -> Result<Option<Tm>> {
         match timestamp(line.as_bytes()) {
             IResult::Done(_, v) => Ok(Some(v)),
-            IResult::Error(_) => Err("Failed to parse".into()),
+            IResult::Error(e) => Err(e.into()),
             IResult::Incomplete(_) => Err("Not enough data".into()),
         }
     }
@@ -198,7 +223,7 @@ impl Parser {
                 v.raw = line.to_owned();
                 Ok(v)
             }
-            IResult::Error(_) => Err("Failed to parse".into()),
+            IResult::Error(e) => Err(e.into()),
             IResult::Incomplete(_) => Err("Not enough data".into()),
         }
     }
@@ -209,7 +234,7 @@ impl Parser {
                 v.raw = line.to_owned();
                 Ok(v)
             }
-            IResult::Error(_) => Err("Failed to parse".into()),
+            IResult::Error(e) => Err(e.into()),
             IResult::Incomplete(_) => Err("Not enough data".into()),
         }
     }
@@ -220,7 +245,7 @@ impl Parser {
                 v.raw = line.to_owned();
                 Ok(v)
             }
-            IResult::Error(_) => Err("Failed to parse".into()),
+            IResult::Error(e) => Err(e.into()),
             IResult::Incomplete(_) => Err("Not enough data".into()),
         }
     }
@@ -242,6 +267,54 @@ impl Parser {
            })
     }
 
+    fn parse_bugreport(line: &str) -> Result<Record> {
+        if line.starts_with("=") || line.starts_with("-") ||
+           (line.starts_with("[") && line.ends_with("]")) {
+            if line.chars().all(|c| c == '=') {
+                Ok(Record {
+                       level: Level::Info,
+                       message: line.to_owned(),
+                       raw: line.to_owned(),
+                       ..Default::default()
+                   })
+            } else if line.starts_with("== ") {
+                Ok(Record {
+                       level: Level::Info,
+                       message: line[3..].to_owned(),
+                       raw: line.to_owned(),
+                       tag: line[3..].to_owned(),
+                       ..Default::default()
+                   })
+            } else if line.is_empty() {
+                Err("Unparseable".into())
+            } else if let IResult::Done(_, (prop, value)) = property(line.as_bytes()) {
+                Ok(Record {
+                       message: value,
+                       tag: prop,
+                       raw: line.to_owned(),
+                       ..Default::default()
+                   })
+            } else {
+                let line = line.trim_matches('=').trim_matches('-').trim();
+                match bugreport_section(line.as_bytes()) {
+                    IResult::Done(_, (tag, message)) => {
+                        Ok(Record {
+                               level: Level::Info,
+                               message: message,
+                               raw: line.to_owned(),
+                               tag: tag,
+                               ..Default::default()
+                           })
+                    }
+                    IResult::Error(e) => Err(e.into()),
+                    IResult::Incomplete(_) => Err("Not enough data".into()),
+                }
+            }
+        } else {
+            Err("Unparseable".into())
+        }
+    }
+
     pub fn process(&mut self, message: Message) -> Result<Message> {
         if let Message::Record(r) = message {
             if let Some(p) = self.last {
@@ -250,27 +323,26 @@ impl Parser {
                 }
             }
 
-            let record = if let Ok(record) = Self::parse_default(&r.raw) {
-                self.last = Some(Self::parse_default);
-                record
-            } else if let Ok(record) = Self::parse_mindroid(&r.raw) {
-                self.last = Some(Self::parse_mindroid);
-                record
-            } else if let Ok(record) = Self::parse_csv(&r.raw) {
-                self.last = Some(Self::parse_csv);
-                record
-            } else if let Ok(record) = Self::parse_bsw(&r.raw) {
-                self.last = Some(Self::parse_bsw);
-                record
-            } else {
+            let parser = [Self::parse_default,
+                          Self::parse_mindroid,
+                          Self::parse_csv,
+                          Self::parse_bsw,
+                          Self::parse_bugreport];
+            let mut parse = |record: &Record| -> Record {
+                for p in parser.iter() {
+                    if let Ok(r) = p(&record.raw) {
+                        self.last = Some(*p);
+                        return r;
+                    }
+                }
                 Record {
-                    message: r.raw.clone(),
-                    raw: r.raw,
+                    message: record.raw.clone(),
+                    raw: record.raw.clone(),
                     ..Default::default()
                 }
             };
 
-            Ok(Message::Record(record))
+            Ok(Message::Record(parse(&r)))
         } else {
             Ok(message)
         }
@@ -411,4 +483,10 @@ fn parse_bsw() {
     assert_eq!(r.process, "");
     assert_eq!(r.thread, "");
     assert_eq!(r.message, "LifecycleManager::reportInit(BSP)");
+}
+
+#[test]
+fn parse_property() {
+    let t = "[ro.build.tags]: [release-keys]";
+    assert_eq!(property(t.as_bytes()).unwrap().1, ("ro.build.tags".to_owned(), "release-keys".to_owned()));
 }

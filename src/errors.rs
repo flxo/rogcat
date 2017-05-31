@@ -10,6 +10,7 @@ error_chain! {
         Csv(::csv::Error);
         Handlebars(::handlebars::RenderError);
         Io(::std::io::Error);
+        Nom(::nom::ErrorKind);
         Regex(::regex::Error);
         Serial(::serial::Error);
         Time(::time::ParseError);
