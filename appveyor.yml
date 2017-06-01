@@ -1,63 +1,50 @@
 environment:
   global:
-    RUST_VERSION: stable
-
-    CRATE_NAME: rogcat
-
+    PROJECT_NAME: rogcat
   matrix:
-    # MSVC
     - TARGET: i686-pc-windows-msvc
+      CHANNEL: stable
     - TARGET: x86_64-pc-windows-msvc
+      CHANNEL: stable
 
-    # Testing other channels
-    - TARGET: x86_64-pc-windows-gnu
-      RUST_VERSION: nightly
-    - TARGET: x86_64-pc-windows-msvc
-      RUST_VERSION: nightly
-
+# Install Rust and Cargo
+# (Based on from https://github.com/rust-lang/libc/blob/master/appveyor.yml)
 install:
-  - ps: >-
-      If ($Env:TARGET -eq 'x86_64-pc-windows-gnu') {
-        $Env:PATH += ';C:\msys64\mingw64\bin'
-      } ElseIf ($Env:TARGET -eq 'i686-pc-windows-gnu') {
-        $Env:PATH += ';C:\msys64\mingw32\bin'
-      }
   - curl -sSf -o rustup-init.exe https://win.rustup.rs/
-  - rustup-init.exe -y --default-host %TARGET% --default-toolchain %RUST_VERSION%
+  - rustup-init.exe -y --default-host %TARGET%
   - set PATH=%PATH%;C:\Users\appveyor\.cargo\bin
-  - rustc -Vv
+  - if defined MSYS2_BITS set PATH=%PATH%;C:\msys64\mingw%MSYS2_BITS%\bin
+  - rustc -V
   - cargo -V
 
+# ???
+build: false
+
 test_script:
-  - if [%APPVEYOR_REPO_TAG%]==[false] (
-      cargo build --target %TARGET% &&
-      cargo build --target %TARGET% --release &&
-      cargo test --target %TARGET% &&
-      cargo test --target %TARGET% --release
-    )
+  - cargo test --verbose
 
 before_deploy:
-  - cargo rustc --target %TARGET% --release --bin rogcat -- -C lto
-  - ps: ci\before_deploy.ps1
+  # Generate artifacts for release
+  - cargo build --release
+  - mkdir staging
+  - copy target\release\rogcat.exe staging
+  - cd staging
+  - 7z a ../%PROJECT_NAME%-%APPVEYOR_REPO_TAG_NAME%-%TARGET%.zip *
+  - appveyor PushArtifact ../%PROJECT_NAME%-%APPVEYOR_REPO_TAG_NAME%-%TARGET%.zip
 
 deploy:
+  description: 'Automatically deployed release for windows'
+  # All the zipped artifacts will be deployed
   artifact: /.*\.zip/
+  provider: GitHub
   auth_token:
     secure: ZZgAO28sc+iPwXCFQRod4QkGXOXBED7+dlP/KCW+5SBMsslzX8vtgWHisTykfKl+
-  description: ''
+  # deploy when a new tag is pushed and only on the stable channel
   on:
-    RUST_VERSION: stable
+    CHANNEL: stable
     appveyor_repo_tag: true
-  provider: GitHub
-
-cache:
-  - C:\Users\appveyor\.cargo\registry
-  - target
 
 branches:
   only:
-    # Release tags
-    - /^v\d+\.\d+\.\d+.*$/
+    - /\d+\.\d+\.\d+/
     - master
-
-build: false
