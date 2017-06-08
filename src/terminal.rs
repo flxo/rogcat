@@ -53,27 +53,35 @@ impl<'a> Terminal {
         Ok(Terminal {
                beginning_of: Regex::new(r"--------- beginning of.*").unwrap(),
                color: true, // ! args.is_present("NO-COLOR"),
-               date_format: if args.is_present("show-date") {
-                   ("%m-%d %H:%M:%S.%f".to_owned(), 18)
+               date_format: if args.is_present("SHOW_DATE") {
+                   if args.is_present("NO_TIMESTAMP") {
+                       ("%m-%d".to_owned(), 5)
+                   } else {
+                       ("%m-%d %H:%M:%S.%f".to_owned(), 18)
+                   }
                } else {
-                   ("%H:%M:%S.%f".to_owned(), 12)
+                   if args.is_present("NO_TIMESTAMP") {
+                       ("".to_owned(), 0)
+                   } else {
+                       ("%H:%M:%S.%f".to_owned(), 12)
+                   }
                },
                format: args.value_of("TERMINAL_FORMAT")
                    .and_then(|f| Format::from_str(f).ok())
                    .unwrap_or(Format::Human),
                highlight: highlight,
-               shorten_tag: args.is_present("shorten-tags"),
+               shorten_tag: args.is_present("SHORTEN_TAGS"),
                process_width: 0,
                tag_timestamps: HashMap::new(),
                vovels: Regex::new(r"a|e|i|o|u").unwrap(),
                tag_width: 20,
                thread_width: 0,
-               diff_width: if args.is_present("show-time-diff") {
+               diff_width: if args.is_present("SHOW_TIME_DIFF") {
                    8
                } else {
                    0
                },
-               time_diff: args.is_present("show-time-diff"),
+               time_diff: args.is_present("SHOW_TIME_DIFF"),
            })
     }
 
