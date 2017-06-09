@@ -55,6 +55,7 @@ mod bugreport;
 mod errors;
 mod filewriter;
 mod filter;
+mod log;
 mod parser;
 mod record;
 mod reader;
@@ -195,6 +196,21 @@ fn build_cli() -> App<'static, 'static> {
                 .help("Overwrite report file if present"))
             .arg(Arg::with_name("FILE")
                 .help("Output file name - defaults to <date>-bugreport")))
+        .subcommand(SubCommand::with_name("log")
+            .about("Add log message log buffer")
+            .arg(Arg::with_name("TAG")
+                .short("t")
+                .long("tag")
+                .takes_value(true)
+                .help("Log tag"))
+            .arg(Arg::with_name("LEVEL")
+                .short("l")
+                .long("level")
+                .takes_value(true)
+                .possible_values(&["trace", "debug", "info", "warn", "error", "fatal", "assert", "T",
+                                   "D", "I", "W", "E", "F", "A"])
+            .help("Log on level"))
+            .arg_from_usage("[MESSAGE] 'Log message. Pass \"-\" to capture from stdin'."))
 }
 
 fn main() {
@@ -286,6 +302,7 @@ fn run(args: &ArgMatches) -> Result<i32> {
                      .ok_or("Failed to get exit code")?);
         }
         ("bugreport", Some(sub_matches)) => exit(bugreport::create(sub_matches, &mut core)?),
+        ("log", Some(sub_matches)) => exit(log::run(sub_matches, &mut core)?),
         (_, _) => (),
     }
 
