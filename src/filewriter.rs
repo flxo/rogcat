@@ -446,7 +446,7 @@ impl Output for FileWriter {
                 if let Err(e) = self.write(record) {
                     return Err(e);
                 }
-            },
+            }
             Message::Done => self.flush()?,
             _ => (),
 
