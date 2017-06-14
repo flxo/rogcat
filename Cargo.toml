@@ -34,3 +34,7 @@ zip = "0.2.3"
 
 [dependencies.terminal_size]
 git = "https://github.com/flxo/terminal-size.git"
+
+[package.metadata.release]
+tag-message = "v{{version}}"
+pre-release-commit-message = "v{{version}}"
