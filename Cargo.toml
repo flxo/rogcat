@@ -2,6 +2,10 @@
 authors = ["Felix Obenhuber <felix@obenhuber.de>"]
 name = "rogcat"
 version = "0.2.6-pre"
+description = "A adb logcat wrapper and log processor"
+homepage = "https://github.com/flxo/rogcat"
+license = "WTFPL"
+keywords = ["android", "adb", "log", "logcat"]
 
 [dependencies]
 boolinator = "2.4.0"
