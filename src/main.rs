@@ -182,7 +182,7 @@ fn build_cli() -> App<'static, 'static> {
                 .help("The shell to generate the script for")))
         .subcommand(SubCommand::with_name("devices").about("Show list of available devices"))
         .subcommand(SubCommand::with_name("bugreport")
-            .about("Capture bugreport")
+            .about("Capture bugreport. This is only works for Android versions < 7.")
             .arg(Arg::with_name("ZIP")
                 .short("z")
                 .long("zip")

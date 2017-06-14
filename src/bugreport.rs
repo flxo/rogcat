@@ -65,7 +65,6 @@ impl Drop for ZipFile {
 }
 
 fn report_filename() -> Result<String> {
-    // TODO: The generated filename could include info from the report.
     let now = strftime("%m-%d_%H:%M:%S", &now())?;
     Ok(format!("{}-bugreport", now))
 }
@@ -80,6 +79,7 @@ pub fn create(args: &ArgMatches, core: &mut Core) -> Result<i32> {
 
     let mut child = Command::new(adb()?).arg("bugreport")
         .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .spawn_async(&core.handle())?;
     let stdout = child.stdout()
         .take()
@@ -103,7 +103,7 @@ pub fn create(args: &ArgMatches, core: &mut Core) -> Result<i32> {
         Box::new(File::create(&filename)?) as Box<Write>
     };
 
-    progress.set_message("Dumping line");
+    progress.set_message("Pulling bugreport line");
 
     let output =
         lines(stdout_reader).for_each(|l| {
@@ -111,6 +111,11 @@ pub fn create(args: &ArgMatches, core: &mut Core) -> Result<i32> {
                                           write.write_all("\n".as_bytes()).expect("Failed to write");
                                           progress.inc(1);
                                           ok(())
-                                      });
+                                      }).then(|r| {
+
+            progress.set_style(ProgressStyle::default_bar().template("{msg:.dim.bold}"));
+            progress.finish_with_message(&format!("Finished {}.", filename_path.display()));
+            r
+        });
     core.run(output).map_err(|e| e.into()).map(|_| 0)
 }
