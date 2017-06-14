@@ -3,7 +3,16 @@
 # rogcat
 
 
-A ``adb logcat`` wrapper with colors and filter and output options written in `Rust`
+A ``adb logcat`` wrapper. Features:
+
+* Colorful output
+* Log to files
+* Split files into chunks of a given size
+* Filter on tag, message, pid or tid
+* Capture bugreports into a optionally zipped file
+* Higlight patterns on terminal output
+* Read from stdin, adb or files
+* Log via `adb log` with input from stdin
 
 ![Screenshot](/screenshot.png)
 
