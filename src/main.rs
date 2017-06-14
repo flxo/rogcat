@@ -35,23 +35,28 @@ extern crate zip;
 
 use clap::{App, AppSettings, Arg, ArgMatches, Shell, SubCommand};
 use error_chain::ChainedError;
+use errors::*;
+use filewriter::FileWriter;
+use filter::Filter;
 use futures::future::*;
-use futures::{Future, Stream};
+use futures::Stream;
+use parser::Parser;
+use reader::{FileReader, SerialReader, StdinReader};
 use record::Record;
+use runner::Runner;
 use std::env;
-use std::io::BufReader;
 use std::io::{stderr, stdout, Write};
 use std::path::PathBuf;
-use std::process::{exit, Command, Stdio};
+use std::process::{exit, Command};
 use std::str::FromStr;
-use term_painter::{Color, ToStyle};
+use terminal::Terminal;
 use tokio_core::reactor::{Core, Handle};
-use tokio_io::io::lines;
 use tokio_process::CommandExt;
 use tokio_signal::ctrl_c;
 use which::which_in;
 
 mod bugreport;
+mod devices;
 mod errors;
 mod filewriter;
 mod filter;
@@ -61,15 +66,6 @@ mod record;
 mod reader;
 mod runner;
 mod terminal;
-
-use errors::*;
-use filewriter::FileWriter;
-use filter::Filter;
-use parser::Parser;
-use reader::{FileReader, SerialReader, StdinReader};
-use runner::Runner;
-use terminal::Terminal;
-
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Message {
@@ -274,33 +270,7 @@ fn run(args: &ArgMatches) -> Result<i32> {
                                            &mut stdout());
             return Ok(0);
         }
-        ("devices", _) => {
-            let mut child = Command::new(adb()?).arg("devices")
-                .stdout(Stdio::piped())
-                .spawn_async(&core.handle())?;
-            let stdout = child.stdout()
-                .take()
-                .ok_or("Failed to read stdout of adb")?;
-            let reader = BufReader::new(stdout);
-            let lines = lines(reader);
-            let result = lines.skip(1).for_each(|l| {
-                if !l.is_empty() && !l.starts_with("* daemon") {
-                    let mut s = l.split_whitespace();
-                    let id: &str = s.next().unwrap_or("unknown");
-                    let name: &str = s.next().unwrap_or("unknown");
-                    println!("{} {}", terminal::DIMM_COLOR.paint(id), match name {
-                            "unauthorized" => Color::Red.paint(name),
-                            _ => Color::Green.paint(name),
-                        })
-                }
-                Ok(())
-            });
-
-            let output = core.run(result.join(child.wait_with_output()))?.1;
-            exit(output.status
-                     .code()
-                     .ok_or("Failed to get exit code")?);
-        }
+        ("devices", _) => exit(devices::devices(&mut core)?),
         ("bugreport", Some(sub_matches)) => exit(bugreport::create(sub_matches, &mut core)?),
         ("log", Some(sub_matches)) => exit(log::run(sub_matches, &mut core)?),
         (_, _) => (),
