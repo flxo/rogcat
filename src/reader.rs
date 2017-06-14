@@ -38,7 +38,7 @@ impl<T: Read> LineReader<T> {
         let mut buffer = Vec::new();
         if self.reader
                .read_until(b'\n', &mut buffer)
-               .chain_err(|| "Failed read")? > 0 {
+               .chain_err(|| "Read failed")? > 0 {
             let line = String::from_utf8(buffer)?.trim().to_string();
             let record = Record { raw: line, ..Default::default() };
             Ok(ReadResult::Record(record))
@@ -115,7 +115,7 @@ impl Stream for StdinReader {
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         self.reader.read().map(|r| match r {
-                                   ReadResult::Done => Async::Ready(None),
+                                   ReadResult::Done => Async::Ready(Some(Message::Done)),
                                    ReadResult::Record(r) => Async::Ready(Some(Message::Record(r))),
                                })
     }
