@@ -18,7 +18,7 @@ dependencies = [
  "serial 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "tempdir 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "term-painter 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "terminal_size 0.1.6 (git+https://github.com/flxo/terminal-size.git)",
+ "term_size 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "time 0.1.37 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-core 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-io 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -663,16 +663,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "terminal_size"
-version = "0.1.6"
-source = "git+https://github.com/flxo/terminal-size.git#cc9301805de53f923537c65b4bf67062b99298b8"
-dependencies = [
- "kernel32-sys 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "libc 0.2.23 (registry+https://github.com/rust-lang/crates.io-index)",
- "winapi 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
 name = "termios"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -944,7 +934,6 @@ dependencies = [
 "checksum term 0.4.5 (registry+https://github.com/rust-lang/crates.io-index)" = "d168af3930b369cfe245132550579d47dfd873d69470755a19c2c6568dbbd989"
 "checksum term-painter 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)" = "ab900bf2f05175932b13d4fc12f8ff09ef777715b04998791ab2c930841e496b"
 "checksum term_size 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "e2b6b55df3198cc93372e85dd2ed817f0e38ce8cc0f22eb32391bfad9c4bf209"
-"checksum terminal_size 0.1.6 (git+https://github.com/flxo/terminal-size.git)" = "<none>"
 "checksum termios 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "d5d9cf598a6d7ce700a4e6a9199da127e6819a61e64b68609683cc9a01b5683a"
 "checksum thread-id 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "a9539db560102d1cef46b8b78ce737ff0bb64e7e18d35b2a5688f7d097d0ff03"
 "checksum thread-id 3.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "8df7875b676fddfadffd96deea3b1124e5ede707d4884248931077518cf1f773"

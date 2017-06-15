@@ -17,7 +17,7 @@ use super::{Format, Message, Output};
 use super::record::{Level, Record};
 use term_painter::Attr::*;
 use term_painter::{Color, ToStyle};
-use terminal_size::{Width, Height, terminal_size};
+use term_size::dimensions;
 use time::Tm;
 
 #[cfg(not(target_os = "windows"))]
@@ -155,7 +155,7 @@ impl<'a> Terminal {
                 diff = "".to_owned();
                 self.tag_timestamps.clear();
                 // Print horizontal line if temrinal width is detectable
-                if let Some((Width(width), Height(_))) = terminal_size() {
+                if let Some((width, _)) = dimensions() {
                     println!("{}", (0..width).map(|_| "─").collect::<String>());
                 }
                 // "beginnig of" messages never have a tag
@@ -238,9 +238,9 @@ impl<'a> Terminal {
                      tag_width = tag_width);
         };
 
-        let width = match terminal_size() {
-            Some((Width(width), Height(_))) => Some(width),
-            None => env::var("COLUMNS").ok().and_then(|e| e.parse::<u16>().ok()),
+        let width = match dimensions() {
+            Some((width, _)) => Some(width),
+            None => env::var("COLUMNS").ok().and_then(|e| e.parse::<usize>().ok()),
         };
 
         if let Some(width) = width {
