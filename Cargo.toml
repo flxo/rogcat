@@ -2,7 +2,7 @@
 authors = ["Felix Obenhuber <felix@obenhuber.de>"]
 description = "A adb logcat wrapper and log processor"
 homepage = "https://github.com/flxo/rogcat"
-keywords = ["android", "adb", "android debugging bridge", "log", "logcat"]
+keywords = ["android", "adb", "debugging", "log", "logcat"]
 license = "WTFPL"
 name = "rogcat"
 version = "0.2.6-pre"
