@@ -5,7 +5,7 @@ homepage = "https://github.com/flxo/rogcat"
 keywords = ["android", "adb", "debugging", "log", "logcat"]
 license = "WTFPL"
 name = "rogcat"
-version = "0.2.6-pre"
+version = "0.2.6"
 
 [dependencies]
 boolinator = "2.4.0"
