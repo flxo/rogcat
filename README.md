@@ -12,7 +12,7 @@ A `adb logcat` wrapper. Features:
 * Split files into chunks of a given size
 * Filter on tag, message, pid or tid
 * Capture (< Android 7) bugreports into (zipped) files
-* Higlight patterns on terminal output
+* Highlight patterns on terminal output
 * Read from `stdin`, `adb` or `files`
 * Log via `adb shell log` with input from stdin
 
