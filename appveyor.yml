@@ -39,6 +39,7 @@ deploy:
   provider: GitHub
   auth_token:
     secure: ZZgAO28sc+iPwXCFQRod4QkGXOXBED7+dlP/KCW+5SBMsslzX8vtgWHisTykfKl+
+  force_update: true
   # deploy when a new tag is pushed and only on the stable channel
   on:
     CHANNEL: stable
