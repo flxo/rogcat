@@ -18,6 +18,16 @@ A `adb logcat` wrapper. Features:
 
 ![Screenshot](/screenshot.png)
 
+## Installation
+
+With a working `Rust` and `cargo` setup run
+
+```
+cargo install rogcat
+```
+
+or get the latest [binary release](https://github.com/flxo/rogcat/releases) for MacOS, Linux or Windows.
+
 ## Usage
 
 ```
