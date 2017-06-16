@@ -156,6 +156,11 @@ fn build_cli() -> App<'static, 'static> {
         .arg_from_usage("-c --clear 'Clear (flush) the entire log and exit'")
         .arg_from_usage("-g --get-ringbuffer-size 'Get the size of the log's ring buffer and exit'")
         .arg_from_usage("-S --output-statistics 'Output statistics'")
+        .arg(Arg::with_name("DUMP")
+             .short("d")
+             .long("dump")
+             .conflicts_with("input")
+             .help("Dump the log and then exit (don't block)"))
         .arg(Arg::with_name("SHORTEN_TAGS")
             .long("shorten-tags")
             .conflicts_with("output")
@@ -244,16 +249,14 @@ fn input(handle: Handle, args: &ArgMatches) -> Result<Box<Stream<Item = Message,
                 } else {
                     let cmd = c.to_owned();
                     let restart = args.is_present("restart");
-                    let skip_on_restart = args.is_present("skip-on-restart");
-                    Ok(Box::new(Runner::new(handle, cmd, restart, skip_on_restart)?))
+                    Ok(Box::new(Runner::new(handle, cmd, restart, false)?))
                 }
             }
             None => {
-                adb()?;
-                let cmd = "adb logcat -b all".to_owned();
-                let restart = true;
-                let skip_on_restart = args.is_present("skip-on-restart");
-                Ok(Box::new(Runner::new(handle, cmd, restart, skip_on_restart)?))
+                let dump = if args.is_present("DUMP") { "-d" } else { "" };
+                let restart = !args.is_present("DUMP");
+                let cmd = format!("{} logcat -b all {}", adb()?.display(), dump);
+                Ok(Box::new(Runner::new(handle, cmd, restart, false)?))
             }
         }
     }

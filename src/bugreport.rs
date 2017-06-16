@@ -105,17 +105,18 @@ pub fn create(args: &ArgMatches, core: &mut Core) -> Result<i32> {
 
     progress.set_message("Pulling bugreport line");
 
-    let output =
-        lines(stdout_reader).for_each(|l| {
-                                          write.write_all(&l.as_bytes()).expect("Failed to write");
-                                          write.write_all("\n".as_bytes()).expect("Failed to write");
-                                          progress.inc(1);
-                                          ok(())
-                                      }).then(|r| {
+    let output = lines(stdout_reader)
+        .for_each(|l| {
+                      write.write_all(&l.as_bytes()).expect("Failed to write");
+                      write.write_all("\n".as_bytes()).expect("Failed to write");
+                      progress.inc(1);
+                      ok(())
+                  })
+        .then(|r| {
 
-            progress.set_style(ProgressStyle::default_bar().template("{msg:.dim.bold}"));
-            progress.finish_with_message(&format!("Finished {}.", filename_path.display()));
-            r
-        });
+                  progress.set_style(ProgressStyle::default_bar().template("{msg:.dim.bold}"));
+                  progress.finish_with_message(&format!("Finished {}.", filename_path.display()));
+                  r
+              });
     core.run(output).map_err(|e| e.into()).map(|_| 0)
 }
