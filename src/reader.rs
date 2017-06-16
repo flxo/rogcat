@@ -32,31 +32,33 @@ impl LineReader {
         let mut reader = BufReader::new(reader);
         let remote = core.remote();
 
-        thread::spawn(move ||
-            loop {
-                let tx = tx.clone();
-                let mut buffer = Vec::new();
-                let mut done = false;
-                let message = reader.read_until(b'\n', &mut buffer)
-                    .map_err(|e| e.into())
-                    .and_then(|len| {
-                        if len > 0 {
-                            String::from_utf8(buffer)
-                                .map_err(|e| e.into())
-                                .map(|line| line.trim().to_owned())
-                                .map(|raw| Message::Record(Record { raw, ..Default::default() }))
-                        } else {
-                            done = true;
-                            Ok(Message::Done)
-                        }
-                    });
-                let f = ::futures::done(message);
-                remote.spawn(|_| f.then(|res| tx.send(res).map(|_| ()).map_err(|_| ())));
-                if done {
-                    break;
-                }
+        thread::spawn(move || loop {
+            let tx = tx.clone();
+            let mut buffer = Vec::new();
+            let mut done = false;
+            let message = reader
+                .read_until(b'\n', &mut buffer)
+                .map_err(|e| e.into())
+                .and_then(|len| if len > 0 {
+                    String::from_utf8(buffer)
+                        .map_err(|e| e.into())
+                        .map(|line| line.trim().to_owned())
+                        .map(|raw| {
+                            Message::Record(Record {
+                                raw,
+                                ..Default::default()
+                            })
+                        })
+                } else {
+                    done = true;
+                    Ok(Message::Done)
+                });
+            let f = ::futures::done(message);
+            remote.spawn(|_| f.then(|res| tx.send(res).map(|_| ()).map_err(|_| ())));
+            if done {
+                break;
             }
-        );
+        });
 
         LineReader { rx }
     }
@@ -98,7 +100,9 @@ impl<'a> FileReader {
 
         let mut files = Vec::new();
         for f in file_names {
-            let file = File::open(f.clone()).chain_err(|| format!("Failed to open {:?}", f))?;
+            let file = File::open(f.clone()).chain_err(
+                || format!("Failed to open {:?}", f),
+            )?;
             files.push(LineReader::new(Box::new(file), core));
         }
 
@@ -119,9 +123,9 @@ impl Stream for FileReader {
                         self.files.remove(0);
                         continue;
                     } else {
-                        return p
+                        return p;
                     }
-                },
+                }
                 _ => return p,
             }
         }
@@ -249,7 +253,9 @@ impl SerialReader {
         port.configure(&args.1)?;
         port.set_timeout(Duration::from_secs(999999999))?;
 
-        Ok(SerialReader { reader: LineReader::new(Box::new(port), core) })
+        Ok(SerialReader {
+            reader: LineReader::new(Box::new(port), core),
+        })
     }
 
     pub fn parse_serial_arg(arg: &str) -> Result<(String, ::serial::PortSettings)> {
@@ -316,7 +322,9 @@ fn parse_serial_port() {
     assert_eq!(::serial::ParityNone, s.1.parity);
     assert_eq!(::serial::Stop1, s.1.stop_bits);
 
-    let s = serial("serial:///dev/ttyUSB0@115200,7O2".as_bytes()).unwrap().1;
+    let s = serial("serial:///dev/ttyUSB0@115200,7O2".as_bytes())
+        .unwrap()
+        .1;
     assert_eq!("/dev/ttyUSB0", s.0);
     assert_eq!(::serial::Baud115200, s.1.baud_rate);
     assert_eq!(::serial::Bits7, s.1.char_size);

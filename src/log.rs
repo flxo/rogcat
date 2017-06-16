@@ -71,9 +71,11 @@ pub fn run(args: &ArgMatches, core: &mut Core) -> Result<i32> {
     match message {
         "-" => {
             let handle = core.handle();
-            let ctrlc = core.run(ctrl_c(&handle))?
-                .map(|_| Message::Done)
-                .map_err(|e| e.into());
+            let ctrlc = core.run(ctrl_c(&handle))?.map(|_| Message::Done).map_err(
+                |e| {
+                    e.into()
+                },
+            );
             let sink = Logger {
                 handle: core.handle(),
                 tag,
@@ -81,9 +83,13 @@ pub fn run(args: &ArgMatches, core: &mut Core) -> Result<i32> {
             };
 
             let input = StdinReader::new(core);
-            let result = input.select(ctrlc).map(|m| m).take_while(|r| ok(r != &Message::Done));
+            let result = input.select(ctrlc).map(|m| m).take_while(
+                |r| ok(r != &Message::Done),
+            );
             let stream = sink.send_all(result);
-            core.run(stream).map_err(|_| "Failed to run \"adb shell log\"".into()).map(|_| 0)
+            core.run(stream)
+                .map_err(|_| "Failed to run \"adb shell log\"".into())
+                .map(|_| 0)
         }
         _ => {
             let child = Command::new(adb()?)
@@ -98,7 +104,9 @@ pub fn run(args: &ArgMatches, core: &mut Core) -> Result<i32> {
                 .output_async(&core.handle())
                 .map(|_| ())
                 .map_err(|_| ());
-            core.run(child).map_err(|_| "Failed to run \"adb shell log\"".into()).map(|_| 0)
+            core.run(child)
+                .map_err(|_| "Failed to run \"adb shell log\"".into())
+                .map(|_| 0)
         }
     }
 }

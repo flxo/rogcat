@@ -51,38 +51,38 @@ impl<'a> Terminal {
         }
 
         Ok(Terminal {
-               beginning_of: Regex::new(r"--------- beginning of.*").unwrap(),
-               color: true, // ! args.is_present("NO-COLOR"),
-               date_format: if args.is_present("SHOW_DATE") {
-                   if args.is_present("NO_TIMESTAMP") {
-                       ("%m-%d".to_owned(), 5)
-                   } else {
-                       ("%m-%d %H:%M:%S.%f".to_owned(), 18)
-                   }
-               } else {
-                   if args.is_present("NO_TIMESTAMP") {
-                       ("".to_owned(), 0)
-                   } else {
-                       ("%H:%M:%S.%f".to_owned(), 12)
-                   }
-               },
-               format: args.value_of("TERMINAL_FORMAT")
-                   .and_then(|f| Format::from_str(f).ok())
-                   .unwrap_or(Format::Human),
-               highlight: highlight,
-               shorten_tag: args.is_present("SHORTEN_TAGS"),
-               process_width: 0,
-               tag_timestamps: HashMap::new(),
-               vovels: Regex::new(r"a|e|i|o|u").unwrap(),
-               tag_width: 20,
-               thread_width: 0,
-               diff_width: if args.is_present("SHOW_TIME_DIFF") {
-                   8
-               } else {
-                   0
-               },
-               time_diff: args.is_present("SHOW_TIME_DIFF"),
-           })
+            beginning_of: Regex::new(r"--------- beginning of.*").unwrap(),
+            color: true, // ! args.is_present("NO-COLOR"),
+            date_format: if args.is_present("SHOW_DATE") {
+                if args.is_present("NO_TIMESTAMP") {
+                    ("%m-%d".to_owned(), 5)
+                } else {
+                    ("%m-%d %H:%M:%S.%f".to_owned(), 18)
+                }
+            } else {
+                if args.is_present("NO_TIMESTAMP") {
+                    ("".to_owned(), 0)
+                } else {
+                    ("%H:%M:%S.%f".to_owned(), 12)
+                }
+            },
+            format: args.value_of("TERMINAL_FORMAT")
+                .and_then(|f| Format::from_str(f).ok())
+                .unwrap_or(Format::Human),
+            highlight: highlight,
+            shorten_tag: args.is_present("SHORTEN_TAGS"),
+            process_width: 0,
+            tag_timestamps: HashMap::new(),
+            vovels: Regex::new(r"a|e|i|o|u").unwrap(),
+            tag_width: 20,
+            thread_width: 0,
+            diff_width: if args.is_present("SHOW_TIME_DIFF") {
+                8
+            } else {
+                0
+            },
+            time_diff: args.is_present("SHOW_TIME_DIFF"),
+        })
     }
 
     /// Filter some unreadable (on dark background) or nasty colors
@@ -102,9 +102,9 @@ impl<'a> Terminal {
         match self.format {
             Format::Csv => {
                 record.format(Format::Csv).and_then(|s| {
-                                                        println!("{}", s);
-                                                        Ok(())
-                                                    })
+                    println!("{}", s);
+                    Ok(())
+                })
             }
             Format::Human => {
                 self.print_human(record);
@@ -210,44 +210,52 @@ impl<'a> Terminal {
         let tid_style = style(&tid, Self::hashed_color(&tid));
         let level_style = Plain.bg(level_color).fg(Color::Black);
         let print_msg = |chunk: &str, sign: &str| if color {
-            println!("{:<timestamp_width$} {:>diff_width$} {:>tag_width$} ({}{}) {} {} {}",
-                     timestamp_style.paint(&timestamp),
-                     DIMM_COLOR.paint(&diff),
-                     tag_style.paint(&tag),
-                     pid_style.paint(&pid),
-                     tid_style.paint(&tid),
-                     level_style.paint(&level),
-                     level_color.paint(sign),
-                     msg_style.paint(&chunk),
-                     timestamp_width = timestamp_width,
-                     diff_width = diff_width,
-                     tag_width = tag_width);
+            println!(
+                "{:<timestamp_width$} {:>diff_width$} {:>tag_width$} ({}{}) {} {} {}",
+                timestamp_style.paint(&timestamp),
+                DIMM_COLOR.paint(&diff),
+                tag_style.paint(&tag),
+                pid_style.paint(&pid),
+                tid_style.paint(&tid),
+                level_style.paint(&level),
+                level_color.paint(sign),
+                msg_style.paint(&chunk),
+                timestamp_width = timestamp_width,
+                diff_width = diff_width,
+                tag_width = tag_width
+            );
 
         } else {
-            println!("{:<timestamp_width$} {:>diff_width$} {:>tag_width$} ({}{}) {} {} {}",
-                     timestamp,
-                     diff,
-                     tag,
-                     pid,
-                     tid,
-                     level,
-                     sign,
-                     chunk,
-                     timestamp_width = timestamp_width,
-                     diff_width = diff_width,
-                     tag_width = tag_width);
+            println!(
+                "{:<timestamp_width$} {:>diff_width$} {:>tag_width$} ({}{}) {} {} {}",
+                timestamp,
+                diff,
+                tag,
+                pid,
+                tid,
+                level,
+                sign,
+                chunk,
+                timestamp_width = timestamp_width,
+                diff_width = diff_width,
+                tag_width = tag_width
+            );
         };
 
         let width = match dimensions() {
             Some((width, _)) => Some(width),
-            None => env::var("COLUMNS").ok().and_then(|e| e.parse::<usize>().ok()),
+            None => {
+                env::var("COLUMNS").ok().and_then(
+                    |e| e.parse::<usize>().ok(),
+                )
+            }
         };
 
         if let Some(width) = width {
             let preamble_width = timestamp_width + 1 + self.diff_width + 1 + tag_width + 1 + 1 +
-                                 self.process_width +
-                                 if self.thread_width == 0 { 0 } else { 1 } +
-                                 self.thread_width + 1 + 1 + 3 + 3;
+                self.process_width +
+                if self.thread_width == 0 { 0 } else { 1 } +
+                self.thread_width + 1 + 1 + 3 + 3;
             // Windows terminal width reported is too big
             #[cfg(target_os = "windows")]
             let preamble_width = preamble_width + 1;

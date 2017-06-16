@@ -259,7 +259,7 @@ fn input(core: &Core, args: &ArgMatches) -> Result<Box<Stream<Item = Message, Er
                 }
             }
             None => {
-                let mut logcat_args = vec!();
+                let mut logcat_args = vec![];
                 if args.is_present("LAST") {
                     let count = value_t!(args, "LAST", u32).unwrap_or_else(|e| e.exit());
                     logcat_args.push(format!("-t {}", count));
@@ -268,8 +268,17 @@ fn input(core: &Core, args: &ArgMatches) -> Result<Box<Stream<Item = Message, Er
                 if args.is_present("DUMP") {
                     logcat_args.push("-d".to_owned());
                 }
-                let cmd = format!("{} logcat -b all {}", adb()?.display(), logcat_args.join(" "));
-                Ok(Box::new(Runner::new(core.handle(), cmd, logcat_args.is_empty(), false)?))
+                let cmd = format!(
+                    "{} logcat -b all {}",
+                    adb()?.display(),
+                    logcat_args.join(" ")
+                );
+                Ok(Box::new(Runner::new(
+                    core.handle(),
+                    cmd,
+                    logcat_args.is_empty(),
+                    false,
+                )?))
             }
         }
     }
@@ -281,9 +290,11 @@ fn run(args: &ArgMatches) -> Result<i32> {
     match args.subcommand() {
         ("completions", Some(sub_matches)) => {
             let shell = sub_matches.value_of("SHELL").unwrap();
-            build_cli().gen_completions_to(crate_name!(),
-                                           shell.parse::<Shell>().unwrap(),
-                                           &mut stdout());
+            build_cli().gen_completions_to(
+                crate_name!(),
+                shell.parse::<Shell>().unwrap(),
+                &mut stdout(),
+            );
             return Ok(0);
         }
         ("devices", _) => exit(devices::devices(&mut core)?),
@@ -294,15 +305,18 @@ fn run(args: &ArgMatches) -> Result<i32> {
 
     for arg in &["clear", "get-ringbuffer-size", "output-statistics"] {
         if args.is_present(arg) {
-            let arg = format!("-{}", match arg {
-                &"clear" => "c",
-                &"get-ringbuffer-size" => "g",
-                &"output-statistics" => "S",
-                _ => panic!(""),
-            });
-            let child = Command::new(adb()?).arg("logcat")
-                .arg(arg)
-                .spawn_async(&core.handle())?;
+            let arg = format!(
+                "-{}",
+                match arg {
+                    &"clear" => "c",
+                    &"get-ringbuffer-size" => "g",
+                    &"output-statistics" => "S",
+                    _ => panic!(""),
+                }
+            );
+            let child = Command::new(adb()?).arg("logcat").arg(arg).spawn_async(
+                &core.handle(),
+            )?;
             let output = core.run(child)?;
             exit(output.code().ok_or("Failed to get exit code")?);
         }
@@ -317,12 +331,15 @@ fn run(args: &ArgMatches) -> Result<i32> {
     let mut filter = Filter::new(args)?;
 
     let handle = core.handle();
-    let ctrlc = core.run(ctrl_c(&handle))?
-        .map(|_| Message::Done)
-        .map_err(|e| e.into());
+    let ctrlc = core.run(ctrl_c(&handle))?.map(|_| Message::Done).map_err(
+        |e| {
+            e.into()
+        },
+    );
 
     let input = input(&core, args)?;
-    let result = input.select(ctrlc)
+    let result = input
+        .select(ctrlc)
         .and_then(|m| parser.process(m))
         .and_then(|m| filter.process(m))
         .and_then(|m| output.process(m))

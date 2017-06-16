@@ -30,28 +30,27 @@ impl Runner {
     pub fn new(handle: Handle, cmd: String, restart: bool, _skip_on_restart: bool) -> Result<Self> {
         let (child, output) = Self::run(&cmd, &handle)?;
         Ok(Runner {
-               child: child,
-               cmd: cmd.clone(),
-               handle: handle,
-               output: output,
-               restart: restart,
-           })
+            child: child,
+            cmd: cmd.clone(),
+            handle: handle,
+            output: output,
+            restart: restart,
+        })
     }
 
     fn run(cmd: &str, handle: &Handle) -> Result<(Child, OutStream)> {
-        let cmd = cmd.split_whitespace().map(|s| s.to_owned()).collect::<Vec<String>>();
+        let cmd = cmd.split_whitespace()
+            .map(|s| s.to_owned())
+            .collect::<Vec<String>>();
 
-        let mut child = Command::new(&cmd[0]).args(&cmd[1..])
+        let mut child = Command::new(&cmd[0])
+            .args(&cmd[1..])
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn_async(&handle)?;
 
-        let stdout = child.stdout()
-            .take()
-            .ok_or("Failed get stdout")?;
-        let stderr = child.stderr()
-            .take()
-            .ok_or("Failed get stderr")?;
+        let stdout = child.stdout().take().ok_or("Failed get stdout")?;
+        let stderr = child.stderr().take().ok_or("Failed get stderr")?;
         let stdout_reader = BufReader::new(stdout);
         let stderr_reader = BufReader::new(stderr);
         let output = lines(stdout_reader).select(lines(stderr_reader)).boxed();
@@ -68,7 +67,10 @@ impl Stream for Runner {
             match self.output.poll() {
                 Ok(Async::Ready(t)) => {
                     if let Some(s) = t {
-                        let r = Record { raw: s, ..Default::default() };
+                        let r = Record {
+                            raw: s,
+                            ..Default::default()
+                        };
                         return Ok(Async::Ready(Some(Message::Record(r))));
                     } else {
                         if self.restart {

@@ -16,12 +16,11 @@ use tokio_io::io::lines;
 use tokio_process::CommandExt;
 
 pub fn devices(core: &mut Core) -> Result<i32> {
-    let mut child = Command::new(adb()?).arg("devices")
+    let mut child = Command::new(adb()?)
+        .arg("devices")
         .stdout(Stdio::piped())
         .spawn_async(&core.handle())?;
-    let stdout = child.stdout()
-        .take()
-        .ok_or("Failed to read stdout of adb")?;
+    let stdout = child.stdout().take().ok_or("Failed to read stdout of adb")?;
     let reader = BufReader::new(stdout);
     let lines = lines(reader);
     let result = lines.skip(1).for_each(|l| {
@@ -29,12 +28,14 @@ pub fn devices(core: &mut Core) -> Result<i32> {
             let mut s = l.split_whitespace();
             let id: &str = s.next().unwrap_or("unknown");
             let name: &str = s.next().unwrap_or("unknown");
-            println!("{} {}",
-                     DIMM_COLOR.paint(id),
-                     match name {
-                         "unauthorized" => Color::Red.paint(name),
-                         _ => Color::Green.paint(name),
-                     })
+            println!(
+                "{} {}",
+                DIMM_COLOR.paint(id),
+                match name {
+                    "unauthorized" => Color::Red.paint(name),
+                    _ => Color::Green.paint(name),
+                }
+            )
         }
         Ok(())
     });

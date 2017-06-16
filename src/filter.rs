@@ -20,17 +20,20 @@ pub struct Filter {
 
 impl<'a> Filter {
     pub fn new(args: &ArgMatches<'a>) -> Result<Self> {
-        let filters =
-            |k| args.values_of(k).map(|m| m.map(|f| f.to_owned()).collect::<Vec<String>>());
+        let filters = |k| {
+            args.values_of(k).map(|m| {
+                m.map(|f| f.to_owned()).collect::<Vec<String>>()
+            })
+        };
         let (tag, tag_negative) = Self::init_filter(filters("tag"))?;
         let (message, message_negative) = Self::init_filter(filters("message"))?;
         Ok(Filter {
-               level: Level::from(args.value_of("LEVEL").unwrap_or("")),
-               message: message,
-               message_negative: message_negative,
-               tag: tag,
-               tag_negative: tag_negative,
-           })
+            level: Level::from(args.value_of("LEVEL").unwrap_or("")),
+            message: message,
+            message_negative: message_negative,
+            tag: tag,
+            tag_negative: tag_negative,
+        })
     }
 
     /// Try to build regex from args
@@ -54,11 +57,15 @@ impl<'a> Filter {
             }
 
             if !self.message.is_empty() &&
-               !self.message.iter().any(|m| m.is_match(&record.message)) {
+                !self.message.iter().any(|m| m.is_match(&record.message))
+            {
                 return Ok(Message::Drop);
             }
 
-            if self.message_negative.iter().any(|m| m.is_match(&record.message)) {
+            if self.message_negative.iter().any(
+                |m| m.is_match(&record.message),
+            )
+            {
                 return Ok(Message::Drop);
             }
 

@@ -23,7 +23,9 @@ use time::{now, strftime};
 
 /// Interface for a output file format
 trait Writer {
-    fn new(filename: &PathBuf, format: &Format) -> Result<Box<Self>> where Self: Sized;
+    fn new(filename: &PathBuf, format: &Format) -> Result<Box<Self>>
+    where
+        Self: Sized;
     fn write(&mut self, record: &Record, index: usize) -> Result<()>;
     fn flush(&mut self) -> Result<()> {
         Ok(())
@@ -137,18 +139,23 @@ impl Html {
         format!("#{:02x}{:02x}{:02x}", r, g, b)
     }
 
-    fn color_helper(h: &Helper,
-                    _: &Handlebars,
-                    rc: &mut RenderContext)
-                    -> ::std::result::Result<(), RenderError> {
-        let param = h.param(0).ok_or(RenderError::new("Param 0 is required for format helper."))?;
+    fn color_helper(
+        h: &Helper,
+        _: &Handlebars,
+        rc: &mut RenderContext,
+    ) -> ::std::result::Result<(), RenderError> {
+        let param = h.param(0).ok_or(RenderError::new(
+            "Param 0 is required for format helper.",
+        ))?;
         let value = param.value().render();
         let rendered = if value.len() == 0 || value == "0" {
             format!("<span style=\"color:grey\">{}</span>", value)
         } else {
-            format!("<span style=\"color:{}\">{}</span>",
-                    Self::hash_color(&value),
-                    value)
+            format!(
+                "<span style=\"color:{}\">{}</span>",
+                Self::hash_color(&value),
+                value
+            )
         };
         rc.writer.write(rendered.into_bytes().as_ref())?;
         Ok(())
@@ -198,9 +205,9 @@ struct Textfile {
 
 impl Writer for Textfile {
     fn new(filename: &PathBuf, format: &Format) -> Result<Box<Self>> {
-        let file =
-            File::create(filename)
-                .chain_err(|| format!("Failed to create output file: {:?}", filename.display()))?;
+        let file = File::create(filename).chain_err(|| {
+            format!("Failed to create output file: {:?}", filename.display())
+        })?;
         let textfile = Textfile {
             file: file,
             format: format.clone(),
@@ -212,9 +219,7 @@ impl Writer for Textfile {
         self.file
             .write(record.format(self.format.clone())?.as_bytes())
             .chain_err(|| "Failed to write")?;
-        self.file
-            .write(b"\n")
-            .chain_err(|| "Failed to write")?;
+        self.file.write(b"\n").chain_err(|| "Failed to write")?;
         Ok(())
     }
 }
@@ -248,16 +253,16 @@ impl<'a> FileWriter {
                 .unwrap()
                 .captures(l)
                 .and_then(|caps| {
-                              caps.at(1)
-                                  .and_then(|size| u64::from_str(size).ok())
-                                  .and_then(|size| Some((size, caps.at(2))))
-                          })
+                    caps.at(1)
+                        .and_then(|size| u64::from_str(size).ok())
+                        .and_then(|size| Some((size, caps.at(2))))
+                })
                 .and_then(|(size, suffix)| match suffix {
-                              Some("k") => Some(1000 * size),
-                              Some("M") => Some(1000_000 * size),
-                              Some("G") => Some(1000_000_000 * size),
-                              _ => None,
-                          })
+                    Some("k") => Some(1000 * size),
+                    Some("M") => Some(1000_000 * size),
+                    Some("G") => Some(1000_000_000 * size),
+                    _ => None,
+                })
                 .or_else(|| u64::from_str(l).ok())
         });
 
@@ -284,59 +289,72 @@ impl<'a> FileWriter {
 
         let progress = {
             let (pb, chars, template) = if let Some(n) = records_per_file {
-                (ProgressBar::new(n),
-                 "•• ",
-                 "{spinner:.yellow} Writing {msg:.dim.bold} {pos:>7.dim}/{len:.dim} {elapsed_precise:.dim} [{bar:40.yellow/green}] ({eta:.dim})")
+                (
+                    ProgressBar::new(n),
+                    "•• ",
+                    "{spinner:.yellow} Writing {msg:.dim.bold} {pos:>7.dim}/{len:.dim} {elapsed_precise:.dim} [{bar:40.yellow/green}] ({eta:.dim})",
+                )
             } else {
-                (ProgressBar::new(::std::u64::MAX),
-                 " • ",
-                 "{spinner:.yellow} Writing {msg:.dim.bold} {pos:>7.dim} {elapsed_precise:.dim}")
+                (
+                    ProgressBar::new(::std::u64::MAX),
+                    " • ",
+                    "{spinner:.yellow} Writing {msg:.dim.bold} {pos:>7.dim} {elapsed_precise:.dim}",
+                )
             };
-            pb.set_style(ProgressStyle::default_bar().template(template).progress_chars(chars));
+            pb.set_style(
+                ProgressStyle::default_bar()
+                    .template(template)
+                    .progress_chars(chars),
+            );
             pb
         };
 
         Ok(FileWriter {
-               current_filename: filename.clone(),
-               file_size: 0,
-               filename: filename,
-               filename_format: filename_format,
-               format: format,
-               index: 0,
-               progress: progress,
-               writer: None,
-           })
+            current_filename: filename.clone(),
+            file_size: 0,
+            filename: filename,
+            filename_format: filename_format,
+            format: format,
+            index: 0,
+            progress: progress,
+            writer: None,
+        })
     }
 
     fn next_file(&self) -> Result<PathBuf> {
         match self.filename_format {
             FilenameFormat::Single(overwrite) => {
                 if self.filename.exists() && !overwrite {
-                    Err(format!("{:?} exists. Use overwrite flag to force!", self.filename).into())
+                    Err(
+                        format!("{:?} exists. Use overwrite flag to force!", self.filename).into(),
+                    )
                 } else {
                     Ok(self.filename.clone())
                 }
             }
             FilenameFormat::Enumerate(_overwrite, _) => {
                 if self.filename.as_path().is_dir() {
-                    return Err(format!("Output file {:?} is a directory", self.filename).into());
+                    return Err(
+                        format!("Output file {:?} is a directory", self.filename).into(),
+                    );
                 }
 
                 let dir = self.filename.parent().unwrap_or(Path::new(""));
                 if !dir.is_dir() {
-                    DirBuilder::new().recursive(true)
-                        .create(dir)
-                        .chain_err(|| "Failed to create outfile parent directory")?
+                    DirBuilder::new().recursive(true).create(dir).chain_err(
+                        || "Failed to create outfile parent directory",
+                    )?
                 }
 
                 let next = |index| -> Result<PathBuf> {
                     let mut name = self.filename.clone();
-                    name = PathBuf::from(format!("{}-{:03}",
-                                                 name.file_stem()
-                                                     .ok_or("Invalid path")?
-                                                     .to_str()
-                                                     .ok_or("Invalid path")?,
-                                                 index));
+                    name = PathBuf::from(format!(
+                        "{}-{:03}",
+                        name.file_stem().ok_or("Invalid path")?.to_str().ok_or(
+                            "Invalid path",
+                        )?,
+                        index
+                    ));
                     if let Some(extension) = self.filename.extension() {
                         name.set_extension(extension);
                     }
@@ -361,17 +379,18 @@ impl<'a> FileWriter {
                 loop {
                     let dir = self.filename.parent().unwrap_or(Path::new(""));
                     if !dir.is_dir() {
-                        DirBuilder::new().recursive(true)
-                            .create(dir)
-                            .chain_err(|| {
-                                           format!("Failed to create outfile parent directory: {}",
-                                                   dir.display())
-                                       })?
+                        DirBuilder::new().recursive(true).create(dir).chain_err(
+                            || {
+                                format!(
+                                    "Failed to create outfile parent directory: {}",
+                                    dir.display()
+                                )
+                            },
+                        )?
                     }
 
                     let now = strftime("%F-%T", &now())?;
-                    let enumeration = e.map(|a| format!("-{:03}", a))
-                        .unwrap_or("".to_owned());
+                    let enumeration = e.map(|a| format!("-{:03}", a)).unwrap_or("".to_owned());
                     let filename = self.filename
                         .file_name()
                         .ok_or("Invalid path")?
@@ -433,8 +452,15 @@ impl<'a> FileWriter {
         if let Some(ref mut writer) = self.writer {
             writer.flush()?;
         }
-        self.progress.set_style(ProgressStyle::default_bar().template("{msg:.dim.bold}"));
-        self.progress.finish_with_message(&format!("Finished dumping {} records.", self.index));
+        self.progress.set_style(
+            ProgressStyle::default_bar().template(
+                "{msg:.dim.bold}",
+            ),
+        );
+        self.progress.finish_with_message(&format!(
+            "Finished dumping {} records.",
+            self.index
+        ));
         self.file_size = 0;
         self.writer = None;
         Ok(())

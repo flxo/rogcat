@@ -257,54 +257,55 @@ impl Parser {
         let rows: Vec<Row> = reader.decode().collect::<::csv::Result<Vec<Row>>>()?;
         let row = &rows.first().ok_or("Failed to parse CSV")?;
         Ok(Record {
-               timestamp: Self::parse_timestamp(&row.0)?,
-               level: Level::from(row.4.as_str()),
-               tag: row.1.clone(),
-               process: row.2.clone(),
-               thread: row.3.clone(),
-               message: row.5.clone(),
-               raw: line.to_owned(),
-           })
+            timestamp: Self::parse_timestamp(&row.0)?,
+            level: Level::from(row.4.as_str()),
+            tag: row.1.clone(),
+            process: row.2.clone(),
+            thread: row.3.clone(),
+            message: row.5.clone(),
+            raw: line.to_owned(),
+        })
     }
 
     fn parse_bugreport(line: &str) -> Result<Record> {
         if line.starts_with("=") || line.starts_with("-") ||
-           (line.starts_with("[") && line.ends_with("]")) {
+            (line.starts_with("[") && line.ends_with("]"))
+        {
             if line.chars().all(|c| c == '=') {
                 Ok(Record {
-                       level: Level::Info,
-                       message: line.to_owned(),
-                       raw: line.to_owned(),
-                       ..Default::default()
-                   })
+                    level: Level::Info,
+                    message: line.to_owned(),
+                    raw: line.to_owned(),
+                    ..Default::default()
+                })
             } else if line.starts_with("== ") {
                 Ok(Record {
-                       level: Level::Info,
-                       message: line[3..].to_owned(),
-                       raw: line.to_owned(),
-                       tag: line[3..].to_owned(),
-                       ..Default::default()
-                   })
+                    level: Level::Info,
+                    message: line[3..].to_owned(),
+                    raw: line.to_owned(),
+                    tag: line[3..].to_owned(),
+                    ..Default::default()
+                })
             } else if line.is_empty() {
                 Err("Unparseable".into())
             } else if let IResult::Done(_, (prop, value)) = property(line.as_bytes()) {
                 Ok(Record {
-                       message: value,
-                       tag: prop,
-                       raw: line.to_owned(),
-                       ..Default::default()
-                   })
+                    message: value,
+                    tag: prop,
+                    raw: line.to_owned(),
+                    ..Default::default()
+                })
             } else {
                 let line = line.trim_matches('=').trim_matches('-').trim();
                 match bugreport_section(line.as_bytes()) {
                     IResult::Done(_, (tag, message)) => {
                         Ok(Record {
-                               level: Level::Info,
-                               message: message,
-                               raw: line.to_owned(),
-                               tag: tag,
-                               ..Default::default()
-                           })
+                            level: Level::Info,
+                            message: message,
+                            raw: line.to_owned(),
+                            tag: tag,
+                            ..Default::default()
+                        })
                     }
                     IResult::Error(e) => Err(e.into()),
                     IResult::Incomplete(_) => Err("Not enough data".into()),
@@ -323,11 +324,13 @@ impl Parser {
                 }
             }
 
-            let parser = [Self::parse_default,
-                          Self::parse_mindroid,
-                          Self::parse_csv,
-                          Self::parse_bsw,
-                          Self::parse_bugreport];
+            let parser = [
+                Self::parse_default,
+                Self::parse_mindroid,
+                Self::parse_csv,
+                Self::parse_bsw,
+                Self::parse_bugreport,
+            ];
             let mut parse = |record: &Record| -> Record {
                 for p in parser.iter() {
                     if let Ok(r) = p(&record.raw) {

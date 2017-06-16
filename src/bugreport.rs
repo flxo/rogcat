@@ -33,9 +33,9 @@ impl ZipFile {
             .compression_method(CompressionMethod::Deflated)
             .unix_permissions(0o644);
         let filename_path = PathBuf::from(&filename);
-        let f = filename_path.file_name()
-            .and_then(|f| f.to_str())
-            .ok_or("Failed to get filename")?;
+        let f = filename_path.file_name().and_then(|f| f.to_str()).ok_or(
+            "Failed to get filename",
+        )?;
         let mut zip = ZipWriter::new(file);
         zip.start_file(f, options)?;
         Ok(ZipFile { zip: zip })
@@ -44,17 +44,13 @@ impl ZipFile {
 
 impl Write for ZipFile {
     fn write(&mut self, buf: &[u8]) -> ::std::io::Result<usize> {
-        self.zip
-            .write_all(buf)
-            .map_err(|e| e.into())
-            .map(|_| buf.len())
+        self.zip.write_all(buf).map_err(|e| e.into()).map(
+            |_| buf.len(),
+        )
     }
 
     fn flush(&mut self) -> ::std::io::Result<()> {
-        self.zip
-            .finish()
-            .map_err(|e| e.into())
-            .map(|_| ())
+        self.zip.finish().map_err(|e| e.into()).map(|_| ())
     }
 }
 
@@ -77,24 +73,29 @@ pub fn create(args: &ArgMatches, core: &mut Core) -> Result<i32> {
         return Err(format!("File {} exists", filename).into());
     }
 
-    let mut child = Command::new(adb()?).arg("bugreport")
+    let mut child = Command::new(adb()?)
+        .arg("bugreport")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn_async(&core.handle())?;
-    let stdout = child.stdout()
-        .take()
-        .ok_or("Failed get stdout")?;
+    let stdout = child.stdout().take().ok_or("Failed get stdout")?;
     let stdout_reader = BufReader::new(stdout);
 
     let dir = filename_path.parent().unwrap_or(Path::new(""));
     if !dir.is_dir() {
-        DirBuilder::new().recursive(true)
-            .create(dir)
-            .chain_err(|| "Failed to create outfile parent directory")?
+        DirBuilder::new().recursive(true).create(dir).chain_err(
+            || "Failed to create outfile parent directory",
+        )?
     }
 
     let progress = ProgressBar::new(::std::u64::MAX);
-    progress.set_style(ProgressStyle::default_bar().template("{spinner:.yellow} {msg:.dim.bold} {pos:>7.dim} {elapsed_precise:.dim}").progress_chars(" • "));
+    progress.set_style(
+        ProgressStyle::default_bar()
+            .template(
+                "{spinner:.yellow} {msg:.dim.bold} {pos:>7.dim} {elapsed_precise:.dim}",
+            )
+            .progress_chars(" • "),
+    );
     progress.set_message("Connecting");
 
     let mut write = if args.is_present("ZIP") {
@@ -107,15 +108,15 @@ pub fn create(args: &ArgMatches, core: &mut Core) -> Result<i32> {
 
     let output = lines(stdout_reader)
         .for_each(|l| {
-                      write.write_all(&l.as_bytes()).expect("Failed to write");
-                      write.write_all("\n".as_bytes()).expect("Failed to write");
-                      progress.inc(1);
-                      ok(())
-                  })
+            write.write_all(&l.as_bytes()).expect("Failed to write");
+            write.write_all("\n".as_bytes()).expect("Failed to write");
+            progress.inc(1);
+            ok(())
+        })
         .then(|r| {
-                  progress.set_style(ProgressStyle::default_bar().template("{msg:.dim.bold}"));
-                  progress.finish_with_message(&format!("Finished {}.", filename_path.display()));
-                  r
-              });
+            progress.set_style(ProgressStyle::default_bar().template("{msg:.dim.bold}"));
+            progress.finish_with_message(&format!("Finished {}.", filename_path.display()));
+            r
+        });
     core.run(output).map_err(|e| e.into()).map(|_| 0)
 }
