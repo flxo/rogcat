@@ -33,8 +33,6 @@ before_deploy:
   - appveyor PushArtifact ../%PROJECT_NAME%-%APPVEYOR_REPO_TAG_NAME%-%TARGET%.zip
 
 deploy:
-  description: 'Automatically deployed release for windows'
-  # All the zipped artifacts will be deployed
   artifact: /.*\.zip/
   provider: GitHub
   auth_token:
