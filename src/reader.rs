@@ -6,71 +6,103 @@
 
 use clap::ArgMatches;
 use errors::*;
-use futures::{Async, Stream, Poll};
+use futures::sync::mpsc::Receiver;
+use futures::sync::mpsc;
+use futures::{Async, Future, Sink, Stream, Poll};
+use nom::{digit, IResult};
 use record::Record;
 use serial::prelude::*;
 use std::fs::File;
+use std::io::stdin;
 use std::io::{BufReader, BufRead, Read};
-use std::io::{Stdin, stdin};
 use std::path::PathBuf;
-use super::Message;
-use std::time::Duration;
-use nom::{digit, IResult};
 use std::str::from_utf8;
+use std::thread;
+use std::time::Duration;
+use super::Message;
+use tokio_core::reactor::Core;
 
-pub enum ReadResult {
-    Record(Record),
-    Done,
+pub struct LineReader {
+    rx: Receiver<Result<Message>>,
 }
 
-pub struct LineReader<T>
-    where T: Read
-{
-    reader: BufReader<T>,
-}
+impl LineReader {
+    pub fn new(reader: Box<Read + Send>, core: &Core) -> LineReader {
+        let (tx, rx) = mpsc::channel(1);
+        let mut reader = BufReader::new(reader);
+        let remote = core.remote();
 
-impl<T: Read> LineReader<T> {
-    pub fn new(reader: T) -> LineReader<T> {
-        LineReader { reader: BufReader::new(reader) }
+        thread::spawn(move ||
+            loop {
+                let tx = tx.clone();
+                let mut buffer = Vec::new();
+                let mut done = false;
+                let message = reader.read_until(b'\n', &mut buffer)
+                    .map_err(|e| e.into())
+                    .and_then(|len| {
+                        if len > 0 {
+                            String::from_utf8(buffer)
+                                .map_err(|e| e.into())
+                                .map(|line| line.trim().to_owned())
+                                .map(|raw| Message::Record(Record { raw, ..Default::default() }))
+                        } else {
+                            done = true;
+                            Ok(Message::Done)
+                        }
+                    });
+                let f = ::futures::done(message);
+                remote.spawn(|_| f.then(|res| tx.send(res).map(|_| ()).map_err(|_| ())));
+                if done {
+                    break;
+                }
+            }
+        );
+
+        LineReader { rx }
     }
+}
 
-    pub fn read(&mut self) -> Result<ReadResult> {
-        let mut buffer = Vec::new();
-        if self.reader
-               .read_until(b'\n', &mut buffer)
-               .chain_err(|| "Read failed")? > 0 {
-            let line = String::from_utf8(buffer)?.trim().to_string();
-            let record = Record { raw: line, ..Default::default() };
-            Ok(ReadResult::Record(record))
-        } else {
-            Ok(ReadResult::Done)
+impl Stream for LineReader {
+    type Item = Message;
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        // This definitly can be done smarter...
+        match self.rx.poll() {
+            Ok(a) => {
+                match a {
+                    Async::Ready(b) => {
+                        match b {
+                            Some(c) => c.map(|v| Async::Ready(Some(v))),
+                            None => Ok(Async::Ready(None)),
+                        }
+                    }
+                    Async::NotReady => Ok(Async::NotReady),
+                }
+            }
+            Err(_) => Err("Channel error".into()),
         }
     }
 }
 
+#[derive(Default)]
 pub struct FileReader {
-    files: Vec<LineReader<File>>,
+    files: Vec<LineReader>,
 }
 
 impl<'a> FileReader {
-    pub fn new(args: &ArgMatches<'a>) -> Result<Self> {
-        let files = args.values_of("input")
+    pub fn new(args: &ArgMatches<'a>, core: &Core) -> Result<Self> {
+        let file_names = args.values_of("input")
             .map(|f| f.map(PathBuf::from).collect::<Vec<PathBuf>>())
             .ok_or("Failed to parse input files")?;
 
-        // No early return from iteration....
-        let mut reader = Vec::new();
-        for f in files {
+        let mut files = Vec::new();
+        for f in file_names {
             let file = File::open(f.clone()).chain_err(|| format!("Failed to open {:?}", f))?;
-            reader.push(LineReader::new(file));
+            files.push(LineReader::new(Box::new(file), core));
         }
 
-        Ok(FileReader { files: reader })
-    }
-
-    fn read(&mut self) -> Result<ReadResult> {
-        let reader = &mut self.files[0];
-        reader.read()
+        Ok(FileReader { files })
     }
 }
 
@@ -79,33 +111,30 @@ impl Stream for FileReader {
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        match self.read() {
-            Ok(v) => {
-                match v {
-                    ReadResult::Done => {
-                        if self.files.len() > 1 {
-                            self.files.remove(0);
-                            // TODO multi file feature
-                            Ok(Async::Ready(Some(Message::Done)))
-                        } else {
-                            Ok(Async::Ready(Some(Message::Done)))
-                        }
+        loop {
+            let p = self.files[0].poll();
+            match p {
+                Ok(Async::Ready(Some(Message::Done))) => {
+                    if self.files.len() > 1 {
+                        self.files.remove(0);
+                        continue;
+                    } else {
+                        return p
                     }
-                    ReadResult::Record(r) => Ok(Async::Ready(Some(Message::Record(r)))),
-                }
+                },
+                _ => return p,
             }
-            Err(e) => Err(e),
         }
     }
 }
 
 pub struct StdinReader {
-    reader: LineReader<Stdin>,
+    reader: LineReader,
 }
 
 impl StdinReader {
-    pub fn new() -> StdinReader {
-        StdinReader { reader: LineReader::new(stdin()) }
+    pub fn new(core: &Core) -> StdinReader {
+        StdinReader { reader: LineReader::new(Box::new(stdin()), core) }
     }
 }
 
@@ -114,10 +143,7 @@ impl Stream for StdinReader {
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        self.reader.read().map(|r| match r {
-                                   ReadResult::Done => Async::Ready(Some(Message::Done)),
-                                   ReadResult::Record(r) => Async::Ready(Some(Message::Record(r))),
-                               })
+        self.reader.poll()
     }
 }
 
@@ -213,17 +239,17 @@ named!(serial <(String, ::serial::PortSettings)>,
 );
 
 pub struct SerialReader {
-    reader: LineReader<Box<SerialPort>>,
+    reader: LineReader,
 }
 
 impl SerialReader {
-    pub fn new(settings: &str) -> Result<Self> {
+    pub fn new(settings: &str, core: &Core) -> Result<Self> {
         let args = Self::parse_serial_arg(settings)?;
         let mut port = ::serial::open(&args.0)?;
         port.configure(&args.1)?;
         port.set_timeout(Duration::from_secs(999999999))?;
 
-        Ok(SerialReader { reader: LineReader::new(Box::new(port)) })
+        Ok(SerialReader { reader: LineReader::new(Box::new(port), core) })
     }
 
     pub fn parse_serial_arg(arg: &str) -> Result<(String, ::serial::PortSettings)> {
@@ -240,16 +266,7 @@ impl Stream for SerialReader {
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        match self.reader.read() {
-            Ok(r) => {
-                match r {
-                    ReadResult::Done => Ok(Async::Ready(None)),
-                    ReadResult::Record(r) => Ok(Async::Ready(Some(Message::Record(r)))),
-                }
-            }
-
-            Err(e) => Err(e),
-        }
+        self.reader.poll()
     }
 }
 

@@ -50,7 +50,7 @@ use std::path::PathBuf;
 use std::process::{exit, Command};
 use std::str::FromStr;
 use terminal::Terminal;
-use tokio_core::reactor::{Core, Handle};
+use tokio_core::reactor::Core;
 use tokio_process::CommandExt;
 use tokio_signal::ctrl_c;
 use which::which_in;
@@ -237,25 +237,25 @@ fn adb() -> Result<PathBuf> {
         .map_err(|e| format!("Cannot find adb: {}", e).into())
 }
 
-fn input(handle: Handle, args: &ArgMatches) -> Result<Box<Stream<Item = Message, Error = Error>>> {
+fn input(core: &Core, args: &ArgMatches) -> Result<Box<Stream<Item = Message, Error = Error>>> {
     if args.is_present("input") {
         let input = args.value_of("input").ok_or("Invalid input value")?;
         if SerialReader::parse_serial_arg(input).is_ok() {
-            Ok(Box::new(SerialReader::new(input)?))
+            Ok(Box::new(SerialReader::new(input, core)?))
         } else {
-            Ok(Box::new(FileReader::new(args)?))
+            Ok(Box::new(FileReader::new(args, core)?))
         }
     } else {
         match args.value_of("COMMAND") {
             Some(c) => {
                 if c == "-" {
-                    Ok(Box::new(StdinReader::new()))
+                    Ok(Box::new(StdinReader::new(core)))
                 } else if SerialReader::parse_serial_arg(c).is_ok() {
-                    Ok(Box::new(SerialReader::new(c)?))
+                    Ok(Box::new(SerialReader::new(c, core)?))
                 } else {
                     let cmd = c.to_owned();
                     let restart = args.is_present("restart");
-                    Ok(Box::new(Runner::new(handle, cmd, restart, false)?))
+                    Ok(Box::new(Runner::new(core.handle(), cmd, restart, false)?))
                 }
             }
             None => {
@@ -269,7 +269,7 @@ fn input(handle: Handle, args: &ArgMatches) -> Result<Box<Stream<Item = Message,
                     logcat_args.push("-d".to_owned());
                 }
                 let cmd = format!("{} logcat -b all {}", adb()?.display(), logcat_args.join(" "));
-                Ok(Box::new(Runner::new(handle, cmd, logcat_args.is_empty(), false)?))
+                Ok(Box::new(Runner::new(core.handle(), cmd, logcat_args.is_empty(), false)?))
             }
         }
     }
@@ -321,7 +321,7 @@ fn run(args: &ArgMatches) -> Result<i32> {
         .map(|_| Message::Done)
         .map_err(|e| e.into());
 
-    let input = input(core.handle(), args)?;
+    let input = input(&core, args)?;
     let result = input.select(ctrlc)
         .and_then(|m| parser.process(m))
         .and_then(|m| filter.process(m))

@@ -80,7 +80,7 @@ pub fn run(args: &ArgMatches, core: &mut Core) -> Result<i32> {
                 level,
             };
 
-            let input = StdinReader::new();
+            let input = StdinReader::new(core);
             let result = input.select(ctrlc).map(|m| m).take_while(|r| ok(r != &Message::Done));
             let stream = sink.send_all(result);
             core.run(stream).map_err(|_| "Failed to run \"adb shell log\"".into()).map(|_| 0)
