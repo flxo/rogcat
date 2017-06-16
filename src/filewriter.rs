@@ -433,6 +433,8 @@ impl<'a> FileWriter {
         if let Some(ref mut writer) = self.writer {
             writer.flush()?;
         }
+        self.progress.set_style(ProgressStyle::default_bar().template("{msg:.dim.bold}"));
+        self.progress.finish_with_message(&format!("Finished dumping {} records.", self.index));
         self.file_size = 0;
         self.writer = None;
         Ok(())
