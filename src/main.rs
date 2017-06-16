@@ -156,10 +156,16 @@ fn build_cli() -> App<'static, 'static> {
         .arg_from_usage("-c --clear 'Clear (flush) the entire log and exit'")
         .arg_from_usage("-g --get-ringbuffer-size 'Get the size of the log's ring buffer and exit'")
         .arg_from_usage("-S --output-statistics 'Output statistics'")
+        .arg(Arg::with_name("TAIL")
+             .short("T")
+             .long("tail")
+             .takes_value(true)
+             .conflicts_with_all(&["input", "COMMAND"]) // remove input here once implemented
+             .help("Dump only the most recent <COUNT> lines (implies --dump)"))
         .arg(Arg::with_name("DUMP")
              .short("d")
              .long("dump")
-             .conflicts_with("input")
+             .conflicts_with_all(&["input", "COMMAND"]) // remove input here once implemented
              .help("Dump the log and then exit (don't block)"))
         .arg(Arg::with_name("SHORTEN_TAGS")
             .long("shorten-tags")
@@ -253,10 +259,17 @@ fn input(handle: Handle, args: &ArgMatches) -> Result<Box<Stream<Item = Message,
                 }
             }
             None => {
-                let dump = if args.is_present("DUMP") { "-d" } else { "" };
-                let restart = !args.is_present("DUMP");
-                let cmd = format!("{} logcat -b all {}", adb()?.display(), dump);
-                Ok(Box::new(Runner::new(handle, cmd, restart, false)?))
+                let mut logcat_args = vec!();
+                if args.is_present("LAST") {
+                    let count = value_t!(args, "LAST", u32).unwrap_or_else(|e| e.exit());
+                    logcat_args.push(format!("-t {}", count));
+                };
+
+                if args.is_present("DUMP") {
+                    logcat_args.push("-d".to_owned());
+                }
+                let cmd = format!("{} logcat -b all {}", adb()?.display(), logcat_args.join(" "));
+                Ok(Box::new(Runner::new(handle, cmd, logcat_args.is_empty(), false)?))
             }
         }
     }

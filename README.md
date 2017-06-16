@@ -31,7 +31,7 @@ or get the latest [binary release](https://github.com/flxo/rogcat/releases) for 
 ## Usage
 
 ```
-rogcat 0.2.6-pre
+rogcat 0.2.7-pre
 Felix Obenhuber <felix@obenhuber.de>
 A 'adb logcat' wrapper and log processor
 
@@ -39,6 +39,7 @@ USAGE:
     rogcat [FLAGS] [OPTIONS] [COMMAND] [SUBCOMMAND]
 
 FLAGS:
+    -d, --dump                   Dump the log and then exit (don't block)
         --no-timestamp           No timestamp in terminal output
         --overwrite              Overwrite output file if present
         --shorten-tags           Shorten tags by removing vovels if too long for terminal format
@@ -52,12 +53,12 @@ FLAGS:
     -V, --version                Prints version information
 
 OPTIONS:
-    -a, --filename-format <FILENAME_FORMAT>      Select format for output file names. By passing 'single' the filename provided with the '-o' option is used. 'enumerate' appends a file sequence number
-                                                 after the filename passed with '-o' option whenever a new file is created (see 'records-per-file' option). 'date' will prefix the output filename with the
-                                                 current local date when a new file is created [values: single, enumerate, date]
+    -a, --filename-format <FILENAME_FORMAT>      Select format for output file names. By passing 'single' the filename provided with the '-o' option is used. 'enumerate' appends a file sequence number after the filename passed with '-o' option whenever a new file is created (see
+                                                 'records-per-file' option). 'date' will prefix the output filename with the current local date when a new file is created [values: single, enumerate, date]
     -f, --file-format <FILE_FORMAT>              Select format for output files [values: csv, html, raw]
     -l, --level <LEVEL>                          Minimum level [values: trace, debug, info, warn, error, fatal, assert, T, D, I, W, E, F, A]
     -n, --records-per-file <RECORDS_PER_FILE>    Write n records per file. Use k, M, G suffixes or a plain number
+    -T, --tail <TAIL>                            Dump only the most recent <COUNT> lines (implies --dump)
     -e, --terminal-format <TERMINAL_FORMAT>      Select format for stdout [default: human]  [values: human, raw, csv]
     -h, --highlight <HIGHLIGHT>...               Highlight messages that match this pattern in RE
     -i, --input <INPUT>...                       Read from file instead of command. Use 'serial://COM0@11520,8N1 or similiar for reading a serial por

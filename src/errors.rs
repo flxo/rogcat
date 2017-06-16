@@ -11,6 +11,7 @@ error_chain! {
         Handlebars(::handlebars::RenderError);
         Io(::std::io::Error);
         Nom(::nom::ErrorKind);
+        Num(::std::num::ParseIntError);
         Regex(::regex::Error);
         Serial(::serial::Error);
         Time(::time::ParseError);
