@@ -113,7 +113,6 @@ pub fn create(args: &ArgMatches, core: &mut Core) -> Result<i32> {
                       ok(())
                   })
         .then(|r| {
-
                   progress.set_style(ProgressStyle::default_bar().template("{msg:.dim.bold}"));
                   progress.finish_with_message(&format!("Finished {}.", filename_path.display()));
                   r
