@@ -28,7 +28,6 @@ extern crate term_size;
 extern crate tokio_core;
 extern crate tokio_io;
 extern crate tokio_process;
-extern crate tokio_signal;
 extern crate tempdir;
 extern crate which;
 extern crate zip;
@@ -39,7 +38,7 @@ use errors::*;
 use filewriter::FileWriter;
 use filter::Filter;
 use futures::future::*;
-use futures::Stream;
+use futures::{Sink, Stream};
 use parser::Parser;
 use reader::{FileReader, SerialReader, StdinReader};
 use record::Record;
@@ -52,7 +51,6 @@ use std::str::FromStr;
 use terminal::Terminal;
 use tokio_core::reactor::Core;
 use tokio_process::CommandExt;
-use tokio_signal::ctrl_c;
 use which::which_in;
 
 mod bugreport;
@@ -80,10 +78,6 @@ pub enum Format {
     Html,
     Human,
     Raw,
-}
-
-trait Output {
-    fn process(&mut self, message: Message) -> Result<Message>;
 }
 
 impl FromStr for Format {
@@ -322,29 +316,20 @@ fn run(args: &ArgMatches) -> Result<i32> {
         }
     }
 
-    let mut output = if args.is_present("output") {
-        Box::new(FileWriter::new(args)?) as Box<Output>
+    type RSink = Box<Sink<SinkItem = Message, SinkError = Error>>;
+    let output = if args.is_present("output") {
+        Box::new(FileWriter::new(args)?) as RSink
     } else {
-        Box::new(Terminal::new(args)?) as Box<Output>
+        Box::new(Terminal::new(args)?) as RSink
     };
     let mut parser = Parser::new();
     let mut filter = Filter::new(args)?;
 
-    let handle = core.handle();
-    let ctrlc = core.run(ctrl_c(&handle))?.map(|_| Message::Done).map_err(
-        |e| {
-            e.into()
-        },
-    );
-
-    let input = input(&core, args)?;
-    let result = input
-        .select(ctrlc)
-        .and_then(|m| parser.process(m))
-        .and_then(|m| filter.process(m))
-        .and_then(|m| output.process(m))
+    let result = input(&core, args)?
         .take_while(|r| ok(r != &Message::Done))
-        .for_each(|_| ok(()));
+        .and_then(|m| parser.process(m))
+        .filter(|m| filter.filter(m))
+        .forward(output);
 
     core.run(result).map(|_| 0)
 }

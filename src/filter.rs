@@ -50,34 +50,34 @@ impl<'a> Filter {
         Ok((positive, negative))
     }
 
-    pub fn process(&mut self, message: Message) -> Result<Message> {
-        if let Message::Record(ref record) = message {
+    pub fn filter(&mut self, message: &Message) -> bool {
+        if let &Message::Record(ref record) = message {
             if record.level < self.level {
-                return Ok(Message::Drop);
+                return false;
             }
 
             if !self.message.is_empty() &&
                 !self.message.iter().any(|m| m.is_match(&record.message))
             {
-                return Ok(Message::Drop);
+                return false;
             }
 
             if self.message_negative.iter().any(
                 |m| m.is_match(&record.message),
             )
             {
-                return Ok(Message::Drop);
+                return false;
             }
 
             if !self.tag.is_empty() && !self.tag.iter().any(|m| m.is_match(&record.tag)) {
-                return Ok(Message::Drop);
+                return false;
             }
 
             if self.tag_negative.iter().any(|m| m.is_match(&record.tag)) {
-                return Ok(Message::Drop);
+                return false;
             }
         }
-        Ok(message)
+        true
     }
 }
 

@@ -6,6 +6,7 @@
 
 use clap::ArgMatches;
 use errors::*;
+use futures::{Sink, StartSend, Async, AsyncSink, Poll};
 use regex::Regex;
 use std::cmp::max;
 use std::collections::HashMap;
@@ -13,7 +14,7 @@ use std::env;
 use std::io::Write;
 use std::io::stdout;
 use std::str::FromStr;
-use super::{Format, Message, Output};
+use super::{Format, Message};
 use super::record::{Level, Record};
 use term_painter::Attr::*;
 use term_painter::{Color, ToStyle};
@@ -301,13 +302,20 @@ impl<'a> Terminal {
     }
 }
 
-impl Output for Terminal {
-    fn process(&mut self, message: Message) -> Result<Message> {
-        if let Message::Record(ref record) = message {
+impl Sink for Terminal {
+    type SinkItem = Message;
+    type SinkError = Error;
+
+    fn start_send(&mut self, item: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
+        if let Message::Record(ref record) = item {
             if let Err(e) = self.print_record(record) {
                 return Err(e);
             }
         }
-        Ok(message)
+        Ok(AsyncSink::Ready)
+    }
+
+    fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
+        Ok(Async::Ready(()))
     }
 }

@@ -8,6 +8,7 @@ use boolinator::Boolinator;
 use clap::ArgMatches;
 use crc::{crc32, Hasher32};
 use errors::*;
+use futures::{Sink, StartSend, Async, AsyncSink, Poll};
 use handlebars::{Handlebars, RenderContext, RenderError, Helper, JsonRender, to_json};
 use indicatif::{ProgressBar, ProgressStyle};
 use regex::Regex;
@@ -18,7 +19,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::str;
 use super::record::Record;
-use super::{Format, Message, Output};
+use super::{Format, Message};
 use time::{now, strftime};
 
 /// Interface for a output file format
@@ -467,18 +468,20 @@ impl<'a> FileWriter {
     }
 }
 
-impl Output for FileWriter {
-    fn process(&mut self, message: Message) -> Result<Message> {
-        match message {
-            Message::Record(ref record) => {
-                if let Err(e) = self.write(record) {
-                    return Err(e);
-                }
-            }
-            Message::Done => self.flush()?,
-            _ => (),
+impl Sink for FileWriter {
+    type SinkItem = Message;
+    type SinkError = Error;
 
+    fn start_send(&mut self, item: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
+        if let Message::Record(ref record) = item {
+            if let Err(e) = self.write(record) {
+                return Err(e);
+            }
         }
-        Ok(message)
+        Ok(AsyncSink::Ready)
+    }
+
+    fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
+        Ok(Async::Ready(()))
     }
 }

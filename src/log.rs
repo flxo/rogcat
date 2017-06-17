@@ -6,8 +6,7 @@
 
 use clap::ArgMatches;
 use errors::*;
-use futures::future::*;
-use futures::{Future, Async, AsyncSink, Stream, Sink, Poll, StartSend};
+use futures::{Future, Async, AsyncSink, Sink, Poll, StartSend};
 use std::process::{Command, Stdio};
 use super::Message;
 use super::adb;
@@ -15,8 +14,6 @@ use super::reader::StdinReader;
 use super::record::Level;
 use tokio_core::reactor::{Core, Handle};
 use tokio_process::CommandExt;
-use tokio_signal::ctrl_c;
-
 struct Logger {
     handle: Handle,
     tag: String,
@@ -70,12 +67,6 @@ pub fn run(args: &ArgMatches, core: &mut Core) -> Result<i32> {
     let level = Level::from(args.value_of("LEVEL").unwrap_or(""));
     match message {
         "-" => {
-            let handle = core.handle();
-            let ctrlc = core.run(ctrl_c(&handle))?.map(|_| Message::Done).map_err(
-                |e| {
-                    e.into()
-                },
-            );
             let sink = Logger {
                 handle: core.handle(),
                 tag,
@@ -83,10 +74,7 @@ pub fn run(args: &ArgMatches, core: &mut Core) -> Result<i32> {
             };
 
             let input = StdinReader::new(core);
-            let result = input.select(ctrlc).map(|m| m).take_while(
-                |r| ok(r != &Message::Done),
-            );
-            let stream = sink.send_all(result);
+            let stream = sink.send_all(input);
             core.run(stream)
                 .map_err(|_| "Failed to run \"adb shell log\"".into())
                 .map(|_| 0)
