@@ -37,7 +37,6 @@ use error_chain::ChainedError;
 use errors::*;
 use filewriter::FileWriter;
 use filter::Filter;
-use futures::future::*;
 use futures::{Sink, Stream};
 use parser::Parser;
 use reader::{FileReader, SerialReader, StdinReader};
@@ -65,12 +64,7 @@ mod reader;
 mod runner;
 mod terminal;
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum Message {
-    Done,
-    Drop,
-    Record(Record),
-}
+type RSink = Box<Sink<SinkItem = Record, SinkError = Error>>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Format {
@@ -231,7 +225,7 @@ fn adb() -> Result<PathBuf> {
         .map_err(|e| format!("Cannot find adb: {}", e).into())
 }
 
-fn input(core: &Core, args: &ArgMatches) -> Result<Box<Stream<Item = Message, Error = Error>>> {
+fn input(core: &Core, args: &ArgMatches) -> Result<Box<Stream<Item = Record, Error = Error>>> {
     if args.is_present("input") {
         let input = args.value_of("input").ok_or("Invalid input value")?;
         if SerialReader::parse_serial_arg(input).is_ok() {
@@ -316,7 +310,6 @@ fn run(args: &ArgMatches) -> Result<i32> {
         }
     }
 
-    type RSink = Box<Sink<SinkItem = Message, SinkError = Error>>;
     let output = if args.is_present("output") {
         Box::new(FileWriter::new(args)?) as RSink
     } else {
@@ -326,7 +319,6 @@ fn run(args: &ArgMatches) -> Result<i32> {
     let mut filter = Filter::new(args)?;
 
     let result = input(&core, args)?
-        .take_while(|r| ok(r != &Message::Done))
         .and_then(|m| parser.process(m))
         .filter(|m| filter.filter(m))
         .forward(output);

@@ -8,12 +8,12 @@ use clap::ArgMatches;
 use errors::*;
 use futures::{Future, Async, AsyncSink, Sink, Poll, StartSend};
 use std::process::{Command, Stdio};
-use super::Message;
-use super::adb;
+use super::{adb, Record};
 use super::reader::StdinReader;
 use super::record::Level;
 use tokio_core::reactor::{Core, Handle};
 use tokio_process::CommandExt;
+
 struct Logger {
     handle: Handle,
     tag: String,
@@ -33,25 +33,23 @@ impl Logger {
 }
 
 impl Sink for Logger {
-    type SinkItem = Message;
+    type SinkItem = Record;
     type SinkError = Error;
 
     fn start_send(&mut self, item: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
-        if let Message::Record(r) = item {
-            let child = Command::new(adb()?)
-                .arg("shell")
-                .arg("log")
-                .arg("-p")
-                .arg(Self::level(&self.level))
-                .arg("-t")
-                .arg(format!("\"{}\"", &self.tag))
-                .arg(&r.raw)
-                .stdout(Stdio::piped())
-                .output_async(&self.handle)
-                .map(|_| ())
-                .map_err(|_| ());
-            self.handle.spawn(child);
-        }
+        let child = Command::new(adb()?)
+            .arg("shell")
+            .arg("log")
+            .arg("-p")
+            .arg(Self::level(&self.level))
+            .arg("-t")
+            .arg(format!("\"{}\"", &self.tag))
+            .arg(&item.raw)
+            .stdout(Stdio::piped())
+            .output_async(&self.handle)
+            .map(|_| ())
+            .map_err(|_| ());
+        self.handle.spawn(child);
 
         Ok(AsyncSink::Ready)
     }

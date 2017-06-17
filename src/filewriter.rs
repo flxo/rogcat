@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::str;
 use super::record::Record;
-use super::{Format, Message};
+use super::Format;
 use time::{now, strftime};
 
 /// Interface for a output file format
@@ -469,14 +469,12 @@ impl<'a> FileWriter {
 }
 
 impl Sink for FileWriter {
-    type SinkItem = Message;
+    type SinkItem = Record;
     type SinkError = Error;
 
     fn start_send(&mut self, item: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
-        if let Message::Record(ref record) = item {
-            if let Err(e) = self.write(record) {
-                return Err(e);
-            }
+        if let Err(e) = self.write(&item) {
+            return Err(e);
         }
         Ok(AsyncSink::Ready)
     }

@@ -19,11 +19,10 @@ use std::path::PathBuf;
 use std::str::from_utf8;
 use std::thread;
 use std::time::Duration;
-use super::Message;
 use tokio_core::reactor::Core;
 
 pub struct LineReader {
-    rx: Receiver<Result<Message>>,
+    rx: Receiver<Result<Record>>,
 }
 
 impl LineReader {
@@ -33,28 +32,34 @@ impl LineReader {
         let remote = core.remote();
 
         thread::spawn(move || loop {
-            let tx = tx.clone();
+            let mut tx = tx.clone();
             let mut buffer = Vec::new();
             let mut done = false;
-            let message = reader
-                .read_until(b'\n', &mut buffer)
-                .map_err(|e| e.into())
-                .and_then(|len| if len > 0 {
-                    String::from_utf8(buffer)
-                        .map_err(|e| e.into())
-                        .map(|line| line.trim().to_owned())
-                        .map(|raw| {
-                            Message::Record(Record {
-                                raw,
-                                ..Default::default()
-                            })
-                        })
-                } else {
-                    done = true;
-                    Ok(Message::Done)
-                });
-            let f = ::futures::done(message);
-            remote.spawn(|_| f.then(|res| tx.send(res).map(|_| ()).map_err(|_| ())));
+            match reader.read_until(b'\n', &mut buffer) {
+                Ok(len) => {
+                    if len > 0 {
+                        let record = String::from_utf8(buffer)
+                            .map_err(|e| e.into())
+                            .map(|line| line.trim().to_owned())
+                            .map(|raw| {
+                                Record {
+                                    raw,
+                                    ..Default::default()
+                                }
+                            });
+                        let f = ::futures::done(record);
+                        remote.spawn(|_| f.then(|res| tx.send(res).map(|_| ()).map_err(|_| ())));
+                    } else {
+                        tx.close().ok();
+                        done = true;
+                    }
+                }
+                Err(e) => {
+                    let f = ::futures::future::err(e);
+                    remote.spawn(|_| f.map_err(|_| ()));
+                    tx.close().ok();
+                }
+            }
             if done {
                 break;
             }
@@ -65,7 +70,7 @@ impl LineReader {
 }
 
 impl Stream for LineReader {
-    type Item = Message;
+    type Item = Record;
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
@@ -111,14 +116,14 @@ impl<'a> FileReader {
 }
 
 impl Stream for FileReader {
-    type Item = Message;
+    type Item = Record;
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         loop {
             let p = self.files[0].poll();
             match p {
-                Ok(Async::Ready(Some(Message::Done))) => {
+                Ok(Async::Ready(None)) => {
                     if self.files.len() > 1 {
                         self.files.remove(0);
                         continue;
@@ -143,7 +148,7 @@ impl StdinReader {
 }
 
 impl Stream for StdinReader {
-    type Item = Message;
+    type Item = Record;
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
@@ -268,7 +273,7 @@ impl SerialReader {
 }
 
 impl Stream for SerialReader {
-    type Item = Message;
+    type Item = Record;
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {

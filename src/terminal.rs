@@ -14,7 +14,7 @@ use std::env;
 use std::io::Write;
 use std::io::stdout;
 use std::str::FromStr;
-use super::{Format, Message};
+use super::Format;
 use super::record::{Level, Record};
 use term_painter::Attr::*;
 use term_painter::{Color, ToStyle};
@@ -303,14 +303,12 @@ impl<'a> Terminal {
 }
 
 impl Sink for Terminal {
-    type SinkItem = Message;
+    type SinkItem = Record;
     type SinkError = Error;
 
     fn start_send(&mut self, item: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
-        if let Message::Record(ref record) = item {
-            if let Err(e) = self.print_record(record) {
-                return Err(e);
-            }
+        if let Err(e) = self.print_record(&item) {
+            return Err(e);
         }
         Ok(AsyncSink::Ready)
     }

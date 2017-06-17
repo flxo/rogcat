@@ -9,7 +9,6 @@ use errors::*;
 use nom::{digit, hex_digit, IResult, rest, space};
 use std::str::from_utf8;
 use super::record::{Level, Record};
-use super::Message;
 use time::Tm;
 
 named!(colon <char>, char!(':'));
@@ -316,39 +315,36 @@ impl Parser {
         }
     }
 
-    pub fn process(&mut self, message: Message) -> Result<Message> {
-        if let Message::Record(r) = message {
-            if let Some(p) = self.last {
-                if let Ok(record) = p(&r.raw) {
-                    return Ok(Message::Record(record));
+    pub fn process(&mut self, record: Record) -> Result<Record> {
+        if let Some(p) = self.last {
+            if let Ok(record) = p(&record.raw) {
+                return Ok(record);
+            }
+        }
+
+        let parser = [
+            Self::parse_default,
+            Self::parse_mindroid,
+            Self::parse_csv,
+            Self::parse_bsw,
+            Self::parse_bugreport,
+        ];
+
+        let mut parse = |record: &Record| -> Record {
+            for p in parser.iter() {
+                if let Ok(r) = p(&record.raw) {
+                    self.last = Some(*p);
+                    return r;
                 }
             }
+            Record {
+                message: record.raw.clone(),
+                raw: record.raw.clone(),
+                ..Default::default()
+            }
+        };
 
-            let parser = [
-                Self::parse_default,
-                Self::parse_mindroid,
-                Self::parse_csv,
-                Self::parse_bsw,
-                Self::parse_bugreport,
-            ];
-            let mut parse = |record: &Record| -> Record {
-                for p in parser.iter() {
-                    if let Ok(r) = p(&record.raw) {
-                        self.last = Some(*p);
-                        return r;
-                    }
-                }
-                Record {
-                    message: record.raw.clone(),
-                    raw: record.raw.clone(),
-                    ..Default::default()
-                }
-            };
-
-            Ok(Message::Record(parse(&r)))
-        } else {
-            Ok(message)
-        }
+        Ok(parse(&record))
     }
 }
 

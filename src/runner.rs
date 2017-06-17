@@ -8,7 +8,6 @@ use errors::*;
 use futures::{Async, Poll, Stream};
 use std::io::BufReader;
 use std::process::{Command, Stdio};
-use super::Message;
 use super::record::Record;
 use super::terminal::DIMM_COLOR;
 use term_painter::ToStyle;
@@ -59,7 +58,7 @@ impl Runner {
 }
 
 impl Stream for Runner {
-    type Item = Message;
+    type Item = Record;
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
@@ -71,7 +70,7 @@ impl Stream for Runner {
                             raw: s,
                             ..Default::default()
                         };
-                        return Ok(Async::Ready(Some(Message::Record(r))));
+                        return Ok(Async::Ready(Some(r)));
                     } else {
                         if self.restart {
                             let text = format!("Restarting \"{}\"", self.cmd);
@@ -80,7 +79,7 @@ impl Stream for Runner {
                             self.output = output;
                             self.child = child;
                         } else {
-                            return Ok(Async::Ready(Some(Message::Done)));
+                            return Ok(Async::Ready(None));
                         }
                     }
                 }
