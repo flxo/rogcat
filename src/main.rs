@@ -46,7 +46,6 @@ use std::env;
 use std::io::{stderr, stdout, Write};
 use std::path::PathBuf;
 use std::process::{exit, Command};
-use std::str::FromStr;
 use terminal::Terminal;
 use tokio_core::reactor::Core;
 use tokio_process::CommandExt;
@@ -65,27 +64,6 @@ mod runner;
 mod terminal;
 
 type RSink = Box<Sink<SinkItem = Record, SinkError = Error>>;
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum Format {
-    Csv,
-    Html,
-    Human,
-    Raw,
-}
-
-impl FromStr for Format {
-    type Err = &'static str;
-    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
-        match s {
-            "csv" => Ok(Format::Csv),
-            "html" => Ok(Format::Html),
-            "human" => Ok(Format::Human),
-            "raw" => Ok(Format::Raw),
-            _ => Err("Format parsing error"),
-        }
-    }
-}
 
 fn build_cli() -> App<'static, 'static> {
     App::new(crate_name!())
@@ -133,8 +111,7 @@ fn build_cli() -> App<'static, 'static> {
             .short("l")
             .long("level")
             .takes_value(true)
-            .possible_values(&["trace", "debug", "info", "warn", "error", "fatal", "assert", "T",
-                               "D", "I", "W", "E", "F", "A"])
+            .possible_values(record::Level::values())
             .help("Minimum level"))
         .arg(Arg::with_name("OVERWRITE")
             .long("overwrite")

@@ -6,8 +6,47 @@
 
 use serde::{Serialize, Serializer};
 use serde::ser::SerializeMap;
+use std::str::FromStr;
 use super::errors::*;
-use super::Format;
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Format {
+    Csv,
+    Html,
+    Human,
+    Raw,
+}
+
+impl FromStr for Format {
+    type Err = &'static str;
+    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
+        match s {
+            "csv" => Ok(Format::Csv),
+            "html" => Ok(Format::Html),
+            "human" => Ok(Format::Human),
+            "raw" => Ok(Format::Raw),
+            _ => Err("Format parsing error"),
+        }
+    }
+}
+
+const LEVEL_VALUES: &'static[&'static str] = 
+        &[
+            "trace",
+            "debug",
+            "info",
+            "warn",
+            "error",
+            "fatal",
+            "assert",
+            "T",
+            "D",
+            "I",
+            "W",
+            "E",
+            "F",
+            "A",
+        ];
 
 #[derive(Clone, Debug, PartialOrd, PartialEq)]
 pub enum Level {
@@ -64,10 +103,9 @@ impl<'a> From<&'a str> for Level {
     }
 }
 
-impl ::std::str::FromStr for Level {
-    type Err = bool;
-    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
-        Ok(Self::from(s))
+impl Level {
+    pub fn values() -> &'static [&'static str] {
+        LEVEL_VALUES
     }
 }
 

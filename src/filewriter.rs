@@ -18,8 +18,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::str;
-use super::record::Record;
-use super::Format;
+use super::record::{Format, Record};
 use time::{now, strftime};
 
 /// Interface for a output file format
