@@ -60,9 +60,9 @@ impl Sink for Logger {
 }
 
 pub fn run(args: &ArgMatches, core: &mut Core) -> Result<i32> {
-    let message = args.value_of("MESSAGE").unwrap_or("");
-    let tag = args.value_of("TAG").unwrap_or("Rogcat").to_owned();
-    let level = Level::from(args.value_of("LEVEL").unwrap_or(""));
+    let message = args.value_of("message").unwrap_or("");
+    let tag = args.value_of("tag").unwrap_or("Rogcat").to_owned();
+    let level = Level::from(args.value_of("level").unwrap_or(""));
     match message {
         "-" => {
             let sink = Logger {

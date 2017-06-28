@@ -15,6 +15,7 @@ error_chain! {
         Regex(::regex::Error);
         Serial(::serial::Error);
         Time(::time::ParseError);
+        Toml(::toml::de::Error);
         Utf8(::std::string::FromUtf8Error);
         Zip(::zip::result::ZipError);
     }

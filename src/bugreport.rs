@@ -67,9 +67,9 @@ fn report_filename() -> Result<String> {
 
 /// Performs a dumpstate and write to fs. Note: The Android 7+ dumpstate is not supported.
 pub fn create(args: &ArgMatches, core: &mut Core) -> Result<i32> {
-    let filename = value_t!(args.value_of("FILE"), String).unwrap_or(report_filename()?);
+    let filename = value_t!(args.value_of("file"), String).unwrap_or(report_filename()?);
     let filename_path = PathBuf::from(&filename);
-    if !args.is_present("OVERWRITE") && filename_path.exists() {
+    if !args.is_present("overwrite") && filename_path.exists() {
         return Err(format!("File {} exists", filename).into());
     }
 
@@ -98,7 +98,7 @@ pub fn create(args: &ArgMatches, core: &mut Core) -> Result<i32> {
     );
     progress.set_message("Connecting");
 
-    let mut write = if args.is_present("ZIP") {
+    let mut write = if args.is_present("zip") {
         Box::new(ZipFile::new(filename)?) as Box<Write>
     } else {
         Box::new(File::create(&filename)?) as Box<Write>

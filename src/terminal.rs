@@ -5,6 +5,7 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use clap::ArgMatches;
+use configuration::*;
 use errors::*;
 use futures::{Sink, StartSend, Async, AsyncSink, Poll};
 use regex::Regex;
@@ -42,46 +43,45 @@ pub struct Terminal {
 }
 
 impl<'a> Terminal {
-    pub fn new(args: &ArgMatches<'a>) -> Result<Self> {
-        let mut highlight = vec![];
+    pub fn new(args: &ArgMatches<'a>, configuration: &Configuration) -> Result<Self> {
+        let mut hl = configuration.profile().highlight();
         if args.is_present("highlight") {
-            for ref r in values_t!(args.values_of("highlight"), String)? {
-                highlight.push(Regex::new(r)?);
-            }
+            hl.extend(values_t!(args.values_of("highlight"), String)?);
         }
+        let highlight = hl.iter().flat_map(|h| Regex::new(h)).collect();
 
         Ok(Terminal {
             beginning_of: Regex::new(r"--------- beginning of.*").unwrap(),
-            color: true, // ! args.is_present("NO-COLOR"),
-            date_format: if args.is_present("SHOW_DATE") {
-                if args.is_present("NO_TIMESTAMP") {
+            color: !args.is_present("no_color"),
+            date_format: if args.is_present("show_date") {
+                if args.is_present("no_timestamp") {
                     ("%m-%d".to_owned(), 5)
                 } else {
                     ("%m-%d %H:%M:%S.%f".to_owned(), 18)
                 }
             } else {
-                if args.is_present("NO_TIMESTAMP") {
+                if args.is_present("no_timestamp") {
                     ("".to_owned(), 0)
                 } else {
                     ("%H:%M:%S.%f".to_owned(), 12)
                 }
             },
-            format: args.value_of("TERMINAL_FORMAT")
+            format: args.value_of("terminal_format")
                 .and_then(|f| Format::from_str(f).ok())
                 .unwrap_or(Format::Human),
             highlight: highlight,
-            shorten_tag: args.is_present("SHORTEN_TAGS"),
+            shorten_tag: args.is_present("shorten_tags"),
             process_width: 0,
             tag_timestamps: HashMap::new(),
             vovels: Regex::new(r"a|e|i|o|u").unwrap(),
             tag_width: 20,
             thread_width: 0,
-            diff_width: if args.is_present("SHOW_TIME_DIFF") {
+            diff_width: if args.is_present("show_time_diff") {
                 8
             } else {
                 0
             },
-            time_diff: args.is_present("SHOW_TIME_DIFF"),
+            time_diff: args.is_present("show_time_diff"),
         })
     }
 

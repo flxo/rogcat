@@ -5,8 +5,9 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use clap::ArgMatches;
+use configuration::*;
 use errors::*;
-use super::record::{Level, Record};
+use record::{Level, Record};
 use regex::Regex;
 
 pub struct Filter {
@@ -18,16 +19,22 @@ pub struct Filter {
 }
 
 impl<'a> Filter {
-    pub fn new(args: &ArgMatches<'a>) -> Result<Self> {
-        let filters = |k| {
-            args.values_of(k).map(|m| {
-                m.map(|f| f.to_owned()).collect::<Vec<String>>()
-            })
-        };
-        let (tag, tag_negative) = Self::init_filter(filters("tag"))?;
-        let (message, message_negative) = Self::init_filter(filters("message"))?;
+    pub fn new(args: &ArgMatches<'a>, configuration: &Configuration) -> Result<Self> {
+        let profile = configuration.profile();
+        let mut tag_filter = args.values_of("tag")
+            .map(|m| m.map(|f| f.to_owned()).collect::<Vec<String>>())
+            .unwrap_or(vec![]);
+        tag_filter.extend(profile.tag());
+        let mut message_filter = args.values_of("message")
+            .map(|m| m.map(|f| f.to_owned()).collect::<Vec<String>>())
+            .unwrap_or(vec![]);
+        message_filter.extend(profile.message());
+
+        let (tag, tag_negative) = Self::init_filter(tag_filter.clone())?;
+        let (message, message_negative) = Self::init_filter(message_filter)?;
+
         Ok(Filter {
-            level: Level::from(args.value_of("LEVEL").unwrap_or("")),
+            level: Level::from(args.value_of("level").unwrap_or("")),
             message: message,
             message_negative: message_negative,
             tag: tag,
@@ -35,15 +42,19 @@ impl<'a> Filter {
         })
     }
 
-    /// Try to build regex from args
-    fn init_filter(i: Option<Vec<String>>) -> Result<(Vec<Regex>, Vec<Regex>)> {
+    fn init_filter(i: Vec<String>) -> Result<(Vec<Regex>, Vec<Regex>)> {
         let mut positive = vec![];
         let mut negative = vec![];
-        for r in &i.unwrap_or_else(|| vec![]) {
+        for r in &i {
             if r.starts_with("!") {
-                negative.push(Regex::new(&r[1..])?)
+                let r = &r[1..];
+                negative.push(Regex::new(r).chain_err(
+                    || format!("Invalid regex string: \"{}\"", r),
+                )?)
             } else {
-                positive.push(Regex::new(r)?)
+                positive.push(Regex::new(r).chain_err(
+                    || format!("Invalid regex string: \"{}\"", r),
+                )?)
             }
         }
         Ok((positive, negative))
@@ -79,10 +90,10 @@ impl<'a> Filter {
 
 #[test]
 fn filter_args() {
-    assert!(Filter::init_filter(None).is_ok());
-    assert!(Filter::init_filter(Some(vec!["".to_owned()])).is_ok());
-    assert!(Filter::init_filter(Some(vec!["a".to_owned()])).is_ok());
-    assert!(Filter::init_filter(Some(vec![".*".to_owned()])).is_ok());
-    assert!(Filter::init_filter(Some(vec![".*".to_owned(), ".*".to_owned()])).is_ok());
-    assert!(Filter::init_filter(Some(vec!["(".to_owned()])).is_err());
+    assert!(Filter::init_filter(vec![]).is_ok());
+    assert!(Filter::init_filter(vec!["".to_owned()]).is_ok());
+    assert!(Filter::init_filter(vec!["a".to_owned()]).is_ok());
+    assert!(Filter::init_filter(vec![".*".to_owned()]).is_ok());
+    assert!(Filter::init_filter(vec![".*".to_owned(), ".*".to_owned()]).is_ok());
+    assert!(Filter::init_filter(vec!["(".to_owned()]).is_err());
 }
