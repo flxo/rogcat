@@ -94,7 +94,7 @@ fn input(core: &Core, args: &ArgMatches) -> Result<Box<Stream<Item = Record, Err
     if args.is_present("input") {
         let input = args.value_of("input").ok_or("Invalid input value")?;
         if SerialReader::parse_serial_arg(input).is_ok() {
-            Ok(Box::new(SerialReader::new(input, core)?))
+            Ok(Box::new(SerialReader::new(args, input, core)?))
         } else {
             Ok(Box::new(FileReader::new(args, core)?))
         }
@@ -102,36 +102,15 @@ fn input(core: &Core, args: &ArgMatches) -> Result<Box<Stream<Item = Record, Err
         match args.value_of("COMMAND") {
             Some(c) => {
                 if c == "-" {
-                    Ok(Box::new(StdinReader::new(core)))
+                    Ok(Box::new(StdinReader::new(args, core)))
                 } else if SerialReader::parse_serial_arg(c).is_ok() {
-                    Ok(Box::new(SerialReader::new(c, core)?))
+                    Ok(Box::new(SerialReader::new(args, c, core)?))
                 } else {
-                    let cmd = c.to_owned();
-                    let restart = args.is_present("restart");
-                    Ok(Box::new(Runner::new(core.handle(), cmd, restart, false)?))
+                    Ok(Box::new(Runner::new(&args, core.handle())?))
                 }
             }
             None => {
-                let mut logcat_args = vec![];
-                if args.is_present("tail") {
-                    let count = value_t!(args, "tail", u32).unwrap_or_else(|e| e.exit());
-                    logcat_args.push(format!("-t {}", count));
-                };
-
-                if args.is_present("dump") {
-                    logcat_args.push("-d".to_owned());
-                }
-                let cmd = format!(
-                    "{} logcat -b all {}",
-                    adb()?.display(),
-                    logcat_args.join(" ")
-                );
-                Ok(Box::new(Runner::new(
-                    core.handle(),
-                    cmd,
-                    logcat_args.is_empty(),
-                    false,
-                )?))
+                Ok(Box::new(Runner::new(args, core.handle())?))
             }
         }
     }

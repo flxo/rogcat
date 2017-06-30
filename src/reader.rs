@@ -26,42 +26,54 @@ pub struct LineReader {
 }
 
 impl LineReader {
-    pub fn new(reader: Box<Read + Send>, core: &Core) -> LineReader {
+    pub fn new(reader: Box<Read + Send>, core: &Core, head: Option<usize>) -> LineReader {
         let (tx, rx) = mpsc::channel(1);
         let mut reader = BufReader::new(reader);
         let remote = core.remote();
 
-        thread::spawn(move || loop {
-            let mut tx = tx.clone();
-            let mut buffer = Vec::new();
-            let mut done = false;
-            match reader.read_until(b'\n', &mut buffer) {
-                Ok(len) => {
-                    if len > 0 {
-                        let record = String::from_utf8(buffer)
-                            .map_err(|e| e.into())
-                            .map(|line| line.trim().to_owned())
-                            .map(|raw| {
-                                Record {
-                                    raw,
-                                    ..Default::default()
-                                }
-                            });
-                        let f = ::futures::done(record);
-                        remote.spawn(|_| f.then(|res| tx.send(res).map(|_| ()).map_err(|_| ())));
-                    } else {
-                        tx.close().ok();
-                        done = true;
+        thread::spawn(move || {
+            let mut head = head;
+            loop {
+                let mut tx = tx.clone();
+                let mut buffer = Vec::new();
+                let mut done = false;
+                if let Some(c) = head {
+                    if c == 0 {
+                        break;
                     }
                 }
-                Err(e) => {
-                    let f = ::futures::future::err(e);
-                    remote.spawn(|_| f.map_err(|_| ()));
-                    tx.close().ok();
+                match reader.read_until(b'\n', &mut buffer) {
+                    Ok(len) => {
+                        if len > 0 {
+                            let record = String::from_utf8(buffer)
+                                .map_err(|e| e.into())
+                                .map(|line| line.trim().to_owned())
+                                .map(|raw| {
+                                    Record {
+                                        raw,
+                                        ..Default::default()
+                                    }
+                                });
+                            let f = ::futures::done(record);
+                            remote.spawn(|_| {
+                                f.then(|res| tx.send(res).map(|_| ()).map_err(|_| ()))
+                            });
+
+                            head = head.map(|c| c - 1);
+                        } else {
+                            tx.close().ok();
+                            done = true;
+                        }
+                    }
+                    Err(e) => {
+                        let f = ::futures::future::err(e);
+                        remote.spawn(|_| f.map_err(|_| ()));
+                        tx.close().ok();
+                    }
                 }
-            }
-            if done {
-                break;
+                if done {
+                    break;
+                }
             }
         });
 
@@ -108,7 +120,11 @@ impl<'a> FileReader {
             let file = File::open(f.clone()).chain_err(
                 || format!("Failed to open {:?}", f),
             )?;
-            files.push(LineReader::new(Box::new(file), core));
+            files.push(LineReader::new(
+                Box::new(file),
+                core,
+                value_t!(args, "head", usize).ok(),
+            ));
         }
 
         Ok(FileReader { files })
@@ -141,9 +157,11 @@ pub struct StdinReader {
     reader: LineReader,
 }
 
-impl StdinReader {
-    pub fn new(core: &Core) -> StdinReader {
-        StdinReader { reader: LineReader::new(Box::new(stdin()), core) }
+impl<'a> StdinReader {
+    pub fn new(args: &ArgMatches<'a>, core: &Core) -> StdinReader {
+        StdinReader {
+            reader: LineReader::new(Box::new(stdin()), core, value_t!(args, "head", usize).ok()),
+        }
     }
 }
 
@@ -251,15 +269,15 @@ pub struct SerialReader {
     reader: LineReader,
 }
 
-impl SerialReader {
-    pub fn new(settings: &str, core: &Core) -> Result<Self> {
-        let args = Self::parse_serial_arg(settings)?;
-        let mut port = ::serial::open(&args.0)?;
-        port.configure(&args.1)?;
+impl<'a> SerialReader {
+    pub fn new(args: &ArgMatches<'a>, settings: &str, core: &Core) -> Result<Self> {
+        let p = Self::parse_serial_arg(settings)?;
+        let mut port = ::serial::open(&p.0)?;
+        port.configure(&p.1)?;
         port.set_timeout(Duration::from_secs(999999999))?;
 
         Ok(SerialReader {
-            reader: LineReader::new(Box::new(port), core),
+            reader: LineReader::new(Box::new(port), core, value_t!(args, "head", usize).ok()),
         })
     }
 

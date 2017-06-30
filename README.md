@@ -158,6 +158,7 @@ OPTIONS:
     -a, --filename-format <filename_format>      Select a format for output file names. By passing 'single' the filename provided with the '-o' option is used (default).'enumerate' appends a file sequence
                                                  number after the filename passed with '-o' option whenever a new file is created (see 'records-per-file' option). 'date' will prefix the output filename
                                                  with the current local date when a new file is created [values: single, enumerate, date]
+    -H, --head <head>                            Read n records and exit
     -h, --highlight <highlight>...               Highlight messages that match this pattern in RE2. The prefix '!' inverts the match
     -i, --input <input>...                       Read from file instead of command. Use 'serial://COM0@115200,8N1 or similiar for reading a serial port
     -l, --level <level>                          Minimum level [values: trace, debug, info, warn, error, fatal, assert, T, D, I, W, E, F, A]
@@ -166,7 +167,7 @@ OPTIONS:
     -p, --profile <profile>                      Select profile
     -n, --records-per-file <records_per_file>    Write n records per file. Use k, M, G suffixes or a plain number
     -t, --tag <tag>...                           Tag filters in RE2. The prefix '!' inverts the match
-        --tail <tail>                            Dump only the most recent <COUNT> lines (implies --dump)
+    -T, --tail <tail>                            Dump only the most recent <COUNT> lines (implies --dump)
     -e, --terminal-format <terminal_format>      Select format for stdout [default: human]  [values: human, raw, csv]
 
 ARGS:
