@@ -52,7 +52,7 @@ Display logs from `adb logcat` and filter on records where the tag matches `^ABC
 
 Read all files matching `trace*` in alphanumerical order and dump lines matching `hmmm` to `/tmp/filtered`:
 
-`rogcat -i trace* -m hmmm  -o /tmp/filtered
+`rogcat -i trace* -m hmmm  -o /tmp/filtered`
 
 Open and read `/dev/ttyUSB0` with given settings and process:
 
@@ -68,7 +68,7 @@ Capture a `Android` bugreport. This only works for `Android` version prior 7:
 
 Capture a `Android` bugreport and write (zipped) to `bugreport.zip`:
 
-`adb bugreport -z bugreport.zip`
+`rogcat bugreport -z bugreport.zip`
 
 Place messages (on level `INFO`) read on `stdin` in the devices log buffer (e.g annotations during manual testing):
 
@@ -89,6 +89,8 @@ With a working/recent `Rust` and `cargo` setup run
 ```
 cargo install rogcat
 ```
+
+or grab one of the binary releases on the GitHub page.
 
 ## Configuration
 
