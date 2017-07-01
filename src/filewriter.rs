@@ -216,7 +216,7 @@ impl Writer for Textfile {
 
     fn write(&mut self, record: &Record, _index: usize) -> Result<()> {
         self.file
-            .write(record.format(self.format.clone())?.as_bytes())
+            .write(record.format(&self.format)?.as_bytes())
             .chain_err(|| "Failed to write")?;
         self.file.write(b"\n").chain_err(|| "Failed to write")?;
         Ok(())
@@ -421,7 +421,7 @@ impl<'a> FileWriter {
             None => {
                 self.current_filename = self.next_file()?;
                 let mut writer = match self.format {
-                    Format::Raw | Format::Csv => {
+                    Format::Csv | Format::Json | Format::Raw => {
                         Textfile::new(&self.current_filename, &self.format)? as Box<Writer>
                     }
                     Format::Html => Html::new(&self.current_filename, &self.format)? as Box<Writer>,

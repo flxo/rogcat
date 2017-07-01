@@ -154,7 +154,7 @@ FLAGS:
     -V, --version           Prints version information
 
 OPTIONS:
-    -f, --file-format <file_format>              Select output file format [values: csv, html, raw]
+    -f, --file-format <file_format>              Select output file format [values: csv, html, json, raw]
     -a, --filename-format <filename_format>      Select a format for output file names. By passing 'single' the filename provided with the '-o' option is used (default).'enumerate' appends a file sequence
                                                  number after the filename passed with '-o' option whenever a new file is created (see 'records-per-file' option). 'date' will prefix the output filename
                                                  with the current local date when a new file is created [values: single, enumerate, date]

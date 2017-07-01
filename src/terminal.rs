@@ -100,20 +100,13 @@ impl<'a> Terminal {
 
     fn print_record(&mut self, record: &Record) -> Result<()> {
         match self.format {
-            Format::Csv => {
-                record.format(Format::Csv).and_then(|s| {
+            Format::Csv | Format::Json | Format::Raw => {
+                record.format(&self.format).and_then(|s| {
                     println!("{}", s);
                     Ok(())
                 })
             }
-            Format::Human => {
-                self.print_human(record);
-                Ok(())
-            }
-            Format::Raw => {
-                println!("{}", record.raw);
-                Ok(())
-            }
+            Format::Human => self.print_human(record),
             Format::Html => {
                 panic!("Unimplemented format html");
             }
@@ -122,7 +115,7 @@ impl<'a> Terminal {
 
     // TODO
     // Rework this to use a more column based approach!
-    fn print_human(&mut self, record: &Record) {
+    fn print_human(&mut self, record: &Record) -> Result<()> {
         let (timestamp, mut diff) = if let Some(ts) = record.timestamp.clone() {
             let ts = *ts;
             let timestamp = match ::time::strftime(&self.date_format.0, &ts) {
@@ -225,7 +218,6 @@ impl<'a> Terminal {
                 diff_width = diff_width,
                 tag_width = tag_width
             );
-
         } else {
             println!(
                 "{:<timestamp_width$} {:>diff_width$} {:>tag_width$} ({}{}) {} {} {}",
@@ -298,7 +290,7 @@ impl<'a> Terminal {
             }
         }
 
-        stdout().flush().unwrap();
+        stdout().flush().map_err(|e| e.into())
     }
 }
 

@@ -21,6 +21,7 @@ pub enum Format {
     Csv,
     Html,
     Human,
+    Json,
     Raw,
 }
 
@@ -31,6 +32,7 @@ impl FromStr for Format {
             "csv" => Ok(Format::Csv),
             "html" => Ok(Format::Html),
             "human" => Ok(Format::Human),
+            "json" => Ok(Format::Json),
             "raw" => Ok(Format::Raw),
             _ => Err("Format parsing error"),
         }
@@ -186,18 +188,24 @@ pub struct Record {
 }
 
 impl Record {
-    pub fn format(&self, format: Format) -> Result<String> {
-        Ok(match format {
-            Format::Csv => {
+    pub fn format(&self, format: &Format) -> Result<String> {
+        match format {
+            &Format::Csv => {
                 let mut wtr = WriterBuilder::new().has_headers(false).from_writer(vec![]);
                 wtr.serialize(self)?;
                 wtr.flush()?;
-                String::from_utf8(wtr.into_inner().unwrap())?
-                    .trim_right_matches("\n")
-                    .to_owned()
+                Ok(
+                    String::from_utf8(wtr.into_inner().unwrap())?
+                        .trim_right_matches("\n")
+                        .to_owned(),
+                )
             }
-            Format::Raw => self.raw.clone(),
-            Format::Human | Format::Html => panic!("Unimplemented"),
-        })
+            &Format::Html => unimplemented!(),
+            &Format::Human => unimplemented!(),
+            &Format::Json => {
+                ::serde_json::to_string(self).map_err(|_| "json serialization error".into())
+            }
+            &Format::Raw => Ok(self.raw.clone()),
+        }
     }
 }
