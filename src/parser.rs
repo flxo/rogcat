@@ -4,11 +4,11 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
-use csv::Reader;
+use csv::ReaderBuilder;
 use errors::*;
 use nom::{digit, hex_digit, IResult, rest, space};
 use std::str::from_utf8;
-use super::record::{Level, Record};
+use record::{Level, Record, Timestamp};
 use time::Tm;
 
 named!(colon <char>, char!(':'));
@@ -66,7 +66,7 @@ named!(timestamp <Tm>,
                 tm_min: minute,
                 tm_hour: hour,
                 tm_mday: day,
-                tm_mon: month,
+                tm_mon: month - 1,
                 tm_year: year.unwrap_or(0),
                 tm_wday: 0,
                 tm_yday: 0,
@@ -93,7 +93,7 @@ named!(printable <Record>,
         message: opt!(map_res!(rest, from_utf8)) >>
         (
             Record {
-                timestamp: Some(timestamp),
+                timestamp: Some(Timestamp::new(timestamp)),
                 level: level,
                 tag: tag.trim().to_owned(),
                 process: process.trim().to_owned(),
@@ -140,7 +140,7 @@ named!(mindroid <Record>,
             message: opt!(map_res!(rest, from_utf8)) >>
             (
                 Record {
-                    timestamp: Some(timestamp),
+                    timestamp: Some(Timestamp::new(timestamp)),
                     level: level,
                     tag: tag.trim().to_owned(),
                     process: process.trim().to_owned(),
@@ -163,7 +163,7 @@ named!(bsw <Record>,
         message: opt!(map_res!(rest, from_utf8)) >>
         (
             Record {
-                timestamp: timestamp,
+                timestamp: timestamp.map(|t| Timestamp::new(t)),
                 level: level,
                 tag: tag.trim().to_owned(),
                 process: String::default(),
@@ -208,14 +208,6 @@ impl Parser {
         Parser { last: None }
     }
 
-    fn parse_timestamp(line: &str) -> Result<Option<Tm>> {
-        match timestamp(line.as_bytes()) {
-            IResult::Done(_, v) => Ok(Some(v)),
-            IResult::Error(e) => Err(e.into()),
-            IResult::Incomplete(_) => Err("Not enough data".into()),
-        }
-    }
-
     fn parse_default(line: &str) -> Result<Record> {
         match printable(line.as_bytes()) {
             IResult::Done(_, mut v) => {
@@ -250,20 +242,15 @@ impl Parser {
     }
 
     fn parse_csv(line: &str) -> Result<Record> {
-        type Row = (String, String, String, String, String, String);
-
-        let mut reader = Reader::from_string(line).has_headers(false);
-        let rows: Vec<Row> = reader.decode().collect::<::csv::Result<Vec<Row>>>()?;
-        let row = &rows.first().ok_or("Failed to parse CSV")?;
-        Ok(Record {
-            timestamp: Self::parse_timestamp(&row.0)?,
-            level: Level::from(row.4.as_str()),
-            tag: row.1.clone(),
-            process: row.2.clone(),
-            thread: row.3.clone(),
-            message: row.5.clone(),
-            raw: line.to_owned(),
-        })
+        let mut line = line.to_owned();
+        line.push('\n');
+        let mut rdr = ReaderBuilder::new().has_headers(false).from_reader(
+            line.as_bytes(),
+        );
+        for result in rdr.deserialize() {
+            return result.map_err(|e| e.into());
+        }
+        Err("Failed to parse csv".into())
     }
 
     fn parse_bugreport(line: &str) -> Result<Record> {
@@ -346,13 +333,6 @@ impl Parser {
 
         Ok(parse(&record))
     }
-}
-
-#[test]
-fn parse_timestamp() {
-    assert_eq!(timestamp("03-07 10:07:59.672 +0100".as_bytes()).unwrap().1.tm_utcoff, 1 * 60 * 60);
-    assert_eq!(timestamp("03-07 10:07:59.672 -0100".as_bytes()).unwrap().1.tm_utcoff, -1 * 60 * 60);
-    assert_eq!(timestamp("03-07 10:07:59.672".as_bytes()).unwrap().1.tm_utcoff, 0);
 }
 
 #[test]
@@ -456,21 +436,14 @@ fn parse_csv_unparseable() {
 
 #[test]
 fn parse_csv() {
-    let t = "11-06 13:58:53.582,GStreamer+amc,31359,31420,A,0:00:00.326067533 0xb8ef2a00";
+    let t = "07-01 14:13:14.446000000,Sensor:batt_therm:29000 mC,Info,ThermalEngine,225,295,07-01 14:13:14.446   225   295 I ThermalEngine: Sensor:batt_therm:29000 mC";
     let r = Parser::parse_csv(t).unwrap();
-    assert_eq!(r.level, Level::Assert);
-    assert_eq!(r.tag, "GStreamer+amc");
-    assert_eq!(r.process, "31359");
-    assert_eq!(r.thread, "31420");
-    assert_eq!(r.message, "0:00:00.326067533 0xb8ef2a00");
-
-    let t = "11-06 13:58:53.582,GStreamer+amc,31359,31420,A,0:00:00.326067533 0xb8ef2a00";
-    let r = Parser::parse_csv(t).unwrap();
-    assert_eq!(r.level, Level::Assert);
-    assert_eq!(r.tag, "GStreamer+amc");
-    assert_eq!(r.process, "31359");
-    assert_eq!(r.thread, "31420");
-    assert_eq!(r.message, "0:00:00.326067533 0xb8ef2a00");
+    assert_eq!(r.level, Level::Info);
+    assert_eq!(r.tag, "ThermalEngine");
+    assert_eq!(r.process, "225");
+    assert_eq!(r.thread, "295");
+    assert_eq!(r.message, "Sensor:batt_therm:29000 mC");
+    assert_eq!(r.raw, "07-01 14:13:14.446   225   295 I ThermalEngine: Sensor:batt_therm:29000 mC");
 }
 
 #[test]

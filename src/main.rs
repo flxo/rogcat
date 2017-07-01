@@ -109,9 +109,7 @@ fn input(core: &Core, args: &ArgMatches) -> Result<Box<Stream<Item = Record, Err
                     Ok(Box::new(Runner::new(&args, core.handle())?))
                 }
             }
-            None => {
-                Ok(Box::new(Runner::new(args, core.handle())?))
-            }
+            None => Ok(Box::new(Runner::new(args, core.handle())?)),
         }
     }
 }

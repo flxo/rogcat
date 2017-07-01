@@ -4,10 +4,17 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
-use serde::{Serialize, Serializer};
-use serde::ser::SerializeMap;
+use csv::WriterBuilder;
+use errors::*;
+use serde::de::{Deserialize, Deserializer, Error, Visitor};
+use serde::ser::Serializer;
+use serde::Serialize;
+use std::fmt;
 use std::str::FromStr;
-use super::errors::*;
+use std::ops::Deref;
+use time::{Tm, strptime, strftime};
+
+type StdResult<T, E> = ::std::result::Result<T, E>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Format {
@@ -19,7 +26,7 @@ pub enum Format {
 
 impl FromStr for Format {
     type Err = &'static str;
-    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
+    fn from_str(s: &str) -> StdResult<Self, Self::Err> {
         match s {
             "csv" => Ok(Format::Csv),
             "html" => Ok(Format::Html),
@@ -47,7 +54,7 @@ const LEVEL_VALUES: &'static [&'static str] = &[
     "A",
 ];
 
-#[derive(Clone, Debug, PartialOrd, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialOrd, PartialEq, Serialize)]
 pub enum Level {
     None,
     Trace,
@@ -108,9 +115,68 @@ impl Level {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug)]
+pub struct Timestamp {
+    pub tm: Tm,
+}
+
+impl Deref for Timestamp {
+    type Target = Tm;
+
+    fn deref(&self) -> &Tm {
+        &self.tm
+    }
+}
+
+impl Timestamp {
+    pub fn new(t: Tm) -> Timestamp {
+        Timestamp { tm: t }
+    }
+}
+
+impl Serialize for Timestamp {
+    fn serialize<S>(&self, serializer: S) -> StdResult<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        strftime("%m-%d %H:%M:%S.%f", &self.tm)
+            .map_err(|e| ::serde::ser::Error::custom(e.to_string()))?
+            .serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for Timestamp {
+    fn deserialize<D>(deserializer: D) -> StdResult<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct TimeVisitor;
+
+        impl<'de> Visitor<'de> for TimeVisitor {
+            type Value = Timestamp;
+            fn visit_str<E>(self, str_data: &str) -> StdResult<Timestamp, E>
+            where
+                E: Error,
+            {
+                strptime(str_data, "%m-%d %H:%M:%S.%f")
+                    .map(|d| Timestamp::new(d))
+                    .map_err(|_| {
+                        Error::invalid_value(::serde::de::Unexpected::Str(str_data), &self)
+                    })
+            }
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("string %m-%d %H:%M:%S.%f")
+            }
+        }
+
+        deserializer.deserialize_str(TimeVisitor)
+    }
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Record {
-    pub timestamp: Option<::time::Tm>,
+    pub timestamp: Option<Timestamp>,
     pub message: String,
     pub level: Level,
     pub tag: String,
@@ -119,47 +185,16 @@ pub struct Record {
     pub raw: String,
 }
 
-impl Serialize for Record {
-    fn serialize<S>(&self, serializer: S) -> ::std::result::Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut map = serializer.serialize_map(Some(
-            6 + if self.timestamp.is_some() { 1 } else { 0 },
-        ))?;
-        if let Some(timestamp) = self.timestamp {
-            let t = ::time::strftime("%m-%d %H:%M:%S.%f", &timestamp).unwrap_or("".to_owned());
-            let t = &t[..(t.len() - 6)];
-            map.serialize_entry("timestamp", &t)?;
-        } else {
-            map.serialize_entry("timestamp", "")?;
-        };
-        map.serialize_entry("message", &self.message)?;
-        map.serialize_entry("level", &format!("{}", self.level))?;
-        map.serialize_entry("tag", &self.tag)?;
-        map.serialize_entry("process", &self.process)?;
-        map.serialize_entry("thread", &self.thread)?;
-        map.serialize_entry("raw", &self.raw)?;
-        map.end()
-    }
-}
-
 impl Record {
     pub fn format(&self, format: Format) -> Result<String> {
         Ok(match format {
-            // TODO: refactor
             Format::Csv => {
-                format!(
-                    "\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"",
-                    self.timestamp
-                        .and_then(|ts| ::time::strftime("%m-%d %H:%M:%S.%f", &ts).ok())
-                        .unwrap_or("".to_owned()),
-                    self.tag,
-                    self.process,
-                    self.thread,
-                    self.level,
-                    self.message
-                )
+                let mut wtr = WriterBuilder::new().has_headers(false).from_writer(vec![]);
+                wtr.serialize(self)?;
+                wtr.flush()?;
+                String::from_utf8(wtr.into_inner().unwrap())?
+                    .trim_right_matches("\n")
+                    .to_owned()
             }
             Format::Raw => self.raw.clone(),
             Format::Human | Format::Html => panic!("Unimplemented"),

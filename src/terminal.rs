@@ -123,7 +123,8 @@ impl<'a> Terminal {
     // TODO
     // Rework this to use a more column based approach!
     fn print_human(&mut self, record: &Record) {
-        let (timestamp, mut diff) = if let Some(ts) = record.timestamp {
+        let (timestamp, mut diff) = if let Some(ts) = record.timestamp.clone() {
+            let ts = *ts;
             let timestamp = match ::time::strftime(&self.date_format.0, &ts) {
                 Ok(t) => t.chars().take(self.date_format.1).collect::<String>(),
                 Err(_) => (0..self.date_format.1).map(|_| " ").collect::<String>(),
@@ -291,9 +292,9 @@ impl<'a> Terminal {
             print_msg(&record.message, " ");
         };
 
-        if let Some(ts) = record.timestamp {
+        if let Some(ts) = record.timestamp.clone() {
             if self.time_diff && !record.tag.is_empty() {
-                self.tag_timestamps.insert(record.tag.clone(), ts);
+                self.tag_timestamps.insert(record.tag.clone(), *ts);
             }
         }
 
