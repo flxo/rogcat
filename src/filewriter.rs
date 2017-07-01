@@ -4,7 +4,6 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
-use boolinator::Boolinator;
 use clap::ArgMatches;
 use crc::{crc32, Hasher32};
 use errors::*;
@@ -374,7 +373,11 @@ impl<'a> FileWriter {
                 // If the overwrite flag is set the files are
                 // enumerated from the first one to get nice
                 // aligned filenames.
-                let mut e: Option<u32> = (!overwrite).as_some(0);
+                let mut e: Option<u32> = if overwrite {
+                    None
+                } else {
+                    Some(0)
+                };
 
                 loop {
                     let dir = self.filename.parent().unwrap_or(Path::new(""));

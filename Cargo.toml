@@ -9,7 +9,6 @@ version = "0.2.7-pre"
 
 [dependencies]
 appdirs = "0.2.0"
-boolinator = "2.4.0"
 clap = "2.16.2"
 crc = "1.4.0"
 csv = "1.0.0-beta.3"

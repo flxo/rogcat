@@ -5,7 +5,6 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 extern crate appdirs;
-extern crate boolinator;
 #[macro_use]
 extern crate clap;
 extern crate csv;
