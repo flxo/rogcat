@@ -77,6 +77,7 @@ pub fn run_rogcat(args: &SVec, input: Option<SVec>) -> Result<(bool, SVec)> {
     let mut process = Command::new(format!("{}", rogcat.display()))
         .args(args)
         .stdin(Stdio::piped())
+        .stderr(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
         .expect("Failed to run rogcat");
