@@ -11,7 +11,7 @@ use std::io::stdout;
 use configuration::Configuration;
 
 lazy_static! {
-    static ref ABOUT: String = { format!("A 'adb logcat' wrapper and log processor. Your configuration file location is \"{}\".", Configuration::file().unwrap().display()) };
+    static ref ABOUT: String = { format!("A 'adb logcat' wrapper and log processor. Your configuration file location is \"{}\".", Configuration::file(None).unwrap().display()) };
 }
 
 pub fn cli() -> App<'static, 'static> {
@@ -23,7 +23,12 @@ pub fn cli() -> App<'static, 'static> {
         .arg(Arg::with_name("clear")
              .short("c")
              .long("clear")
-             .help( "Clear (flush) the entire log and exit"))
+             .help("Clear (flush) the entire log and exit"))
+        .arg(Arg::with_name("config")
+             .short("C")
+             .long("config")
+             .takes_value(true)
+             .help("Manually specify config file (overrules ROGCAT_CONFIG)"))
         .arg(Arg::with_name("dump")
              .short("d")
              .long("dump")

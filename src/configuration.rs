@@ -55,7 +55,7 @@ pub struct Configuration {
 
 impl Configuration {
     pub fn new(args: &ArgMatches) -> Result<Self> {
-        let file = Self::file()?;
+        let file = Self::file(Some(args))?;
         if !file.exists() {
             Ok(Configuration {
                 file,
@@ -181,7 +181,19 @@ impl Configuration {
         }
     }
 
-    pub fn file() -> Result<PathBuf> {
+    pub fn file(args: Option<&ArgMatches>) -> Result<PathBuf> {
+        if let Some(args) = args {
+            if args.is_present("config") {
+                let f = PathBuf::from(value_t!(args, "config", String)?);
+                if f.exists() {
+                    return Ok(f)
+                } else {
+                    return Err(
+                        format!("Cannot find \"{}\" set --config!", f.display()).into(),
+                    )
+                }
+            }
+        } 
         if let Ok(f) = var("ROGCAT_CONFIG").map(|c| PathBuf::from(c)) {
             println!("env: {}", f.display());
             if f.exists() {
