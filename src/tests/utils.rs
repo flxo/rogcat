@@ -21,7 +21,7 @@ macro_rules! svec {
     };
 }
 
-type SVec = Vec<String>;
+pub type SVec = Vec<String>;
 
 pub fn tempdir() -> Result<PathBuf> {
     TempDir::new("rogcat").map(|e| e.into_path()).map_err(
