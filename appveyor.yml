@@ -21,7 +21,8 @@ install:
 build: false
 
 test_script:
-  - cargo test --verbose
+  - cargo build
+  - cargo test
 
 before_deploy:
   # Generate artifacts for release
