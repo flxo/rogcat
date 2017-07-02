@@ -7,7 +7,7 @@
 use tests::utils::*;
 
 #[test]
-fn test_filter_message() {
+fn filter_message() {
     let input = svec!("A", "B", "C", "D", "EF", "FE");
     let output = run_rogcat_with_input_file(&svec!("-m", "A"), &input).unwrap();
     assert!(output.0);
@@ -19,7 +19,7 @@ fn test_filter_message() {
 }
 
 #[test]
-fn test_filter_message_opt_long() {
+fn filter_message_opt_long() {
     let opt = "--message";
     let input = svec!("A", "B", "C", "D");
     let output = run_rogcat_with_input_file(&svec!(opt, "A"), &input).unwrap();
@@ -32,7 +32,7 @@ fn test_filter_message_opt_long() {
 }
 
 #[test]
-fn test_filter_message_opt_short_long() {
+fn filter_message_opt_short_long() {
     let long = "--message";
     let short = "-m";
     let input = svec!("A", "B", "C", "D");
@@ -46,7 +46,7 @@ fn test_filter_message_opt_short_long() {
 }
 
 #[test]
-fn test_filter_message_regex() {
+fn filter_message_regex() {
     let input = svec!("A", "B", "CF", "D", "EF", "FE", "monkey");
     let output = run_rogcat_with_input_file(&svec!("-m", "^.*nk.*"), &input).unwrap();
     assert!(output.0);

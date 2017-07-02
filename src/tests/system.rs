@@ -7,7 +7,7 @@
 use tests::utils::*;
 
 #[test]
-fn test_help() {
+fn help() {
     let args = &[
         svec!("--help"),
         svec!("bugreport", "--help"),

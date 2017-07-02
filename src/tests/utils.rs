@@ -109,7 +109,7 @@ pub fn run_rogcat_with_input_file(args: &SVec, payload: &SVec) -> Result<(bool, 
 }
 
 #[test]
-fn test_tempdir() {
+fn tempdirs() {
     let dirs: Vec<PathBuf> = [..100].iter().map(|_| tempdir().unwrap()).collect();
     for d in dirs {
         assert!(d.exists());
@@ -117,7 +117,7 @@ fn test_tempdir() {
 }
 
 #[test]
-fn test_tempfile_with_content() {
+fn create_tempfile_with_content() {
     let content = svec!("A", "B", "C");
     let tempfile = tempfile_with_content(&content).expect("Failed to create tempfile with content");
     let file = File::open(tempfile).expect("Failed to open tempfile");
@@ -126,14 +126,14 @@ fn test_tempfile_with_content() {
 }
 
 #[test]
-fn test_file_content() {
+fn comapre_file_content() {
     let content = svec!("A", "B", "C");
     let tempfile = tempfile_with_content(&content).expect("Failed to create tempfile with content");
     assert!(check_file_content(&tempfile, &content).unwrap());
 }
 
 #[test]
-fn test_stdin_stdout() {
+fn stdin_stdout() {
     let input = Some(vec![]);
     let output = run_rogcat(&svec!("-"), input).unwrap();
     assert!(output.0);
@@ -151,7 +151,7 @@ fn test_stdin_stdout() {
 }
 
 #[test]
-fn test_run_rogcat_with_input_file() {
+fn testrun_rogcat_with_input_file() {
     let input = svec!("A", "B", "C");
     let output = run_rogcat_with_input_file(&vec![], &input).unwrap();
     assert!(output.0);
