@@ -18,7 +18,7 @@ extern crate indicatif;
 extern crate nom;
 #[macro_use]
 extern crate lazy_static;
-//#[cfg(test)]
+#[cfg(test)]
 extern crate rand;
 extern crate regex;
 extern crate serde;
@@ -71,7 +71,7 @@ mod record;
 mod reader;
 mod runner;
 mod terminal;
-//#[cfg(test)]
+#[cfg(test)]
 mod tests;
 
 type RSink = Box<Sink<SinkItem = Record, SinkError = Error>>;
