@@ -17,7 +17,7 @@ use std::io::stdout;
 use std::str::FromStr;
 use super::record::{Format, Level, Record};
 use term_painter::Attr::*;
-use term_painter::{Color, ToStyle};
+use term_painter::{Color, Style, ToStyle};
 use term_size::dimensions;
 use time::Tm;
 
@@ -113,6 +113,15 @@ impl<'a> Terminal {
         }
     }
 
+    fn highlight_style(&self, s: &str, c: Color, h: &mut bool) -> Style {
+        if self.highlight.iter().any(|r| r.is_match(s)) {
+            *h = true;
+            Bold.fg(c)
+        } else {
+            Plain.fg(c)
+        }
+    }
+
     // TODO
     // Rework this to use a more column based approach!
     fn print_human(&mut self, record: &Record) -> Result<()> {
@@ -186,23 +195,22 @@ impl<'a> Terminal {
             Level::Error | Level::Fatal | Level::Assert => Color::Red,
         };
 
-        let h = &self.highlight;
-        let style = |s: &str, c: Color| if h.iter().any(|r| r.is_match(s)) {
-            Bold.fg(c)
-        } else {
-            Plain.fg(c)
-        };
-
+        let mut highlight = false;
         let color = self.color;
         let tag_width = self.tag_width;
         let diff_width = self.diff_width;
         let timestamp_width = self.date_format.1;
-        let timestamp_style = style(&timestamp, DIMM_COLOR);
-        let msg_style = style(&record.message, level_color);
-        let tag_style = style(&tag, Self::hashed_color(&tag));
-        let pid_style = style(&pid, Self::hashed_color(&pid));
-        let tid_style = style(&tid, Self::hashed_color(&tid));
+        let msg_style = self.highlight_style(&record.message, level_color, &mut highlight);
+        let tag_style = self.highlight_style(&tag, Self::hashed_color(&tag), &mut highlight);
+        let pid_style = self.highlight_style(&pid, Self::hashed_color(&pid), &mut highlight);
+        let tid_style = self.highlight_style(&tid, Self::hashed_color(&tid), &mut highlight);
         let level_style = Plain.bg(level_color).fg(Color::Black);
+        let timestamp_style = if highlight {
+            Bold.fg(Color::Yellow)
+        } else {
+            Plain.fg(DIMM_COLOR)
+        };
+
         let print_msg = |chunk: &str, sign: &str| if color {
             println!(
                 "{:<timestamp_width$} {:>diff_width$} {:>tag_width$} ({}{}) {} {} {}",
