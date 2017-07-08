@@ -27,7 +27,7 @@ pub fn cli() -> App<'static, 'static> {
         .arg(Arg::with_name("dump")
              .short("d")
              .long("dump")
-             .conflicts_with_all(&["input", "command"]) // remove input here once implemented
+             .conflicts_with_all(&["input", "COMMAND", "restart"])
              .help("Dump the log and then exit (don't block)"))
         .arg(Arg::with_name("file_format")
              .long("file-format")
@@ -114,7 +114,7 @@ pub fn cli() -> App<'static, 'static> {
         .arg(Arg::with_name("restart")
              .short("r")
              .long("restart")
-             .requires("command")
+             .conflicts_with_all(&["dump", "input", "tail"])
              .help("Restart command on exit"))
         .arg(Arg::with_name("shorten_tags")
              .long("shorten-tags")

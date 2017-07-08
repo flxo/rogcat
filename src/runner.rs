@@ -31,27 +31,33 @@ pub struct Runner {
 impl<'a> Runner {
     pub fn new(args: &ArgMatches<'a>, handle: Handle) -> Result<Self> {
         let adb = format!("{}", adb()?.display());
-        let cmd = value_t!(args, "COMMAND", String).unwrap_or({
-            let mut logcat_args = vec![];
-            if args.is_present("tail") {
-                let count = value_t!(args, "tail", u32).unwrap_or_else(|e| e.exit());
-                logcat_args.push(format!("-t {}", count));
-            };
+        let (cmd, restart) = value_t!(args, "COMMAND", String)
+            .map(|s| (s, args.is_present("restart")))
+            .unwrap_or({
+                let mut logcat_args = vec![];
+                let mut restart = true;
+                if args.is_present("tail") {
+                    let count = value_t!(args, "tail", u32).unwrap_or_else(|e| e.exit());
+                    logcat_args.push(format!("-t {}", count));
+                    restart = false;
+                };
 
-            if args.is_present("dump") {
-                logcat_args.push("-d".to_owned());
-            }
-            format!("{} logcat -b all {}", adb, logcat_args.join(" "))
-        });
+                if args.is_present("dump") {
+                    logcat_args.push("-d".to_owned());
+                    restart = false;
+                }
+                let cmd = format!("{} logcat -b all {}", adb, logcat_args.join(" "));
+                (cmd, restart)
+            });
         let (child, output) = Self::run(&cmd, &handle)?;
 
         Ok(Runner {
-            child: child,
-            cmd: cmd.clone(),
-            handle: handle,
+            child,
+            cmd: cmd.trim().to_owned(),
+            handle,
             head: value_t!(args, "head", usize).ok(),
-            output: output,
-            restart: args.is_present("restart"),
+            output,
+            restart,
         })
     }
 
