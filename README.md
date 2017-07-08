@@ -116,13 +116,13 @@ or grab one of the [binary releases](https://github.com/flxo/rogcat/releases) on
 
 Optionally `rogcat` reads a (`toml` formated) configuration file if present. This configuration may include tracing profiles
 ('-p') and settings. The possible options in the config file are a subset of the command line options. The configuration
-file is read from the location set in the environment variable `ROGCAT_CONFIG` or a fixed pathes depending on your OS:
+file is read from the location set in the environment variable `ROGCAT_PROFILES` or a fixed pathes depending on your OS:
 
-* MacOS: `$HOME/Library/Application Support/rogcat/config.toml`
-* Linux: `$HOME/.config/rogcat/config.toml`
-* Windows: `%HOME%/AppData/Local/rogcat/config.toml`
+* MacOS: `$HOME/Library/Application Support/rogcat/profiles.toml`
+* Linux: `$HOME/.config/rogcat/profiles.toml`
+* Windows: `%HOME%/AppData/Local/rogcat/profiles.toml`
 
-The environment variable overrules the default path. See `rogcat profiles --example` or `rogcat profiles --help`.
+The environment variable overrules the default path. See `rogcat profiles --help` or `rogcat profiles --examples`.
 
 Example:
 
@@ -164,7 +164,7 @@ To check your setup, run `rogcat profiles --list` and select a profile for a run
 ```
 rogcat 0.2.7-pre
 Felix Obenhuber <felix@obenhuber.de>
-A 'adb logcat' wrapper and log processor. Your configuration file location is "/Users/felix/Library/Application Support/rogcat/config.toml".
+A 'adb logcat' wrapper and log processor. Your configuration file location is "/Users/felix/Library/Application Support/rogcat/profiles.toml".
 
 USAGE:
     rogcat [FLAGS] [OPTIONS] [COMMAND] [SUBCOMMAND]
@@ -183,7 +183,6 @@ FLAGS:
     -V, --version           Prints version information
 
 OPTIONS:
-    -C, --config <config>                        Manually specify config file (overrules ROGCAT_CONFIG)
     -f, --file-format <file_format>              Select output file format [values: csv, html, json, raw]
     -a, --filename-format <filename_format>      Select a format for output file names. By passing 'single' the filename provided with the '-o' option is used (default).'enumerate' appends a file sequence
                                                  number after the filename passed with '-o' option whenever a new file is created (see 'records-per-file' option). 'date' will prefix the output filename
@@ -195,6 +194,7 @@ OPTIONS:
     -m, --message <message>...                   Tag filters in RE2. The prefix '!' inverts the match
     -o, --output <output>                        Write output to file
     -p, --profile <profile>                      Select profile
+    -P, --profiles-path <profiles_path>          Manually specify profile file (overrules ROGCAT_PROFILES)
     -n, --records-per-file <records_per_file>    Write n records per file. Use k, M, G suffixes or a plain number
     -t, --tag <tag>...                           Tag filters in RE2. The prefix '!' inverts the match
     -T, --tail <tail>                            Dump only the most recent <COUNT> lines (implies --dump)
@@ -204,13 +204,12 @@ ARGS:
     <COMMAND>    Optional command to run and capture stdout from. Pass "-" to d capture stdin'. If omitted, rogcat will run "adb logcat -b all" and restarts this commmand if 'adb' terminates
 
 SUBCOMMANDS:
-    bugreport        Capture bugreport. This is only works for Android versions < 7.
-    completions      Generates completion scripts
-    configuration    Configuration options
-    devices          Show list of available devices
-    help             Prints this message or the help of the given subcommand(s)
-    log              Add log message(s) log buffer
-    profiles         Show and manage configuration profiles
+    bugreport      Capture bugreport. This is only works for Android versions < 7.
+    completions    Generates completion scripts
+    devices        Show list of available devices
+    help           Prints this message or the help of the given subcommand(s)
+    log            Add log message(s) log buffer
+    profiles       Show and manage profiles
 ```
 
 ## Bugs
@@ -219,4 +218,4 @@ There are plenty. Please report on GitHub. Patches are welcome!
 
 ## Licensing
 
-Rogcat is open source software; see ``COPYING`` for details.
+Rogcat is open source software and comes with no warranty. See ``COPYING`` for details.

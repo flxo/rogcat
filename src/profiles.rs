@@ -181,7 +181,7 @@ impl Profiles {
                 }
             }
             Ok(0)
-        } else if args.is_present("example") {
+        } else if args.is_present("examples") {
             let mut example = ConfigurationFile::default();
 
             example.profile.insert(
@@ -258,7 +258,7 @@ impl Profiles {
                     format!("Internal example serialization error: {}", e).into()
                 })
                 .map(|s| {
-                    println!("Example configuration:");
+                    println!("Example profiles:");
                     println!("");
                     println!("{}", s);
                     0
@@ -270,28 +270,27 @@ impl Profiles {
 
     pub fn file(args: Option<&ArgMatches>) -> Result<PathBuf> {
         if let Some(args) = args {
-            if args.is_present("config") {
-                let f = PathBuf::from(value_t!(args, "config", String)?);
+            if args.is_present("profiles_path") {
+                let f = PathBuf::from(value_t!(args, "profiles_path", String)?);
                 if f.exists() {
                     return Ok(f);
                 } else {
                     return Err(
-                        format!("Cannot find \"{}\" set --config!", f.display()).into(),
+                        format!("Cannot find \"{}\". Use --profiles_path to specify the path manually!", f.display()).into(),
                     );
                 }
             }
         }
-        if let Ok(f) = var("ROGCAT_CONFIG").map(|c| PathBuf::from(c)) {
-            println!("env: {}", f.display());
+        if let Ok(f) = var("ROGCAT_PROFILES").map(|c| PathBuf::from(c)) {
             if f.exists() {
                 return Ok(f);
             } else {
                 Err(
-                    format!("Cannot find \"{}\" set in ROGCAT_CONFIG!", f.display()).into(),
+                    format!("Cannot find \"{}\" set in ROGCAT_PROFILES!", f.display()).into(),
                 )
             }
         } else if let Ok(mut f) = user_config_dir(Some("rogcat"), None, false) {
-            f.push("config.toml");
+            f.push("profiles.toml");
             Ok(f)
         } else {
             Err("Failed to find config directory".into())

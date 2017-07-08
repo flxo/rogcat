@@ -33,7 +33,7 @@ extends = [\"CircleA\"]";
 fn run_rogcat_with_config_and_input_file(args: &SVec, payload: &SVec) -> Result<SVec> {
     let lines = CONFIG.lines().map(|s| s.to_string()).collect();
     let config = tempfile_with_content(&lines)?.display().to_string();
-    let mut a = svec!("-C", config);
+    let mut a = svec!("-P", config);
     a.extend(args.clone());
     let output = run_rogcat_with_input_file(&a, payload).expect(
         "Failed to run rogcat with config and input file",
@@ -118,7 +118,7 @@ fn extends_circle() {
     let lines = CONFIG.lines().map(|s| s.to_string()).collect();
     let config = tempfile_with_content(&lines).unwrap().display().to_string();
     // This is supposed to fail!
-    let args = svec!("-C", config, "-p", "CircleA");
+    let args = svec!("--profiles-path", config, "-p", "CircleA");
     let output = run_rogcat(&args, None).unwrap();
     assert!(!output.0);
 }
