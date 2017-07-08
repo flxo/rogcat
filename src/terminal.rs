@@ -33,6 +33,7 @@ pub struct Terminal {
     diff_width: usize,
     format: Format,
     highlight: Vec<Regex>,
+    no_dimm: bool,
     process_width: usize,
     shorten_tag: bool,
     tag_timestamps: HashMap<String, Tm>,
@@ -71,6 +72,7 @@ impl<'a> Terminal {
                 .unwrap_or(Format::Human),
             highlight: highlight,
             shorten_tag: args.is_present("shorten_tags"),
+            no_dimm: args.is_present("no_dimm"),
             process_width: 0,
             tag_timestamps: HashMap::new(),
             vovels: Regex::new(r"a|e|i|o|u").unwrap(),
@@ -187,9 +189,15 @@ impl<'a> Terminal {
             format!(" {:>width$}", record.thread, width = self.thread_width)
         };
 
+        let dimm_color = if self.no_dimm {
+            Color::White
+        } else {
+            DIMM_COLOR
+        };
+
         let level = format!(" {} ", record.level);
         let level_color = match record.level {
-            Level::Trace | Level::Verbose | Level::Debug | Level::None => DIMM_COLOR,
+            Level::Trace | Level::Verbose | Level::Debug | Level::None => dimm_color,
             Level::Info => Color::Green,
             Level::Warn => Color::Yellow,
             Level::Error | Level::Fatal | Level::Assert => Color::Red,
@@ -208,14 +216,14 @@ impl<'a> Terminal {
         let timestamp_style = if highlight {
             Bold.fg(Color::Yellow)
         } else {
-            Plain.fg(DIMM_COLOR)
+            Plain.fg(dimm_color)
         };
 
         let print_msg = |chunk: &str, sign: &str| if color {
             println!(
                 "{:<timestamp_width$} {:>diff_width$} {:>tag_width$} ({}{}) {} {} {}",
                 timestamp_style.paint(&timestamp),
-                DIMM_COLOR.paint(&diff),
+                dimm_color.paint(&diff),
                 tag_style.paint(&tag),
                 pid_style.paint(&pid),
                 tid_style.paint(&tid),

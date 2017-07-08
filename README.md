@@ -174,6 +174,7 @@ FLAGS:
     -d, --dump              Dump the log and then exit (don't block)
         --help              Prints help information
         --no-color          Monochrome terminal output
+        --no-dimm           Use white as dimm color
         --no-timestamp      No timestamp in terminal output
         --overwrite         Overwrite output file if present
     -r, --restart           Restart command on exit
