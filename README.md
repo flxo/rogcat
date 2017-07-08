@@ -29,11 +29,15 @@ Logs dumped to files are readable by `rogcat` (except `html` format) to allow mu
 
 ## Examples
 
-Capture logs from a connected device and display unconditionally:
+The following examples show a subset of Rogcats features. Please check usage in addition!
+
+### Live
+
+Capture logs from a connected device and display unconditionally. Internally rogcat runs `adb logcat -b all`:
 
 `rogcat`
 
-Write captured (from `adb logcat`) logs to `testrun.log`:
+Write captured (from `adb logcat -b all`) logs to `testrun.log`:
 
 `rogcat -o testrun.log`
 
@@ -42,17 +46,25 @@ it is created:
 
 `rogcat -o ./trace/testrun.log -n 1000` or `rogcat -o ./trace/testrun.log -n 1k`
 
+### STDIN
+
 Process the `stdout/stderr` output of `somecommand`:
 
 `rogcat somecommand` or `somecommand | rogcat -`
+
+### Filter
 
 Display logs from `adb logcat` and filter on records where the tag matches `^ABC.*` along with *not* `X` and the message includes `pattern`:
 
 `rogcat -t "^ADB.*" -t \!X -m pattern`
 
-Read all files matching `trace*` in alphanumerical order and dump lines matching `hmmm` to `/tmp/filtered`:
+The Read all files matching `trace*` in alphanumerical order and dump lines matching `hmmm` to `/tmp/filtered`:
 
 `rogcat -i trace* -m hmmm  -o /tmp/filtered`
+
+Check the `--message` and `--highlight` options in the `help`.
+
+### Serial
 
 Open and read `/dev/ttyUSB0` with given settings and process:
 
@@ -62,6 +74,10 @@ Open and read `/dev/ttyUSB0` with given settings and process:
 
 `rogcat -i serial://COM0@115200,8N1`
 
+The `,8N1` part is optional and default ;-).
+
+### Bugreport
+
 Capture a `Android` bugreport. This only works for `Android` version prior 7:
 
 `rogcat bugreport`
@@ -70,11 +86,15 @@ Capture a `Android` bugreport and write (zipped) to `bugreport.zip`:
 
 `rogcat bugreport -z bugreport.zip`
 
+### Log
+
 Place messages (on level `INFO`) read on `stdin` in the devices log buffer (e.g annotations during manual testing):
 
 `rogcat log -l info  -`
 
-List available profiles:
+### Profiles
+
+List available profiles (see Profiles chapter):
 
 `rogcat profiles --list`
 
@@ -90,19 +110,19 @@ With a working/recent `Rust` and `cargo` setup run
 cargo install rogcat
 ```
 
-or grab one of the binary releases on the GitHub page.
+or grab one of the [binary releases](https://github.com/flxo/rogcat/releases) on the GitHub page.
 
-## Configuration
+## Profiles
 
 Optionally `rogcat` reads a (`toml` formated) configuration file if present. This configuration may include tracing profiles
 ('-p') and settings. The possible options in the config file are a subset of the command line options. The configuration
 file is read from the location set in the environment variable `ROGCAT_CONFIG` or a fixed pathes depending on your OS:
 
-* MacOS: `Library/Application Support/rogcat/config.toml`
+* MacOS: `$HOME/Library/Application Support/rogcat/config.toml`
 * Linux: `$HOME/.config/rogcat/config.toml`
 * Windows: `%HOME%/AppData/Local/rogcat/config.toml`
 
-The environment variable overrules the default path. See `rogcat configuration --example`, `rogcat configuration --help` or `rogcat profiles --help`.
+The environment variable overrules the default path. See `rogcat profiles --example` or `rogcat profiles --help`.
 
 Example:
 
