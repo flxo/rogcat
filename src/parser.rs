@@ -152,28 +152,6 @@ named!(mindroid <Record>,
     )
 );
 
-named!(bsw <Record>,
-    do_parse!(
-        timestamp: opt!(timestamp) >>
-        space >>
-        level: level >>
-        char!('/') >>
-        tag: map_res!(take_until!(":"), from_utf8) >>
-        char!(':') >>
-        message: opt!(map_res!(rest, from_utf8)) >>
-        (
-            Record {
-                timestamp: timestamp.map(|t| Timestamp::new(t)),
-                level: level,
-                tag: tag.trim().to_owned(),
-                process: String::default(),
-                message: message.unwrap_or("").trim().to_owned(),
-                ..Default::default()
-            }
-        )
-    )
-);
-
 named!(bugreport_section <(String, String)>,
     do_parse!(
         tag: map_res!(take_until!("("), from_utf8) >>
@@ -221,17 +199,6 @@ impl Parser {
 
     fn parse_mindroid(line: &str) -> Result<Record> {
         match mindroid(line.as_bytes()) {
-            IResult::Done(_, mut v) => {
-                v.raw = line.to_owned();
-                Ok(v)
-            }
-            IResult::Error(e) => Err(e.into()),
-            IResult::Incomplete(_) => Err("Not enough data".into()),
-        }
-    }
-
-    fn parse_bsw(line: &str) -> Result<Record> {
-        match bsw(line.as_bytes()) {
             IResult::Done(_, mut v) => {
                 v.raw = line.to_owned();
                 Ok(v)
@@ -313,7 +280,6 @@ impl Parser {
             Self::parse_default,
             Self::parse_mindroid,
             Self::parse_csv,
-            Self::parse_bsw,
             Self::parse_bugreport,
         ];
 
@@ -444,17 +410,6 @@ fn parse_csv() {
     assert_eq!(r.thread, "295");
     assert_eq!(r.message, "Sensor:batt_therm:29000 mC");
     assert_eq!(r.raw, "07-01 14:13:14.446   225   295 I ThermalEngine: Sensor:batt_therm:29000 mC");
-}
-
-#[test]
-fn parse_bsw() {
-    let t = "03-07 10:07:59.672 +0100 D/LIFECYCLE: LifecycleManager::reportInit(BSP)";
-    let r = Parser::parse_bsw(t).unwrap();
-    assert_eq!(r.level, Level::Debug);
-    assert_eq!(r.tag, "LIFECYCLE");
-    assert_eq!(r.process, "");
-    assert_eq!(r.thread, "");
-    assert_eq!(r.message, "LifecycleManager::reportInit(BSP)");
 }
 
 #[test]
