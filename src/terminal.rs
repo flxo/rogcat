@@ -5,7 +5,7 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use clap::ArgMatches;
-use configuration::*;
+use profiles::*;
 use errors::*;
 use futures::{Sink, StartSend, Async, AsyncSink, Poll};
 use regex::Regex;
@@ -43,8 +43,8 @@ pub struct Terminal {
 }
 
 impl<'a> Terminal {
-    pub fn new(args: &ArgMatches<'a>, configuration: &Configuration) -> Result<Self> {
-        let mut hl = configuration.profile().highlight();
+    pub fn new(args: &ArgMatches<'a>, profile: &Profile) -> Result<Self> {
+        let mut hl = profile.highlight().clone();
         if args.is_present("highlight") {
             hl.extend(values_t!(args.values_of("highlight"), String)?);
         }

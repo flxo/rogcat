@@ -8,10 +8,10 @@ use clap::{App, AppSettings, Arg, ArgMatches, Shell, SubCommand};
 use errors::*;
 use record::Level;
 use std::io::stdout;
-use configuration::Configuration;
+use profiles::Profiles;
 
 lazy_static! {
-    static ref ABOUT: String = { format!("A 'adb logcat' wrapper and log processor. Your configuration file location is \"{}\".", Configuration::file(None).unwrap().display()) };
+    static ref ABOUT: String = { format!("A 'adb logcat' wrapper and log processor. Your configuration file location is \"{}\".", Profiles::file(None).unwrap().display()) };
 }
 
 pub fn cli() -> App<'static, 'static> {
@@ -162,7 +162,11 @@ pub fn cli() -> App<'static, 'static> {
                 .arg(Arg::with_name("list")
                      .short("l")
                      .long("list")
-                     .help("List profiles")))
+                     .help("List profiles"))
+                .arg(Arg::with_name("example")
+                     .short("e")
+                     .long("example")
+                     .help("Show example configuration")))
         .subcommand(SubCommand::with_name("log")
                 .about("Add log message(s) log buffer")
                 .arg(Arg::with_name("TAG")
@@ -177,12 +181,6 @@ pub fn cli() -> App<'static, 'static> {
                         .possible_values(&[ "trace", "debug", "info", "warn", "error", "fatal", "assert", "T", "D", "I", "W", "E", "F", "A" ],)
                         .help("Log on level"))
                 .arg_from_usage("[MESSAGE] 'Log message. Pass \"-\" to capture from stdin'."))
-        .subcommand(SubCommand::with_name("configuration")
-                .about("Configuration options")
-                .arg(Arg::with_name("example")
-                     .short("e")
-                     .long("example")
-                     .help("Show example configuration")))
 }
 
 pub fn subcommand_completions(args: &ArgMatches) -> Result<i32> {

@@ -39,7 +39,7 @@ extern crate zip;
 
 use clap::ArgMatches;
 use cli::*;
-use configuration::Configuration;
+use profiles::Profiles;
 use error_chain::ChainedError;
 use errors::*;
 use filewriter::FileWriter;
@@ -60,7 +60,7 @@ use which::which_in;
 
 mod bugreport;
 mod cli;
-mod configuration;
+mod profiles;
 mod devices;
 mod errors;
 mod filewriter;
@@ -119,18 +119,16 @@ fn input(core: &Core, args: &ArgMatches) -> Result<Box<Stream<Item = Record, Err
 
 fn run() -> Result<i32> {
     let args = cli().get_matches();
-    let configuration = Configuration::new(&args)?;
+    let profiles = Profiles::new(&args)?;
+    let profile = profiles.profile();
     let mut core = Core::new()?;
 
     match args.subcommand() {
         ("bugreport", Some(sub_matches)) => exit(bugreport::create(sub_matches, &mut core)?),
-        ("configuration", Some(sub_matches)) => exit(
-            configuration.command_configuration(sub_matches)?,
-        ),
         ("completions", Some(sub_matches)) => exit(cli::subcommand_completions(sub_matches)?),
         ("devices", _) => exit(devices::devices(&mut core)?),
         ("log", Some(sub_matches)) => exit(log::run(sub_matches, &mut core)?),
-        ("profiles", Some(sub_matches)) => exit(configuration.command_profiles(sub_matches)?),
+        ("profiles", Some(sub_matches)) => exit(profiles.subcommand(sub_matches)?),
         (_, _) => (),
     }
 
@@ -146,10 +144,10 @@ fn run() -> Result<i32> {
     let output = if args.is_present("output") {
         Box::new(FileWriter::new(&args)?) as RSink
     } else {
-        Box::new(Terminal::new(&args, &configuration)?) as RSink
+        Box::new(Terminal::new(&args, &profile)?) as RSink
     };
     let mut parser = Parser::new();
-    let mut filter = Filter::new(&args, &configuration)?;
+    let mut filter = Filter::new(&args, &profile)?;
 
     let result = input(&core, &args)?
         .and_then(|m| parser.process(m))

@@ -5,7 +5,7 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use clap::ArgMatches;
-use configuration::*;
+use profiles::*;
 use errors::*;
 use record::{Level, Record};
 use regex::Regex;
@@ -19,16 +19,15 @@ pub struct Filter {
 }
 
 impl<'a> Filter {
-    pub fn new(args: &ArgMatches<'a>, configuration: &Configuration) -> Result<Self> {
-        let profile = configuration.profile();
+    pub fn new(args: &ArgMatches<'a>, profile: &Profile) -> Result<Self> {
         let mut tag_filter = args.values_of("tag")
             .map(|m| m.map(|f| f.to_owned()).collect::<Vec<String>>())
             .unwrap_or(vec![]);
-        tag_filter.extend(profile.tag());
+        tag_filter.extend(profile.tag().clone());
         let mut message_filter = args.values_of("message")
             .map(|m| m.map(|f| f.to_owned()).collect::<Vec<String>>())
             .unwrap_or(vec![]);
-        message_filter.extend(profile.message());
+        message_filter.extend(profile.message().clone());
 
         let (tag, tag_negative) = Self::init_filter(tag_filter.clone())?;
         let (message, message_negative) = Self::init_filter(message_filter)?;

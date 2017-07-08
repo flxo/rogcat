@@ -107,21 +107,30 @@ The environment variable overrules the default path. See `rogcat configuration -
 Example:
 
 ```
-[profile.R]
-comment = "Messages starting with R"
-message = ["^R.*"]
+[profile.B]
+comment = "Messages starting with B"
+message = ["^B.*"]
+
+[profile.ABC]
+extends = ["A", "B"]
+comment = "Profiles A, B plus the following filter (^C.*)"
+message = ["^C.*"]
 
 [profile."Comments are optional"]
 tag = ["rogcat"]
-
-[profile."W hitespace"]
-comment = "Profile names can contain whitespaces. Quote on command line..."
 
 [profile.complex]
 comment = "Profiles can be complex. This one is probably very useless."
 highlight = ["blah"]
 message = ["^R.*", "!^A.*", "!^A.*"]
 tag = ["b*", "!adb"]
+
+[profile."W hitespace"]
+comment = "Profile names can contain whitespaces. Quote on command line..."
+
+[profile.A]
+comment = "Messages starting with A"
+message = ["^A.*"]
 
 [profile.rogcat]
 comment = "Only tag \"rogcat\""
