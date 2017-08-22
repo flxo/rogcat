@@ -5,6 +5,7 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 extern crate appdirs;
+extern crate bytes;
 #[macro_use]
 extern crate clap;
 extern crate csv;
@@ -33,6 +34,7 @@ extern crate term_size;
 extern crate tokio_core;
 extern crate tokio_io;
 extern crate tokio_process;
+extern crate tokio_proto;
 extern crate toml;
 extern crate which;
 extern crate zip;
@@ -46,11 +48,12 @@ use filewriter::FileWriter;
 use filter::Filter;
 use futures::{Sink, Stream};
 use parser::Parser;
-use reader::{FileReader, SerialReader, StdinReader};
+use reader::{FileReader, SerialReader, StdinReader, TcpReader};
 use record::Record;
 use runner::Runner;
 use std::env;
 use std::io::{stderr, Write};
+use std::net::ToSocketAddrs;
 use std::path::PathBuf;
 use std::process::{exit, Command};
 use terminal::Terminal;
@@ -93,7 +96,7 @@ fn adb() -> Result<PathBuf> {
         .map_err(|e| format!("Cannot find adb: {}", e).into())
 }
 
-fn input(core: &Core, args: &ArgMatches) -> Result<Box<Stream<Item = Record, Error = Error>>> {
+fn input(core: &mut Core, args: &ArgMatches) -> Result<Box<Stream<Item = Record, Error = Error>>> {
     if args.is_present("input") {
         let input = args.value_of("input").ok_or("Invalid input value")?;
         if SerialReader::parse_serial_arg(input).is_ok() {
@@ -106,6 +109,9 @@ fn input(core: &Core, args: &ArgMatches) -> Result<Box<Stream<Item = Record, Err
             Some(c) => {
                 if c == "-" {
                     Ok(Box::new(StdinReader::new(args, core)))
+                } else if let Ok(ref mut addr) = c.to_socket_addrs() {
+                    let addr = addr.next().ok_or("Failed to resolve")?;
+                    Ok(Box::new(TcpReader::new(args, &addr, core)?))
                 } else if SerialReader::parse_serial_arg(c).is_ok() {
                     Ok(Box::new(SerialReader::new(args, c, core)?))
                 } else {
@@ -149,7 +155,7 @@ fn run() -> Result<i32> {
     let mut parser = Parser::new();
     let mut filter = Filter::new(&args, &profile)?;
 
-    let result = input(&core, &args)?
+    let result = input(&mut core, &args)?
         .and_then(|m| parser.process(m))
         .filter(|m| filter.filter(m))
         .forward(output);

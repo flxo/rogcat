@@ -76,6 +76,12 @@ Open and read `/dev/ttyUSB0` with given settings and process:
 
 The `,8N1` part is optional and default ;-).
 
+### TCP
+
+To connect via TCP to some host run something like:
+
+`rogcat tcp://traceserver:1234`
+
 ### Bugreport
 
 Capture a `Android` bugreport. This only works for `Android` version prior 7:

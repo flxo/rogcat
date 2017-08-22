@@ -4,6 +4,7 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
+use bytes::BytesMut;
 use clap::ArgMatches;
 use errors::*;
 use futures::sync::mpsc::Receiver;
@@ -15,11 +16,16 @@ use serial::prelude::*;
 use std::fs::File;
 use std::io::stdin;
 use std::io::{BufReader, BufRead, Read};
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::from_utf8;
+use std::str;
 use std::thread;
 use std::time::Duration;
+use tokio_core::net::TcpStream;
 use tokio_core::reactor::Core;
+use tokio_io::AsyncRead;
+use tokio_io::codec::{Encoder, Decoder};
 
 pub struct LineReader {
     rx: Receiver<Result<Record>>,
@@ -296,6 +302,48 @@ impl Stream for SerialReader {
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         self.reader.poll()
+    }
+}
+
+struct LineCodec;
+
+impl Decoder for LineCodec {
+    type Item = Record;
+    type Error = ::std::io::Error;
+
+    fn decode(&mut self, buf: &mut BytesMut) -> ::std::result::Result<Option<Record>, ::std::io::Error> {
+        if let Some(n) = buf.as_ref().iter().position(|b| *b == b'\n') {
+            let line = buf.split_to(n);
+            buf.split_to(1);
+            return match str::from_utf8(&line.as_ref()) {
+                Ok(s) => Ok(Some(Record { raw: s.to_string(), ..Default::default() })),
+                Err(_) => Err(::std::io::Error::new(::std::io::ErrorKind::Other, "Invalid string")),
+            }
+        }
+
+        Ok(None)
+    }
+}
+
+impl Encoder for LineCodec {
+    type Item = Record;
+    type Error = ::std::io::Error;
+
+    fn encode(&mut self, _msg: Record, _buf: &mut BytesMut) -> ::std::io::Result<()> {
+        unimplemented!();
+    }
+}
+
+pub struct TcpReader {}
+
+impl<'a> TcpReader {
+    pub fn new(_args: &ArgMatches<'a>, addr: &SocketAddr, core: &mut Core) -> Result<Box<Stream<Item=Record, Error=Error>>> {
+        let handle = core.handle();
+        let s = core.run(TcpStream::connect(&addr, &handle))
+            .chain_err(|| "Failed to connect")?
+            .framed(LineCodec)
+            .map_err(|e| e.into());
+        Ok(s.boxed())
     }
 }
 
