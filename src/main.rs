@@ -36,6 +36,7 @@ extern crate tokio_io;
 extern crate tokio_process;
 extern crate tokio_proto;
 extern crate toml;
+extern crate url;
 extern crate which;
 extern crate zip;
 
@@ -59,6 +60,7 @@ use std::process::{exit, Command};
 use terminal::Terminal;
 use tokio_core::reactor::Core;
 use tokio_process::CommandExt;
+use url::Url;
 use which::which_in;
 
 mod bugreport;
@@ -109,13 +111,21 @@ fn input(core: &mut Core, args: &ArgMatches) -> Result<Box<Stream<Item = Record,
             Some(c) => {
                 if c == "-" {
                     Ok(Box::new(StdinReader::new(args, core)))
-                } else if let Ok(ref mut addr) = c.to_socket_addrs() {
-                    let addr = addr.next().ok_or("Failed to resolve")?;
-                    Ok(Box::new(TcpReader::new(args, &addr, core)?))
-                } else if SerialReader::parse_serial_arg(c).is_ok() {
-                    Ok(Box::new(SerialReader::new(args, c, core)?))
                 } else {
-                    Ok(Box::new(Runner::new(&args, core.handle())?))
+                    if let Ok(url) = Url::parse(c) {
+                        match url.scheme() {
+                            "tcp" => {
+                                let addr = url.to_socket_addrs()?
+                                    .next()
+                                    .ok_or("Failed to parse addr")?;
+                                Ok(Box::new(TcpReader::new(args, &addr, core)?))
+                            },
+                            "serial" => Ok(Box::new(SerialReader::new(args, c, core)?)),
+                            _ => Ok(Box::new(Runner::new(&args, core.handle())?)),
+                        }
+                    } else {
+                        Ok(Box::new(Runner::new(&args, core.handle())?))
+                    }
                 }
             }
             None => Ok(Box::new(Runner::new(args, core.handle())?)),

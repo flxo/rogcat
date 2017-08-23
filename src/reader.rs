@@ -311,14 +311,23 @@ impl Decoder for LineCodec {
     type Item = Record;
     type Error = ::std::io::Error;
 
-    fn decode(&mut self, buf: &mut BytesMut) -> ::std::result::Result<Option<Record>, ::std::io::Error> {
+    fn decode(
+        &mut self,
+        buf: &mut BytesMut,
+    ) -> ::std::result::Result<Option<Record>, ::std::io::Error> {
         if let Some(n) = buf.as_ref().iter().position(|b| *b == b'\n') {
             let line = buf.split_to(n);
             buf.split_to(1);
             return match str::from_utf8(&line.as_ref()) {
-                Ok(s) => Ok(Some(Record { raw: s.to_string(), ..Default::default() })),
-                Err(_) => Err(::std::io::Error::new(::std::io::ErrorKind::Other, "Invalid string")),
-            }
+                Ok(s) => Ok(Some(Record {
+                    raw: s.to_string(),
+                    ..Default::default()
+                })),
+                Err(_) => Err(::std::io::Error::new(
+                    ::std::io::ErrorKind::Other,
+                    "Invalid string",
+                )),
+            };
         }
 
         Ok(None)
@@ -337,7 +346,11 @@ impl Encoder for LineCodec {
 pub struct TcpReader {}
 
 impl<'a> TcpReader {
-    pub fn new(_args: &ArgMatches<'a>, addr: &SocketAddr, core: &mut Core) -> Result<Box<Stream<Item=Record, Error=Error>>> {
+    pub fn new(
+        _args: &ArgMatches<'a>,
+        addr: &SocketAddr,
+        core: &mut Core,
+    ) -> Result<Box<Stream<Item = Record, Error = Error>>> {
         let handle = core.handle();
         let s = core.run(TcpStream::connect(&addr, &handle))
             .chain_err(|| "Failed to connect")?
