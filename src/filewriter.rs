@@ -392,7 +392,10 @@ impl<'a> FileWriter {
                         )?
                     }
 
+                    #[cfg(not(windows))]
                     let now = strftime("%F-%T", &now())?;
+                    #[cfg(windows)]
+                    let now = strftime("%F-%H_%M_%S", &now())?;
                     let enumeration = e.map(|a| format!("-{:03}", a)).unwrap_or("".to_owned());
                     let filename = self.filename
                         .file_name()
