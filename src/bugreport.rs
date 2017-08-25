@@ -61,8 +61,13 @@ impl Drop for ZipFile {
 }
 
 fn report_filename() -> Result<String> {
-    let now = strftime("%m-%d_%H:%M:%S", &now())?;
-    Ok(format!("{}-bugreport", now))
+    #[cfg(not(windows))]
+    let sep = ":";
+    #[cfg(windows)]
+    let sep = "_";
+
+    let format = format!("%m-%d_%H{}%M{}%S", sep, sep);
+    Ok(format!("{}-bugreport.txt", strftime(&format, &now())?))
 }
 
 /// Performs a dumpstate and write to fs. Note: The Android 7+ dumpstate is not supported.
