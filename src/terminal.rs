@@ -311,14 +311,12 @@ impl<'a> Terminal {
 }
 
 impl Sink for Terminal {
-    type SinkItem = Option<Record>;
+    type SinkItem = Record;
     type SinkError = Error;
 
     fn start_send(&mut self, item: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
-        if let Some(item) = item {
-            if let Err(e) = self.print_record(&item) {
-                return Err(e);
-            }
+        if let Err(e) = self.print_record(&item) {
+            return Err(e);
         }
         Ok(AsyncSink::Ready)
     }

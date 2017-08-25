@@ -35,7 +35,6 @@ extern crate tokio_core;
 extern crate tokio_io;
 extern crate tokio_process;
 extern crate tokio_proto;
-extern crate tokio_signal;
 extern crate toml;
 extern crate url;
 extern crate which;
@@ -43,14 +42,13 @@ extern crate zip;
 
 use clap::ArgMatches;
 use cli::*;
+use profiles::Profiles;
 use error_chain::ChainedError;
 use errors::*;
 use filewriter::FileWriter;
 use filter::Filter;
-use futures::future::ok;
-use futures::{Future, Sink, Stream};
+use futures::{Sink, Stream};
 use parser::Parser;
-use profiles::Profiles;
 use reader::{FileReader, SerialReader, StdinReader, TcpReader};
 use record::Record;
 use runner::Runner;
@@ -81,7 +79,7 @@ mod terminal;
 #[cfg(test)]
 mod tests;
 
-type RSink = Box<Sink<SinkItem = Option<Record>, SinkError = Error>>;
+type RSink = Box<Sink<SinkItem = Record, SinkError = Error>>;
 
 fn main() {
     match run() {
@@ -167,16 +165,9 @@ fn run() -> Result<i32> {
     let mut parser = Parser::new();
     let mut filter = Filter::new(&args, &profile)?;
 
-    let ctrl_c = tokio_signal::ctrl_c(&core.handle()).flatten_stream()
-        .map(|_| None)
-        .map_err(|e| e.into());
-
     let result = input(&mut core, &args)?
         .and_then(|m| parser.process(m))
         .filter(|m| filter.filter(m))
-        .map(|m| Some(m))
-        .select(ctrl_c)
-        .take_while(|m| ok(m.is_some()))
         .forward(output);
 
     core.run(result).map(|_| 0)
