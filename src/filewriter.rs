@@ -474,12 +474,14 @@ impl<'a> FileWriter {
 }
 
 impl Sink for FileWriter {
-    type SinkItem = Record;
+    type SinkItem = Option<Record>;
     type SinkError = Error;
 
     fn start_send(&mut self, item: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
-        if let Err(e) = self.write(&item) {
-            return Err(e);
+        if let Some(item) = item {
+            if let Err(e) = self.write(&item) {
+                return Err(e);
+            }
         }
         Ok(AsyncSink::Ready)
     }
