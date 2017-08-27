@@ -176,7 +176,9 @@ impl Profiles {
                     println!(
                         " * {}{}",
                         k,
-                        v.comment().clone().map(|c| format!(": {}", c)).unwrap_or("".into())
+                        v.comment().clone().map(|c| format!(": {}", c)).unwrap_or(
+                            "".into(),
+                        )
                     );
                 }
             }
@@ -276,7 +278,10 @@ impl Profiles {
                     return Ok(f);
                 } else {
                     return Err(
-                        format!("Cannot find \"{}\". Use --profiles_path to specify the path manually!", f.display()).into(),
+                        format!(
+                            "Cannot find \"{}\". Use --profiles_path to specify the path manually!",
+                            f.display()
+                        ).into(),
                     );
                 }
             }

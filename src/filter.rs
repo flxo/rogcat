@@ -65,7 +65,9 @@ impl<'a> Filter {
                 return false;
             }
 
-            if !self.message.is_empty() && !self.message.iter().any(|m| m.is_match(&record.message)) {
+            if !self.message.is_empty() &&
+                !self.message.iter().any(|m| m.is_match(&record.message))
+            {
                 return false;
             }
 

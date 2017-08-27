@@ -373,11 +373,7 @@ impl<'a> FileWriter {
                 // If the overwrite flag is set the files are
                 // enumerated from the first one to get nice
                 // aligned filenames.
-                let mut e: Option<u32> = if overwrite {
-                    None
-                } else {
-                    Some(0)
-                };
+                let mut e: Option<u32> = if overwrite { None } else { Some(0) };
 
                 loop {
                     let dir = self.filename.parent().unwrap_or(Path::new(""));

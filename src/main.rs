@@ -118,11 +118,10 @@ fn input(core: &mut Core, args: &ArgMatches) -> Result<RStream> {
                     if let Ok(url) = Url::parse(c) {
                         match url.scheme() {
                             "tcp" => {
-                                let addr = url.to_socket_addrs()?
-                                    .next()
-                                    .ok_or("Failed to parse addr")?;
+                                let addr =
+                                    url.to_socket_addrs()?.next().ok_or("Failed to parse addr")?;
                                 Ok(Box::new(TcpReader::new(args, &addr, core)?))
-                            },
+                            }
                             "serial" => Ok(Box::new(SerialReader::new(args, c, core)?)),
                             _ => Ok(Box::new(Runner::new(&args, core.handle())?)),
                         }
@@ -161,7 +160,8 @@ fn run() -> Result<i32> {
     }
 
     let input = input(&mut core, &args)?;
-    let ctrl_c = tokio_signal::ctrl_c(&core.handle()).flatten_stream()
+    let ctrl_c = tokio_signal::ctrl_c(&core.handle())
+        .flatten_stream()
         .map(|_| None)
         .map_err(|e| e.into());
     let mut parser = Parser::new();
@@ -172,8 +172,9 @@ fn run() -> Result<i32> {
         Box::new(Terminal::new(&args, &profile)?) as RSink
     };
 
-    let result = input.select(ctrl_c)
-        .take_while(|i| ok(i != &None) )
+    let result = input
+        .select(ctrl_c)
+        .take_while(|i| ok(i != &None))
         .and_then(|m| parser.process(m))
         .filter(|m| filter.filter(m))
         .forward(output);

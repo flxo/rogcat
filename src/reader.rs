@@ -346,11 +346,7 @@ impl Encoder for LineCodec {
 pub struct TcpReader {}
 
 impl<'a> TcpReader {
-    pub fn new(
-        _args: &ArgMatches<'a>,
-        addr: &SocketAddr,
-        core: &mut Core,
-    ) -> Result<RStream> {
+    pub fn new(_args: &ArgMatches<'a>, addr: &SocketAddr, core: &mut Core) -> Result<RStream> {
         let handle = core.handle();
         let s = core.run(TcpStream::connect(&addr, &handle))
             .chain_err(|| "Failed to connect")?

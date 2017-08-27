@@ -106,7 +106,8 @@ fn extends_message_a_b_c() {
     let output = run_rogcat_with_config_and_input_file(&svec!("-p", "AB"), &input).unwrap();
     assert_eq!(output.len(), 2);
 
-    let output = run_rogcat_with_config_and_input_file(&svec!("-p", "AB", "-m", "C"), &input).unwrap();
+    let output = run_rogcat_with_config_and_input_file(&svec!("-p", "AB", "-m", "C"), &input)
+        .unwrap();
     assert_eq!(output.len(), 3);
 
     let output = run_rogcat_with_config_and_input_file(&svec!("-p", "ABC"), &input).unwrap();
