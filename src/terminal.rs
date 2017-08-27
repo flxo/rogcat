@@ -5,9 +5,9 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use clap::ArgMatches;
-use profiles::*;
 use errors::*;
 use futures::{Sink, StartSend, Async, AsyncSink, Poll};
+use profiles::*;
 use regex::Regex;
 use std::cmp::max;
 use std::collections::HashMap;
@@ -311,12 +311,14 @@ impl<'a> Terminal {
 }
 
 impl Sink for Terminal {
-    type SinkItem = Record;
+    type SinkItem = Option<Record>;
     type SinkError = Error;
 
     fn start_send(&mut self, item: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
-        if let Err(e) = self.print_record(&item) {
-            return Err(e);
+        if let Some(record) = item {
+            if let Err(e) = self.print_record(&record) {
+                return Err(e);
+            }
         }
         Ok(AsyncSink::Ready)
     }

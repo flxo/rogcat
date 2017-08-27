@@ -22,13 +22,14 @@ use std::str::from_utf8;
 use std::str;
 use std::thread;
 use std::time::Duration;
+use super::RStream;
 use tokio_core::net::TcpStream;
 use tokio_core::reactor::Core;
 use tokio_io::AsyncRead;
 use tokio_io::codec::{Encoder, Decoder};
 
 pub struct LineReader {
-    rx: Receiver<Result<Record>>,
+    rx: Receiver<Result<Option<Record>>>,
 }
 
 impl LineReader {
@@ -42,7 +43,6 @@ impl LineReader {
             loop {
                 let mut tx = tx.clone();
                 let mut buffer = Vec::new();
-                let mut done = false;
                 if let Some(c) = head {
                     if c == 0 {
                         break;
@@ -55,10 +55,10 @@ impl LineReader {
                                 .map_err(|e| e.into())
                                 .map(|line| line.trim().to_owned())
                                 .map(|raw| {
-                                    Record {
+                                    Some(Record {
                                         raw,
                                         ..Default::default()
-                                    }
+                                    })
                                 });
                             let f = ::futures::done(record);
                             remote.spawn(|_| {
@@ -67,8 +67,11 @@ impl LineReader {
 
                             head = head.map(|c| c - 1);
                         } else {
-                            tx.close().ok();
-                            done = true;
+                            let f = ::futures::done(Ok(None));
+                            remote.spawn(|_| {
+                                f.then(|res| tx.send(res).map(|_| ()).map_err(|_| ()))
+                            });
+                            break;
                         }
                     }
                     Err(e) => {
@@ -76,9 +79,6 @@ impl LineReader {
                         remote.spawn(|_| f.map_err(|_| ()));
                         tx.close().ok();
                     }
-                }
-                if done {
-                    break;
                 }
             }
         });
@@ -88,7 +88,7 @@ impl LineReader {
 }
 
 impl Stream for LineReader {
-    type Item = Record;
+    type Item = Option<Record>;
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
@@ -138,7 +138,7 @@ impl<'a> FileReader {
 }
 
 impl Stream for FileReader {
-    type Item = Record;
+    type Item = Option<Record>;
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
@@ -172,7 +172,7 @@ impl<'a> StdinReader {
 }
 
 impl Stream for StdinReader {
-    type Item = Record;
+    type Item = Option<Record>;
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
@@ -297,7 +297,7 @@ impl<'a> SerialReader {
 }
 
 impl Stream for SerialReader {
-    type Item = Record;
+    type Item = Option<Record>;
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
@@ -350,11 +350,12 @@ impl<'a> TcpReader {
         _args: &ArgMatches<'a>,
         addr: &SocketAddr,
         core: &mut Core,
-    ) -> Result<Box<Stream<Item = Record, Error = Error>>> {
+    ) -> Result<RStream> {
         let handle = core.handle();
         let s = core.run(TcpStream::connect(&addr, &handle))
             .chain_err(|| "Failed to connect")?
             .framed(LineCodec)
+            .map(|r| Some(r))
             .map_err(|e| e.into());
         Ok(s.boxed())
     }

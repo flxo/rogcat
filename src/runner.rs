@@ -82,7 +82,7 @@ impl<'a> Runner {
 }
 
 impl Stream for Runner {
-    type Item = Record;
+    type Item = Option<Record>;
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
@@ -95,10 +95,10 @@ impl Stream for Runner {
             match self.output.poll() {
                 Ok(Async::Ready(t)) => {
                     if let Some(s) = t {
-                        let r = Record {
+                        let r = Some(Record {
                             raw: s,
                             ..Default::default()
-                        };
+                        });
                         self.head = self.head.map(|c| c - 1);
                         return Ok(Async::Ready(Some(r)));
                     } else {

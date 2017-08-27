@@ -7,8 +7,8 @@
 use csv::ReaderBuilder;
 use errors::*;
 use nom::{digit, hex_digit, IResult, rest, space};
-use std::str::from_utf8;
 use record::{Level, Record, Timestamp};
+use std::str::from_utf8;
 use time::Tm;
 
 named!(colon <char>, char!(':'));
@@ -269,35 +269,39 @@ impl Parser {
         }
     }
 
-    pub fn process(&mut self, record: Record) -> Result<Record> {
-        if let Some(p) = self.last {
-            if let Ok(record) = p(&record.raw) {
-                return Ok(record);
-            }
-        }
-
-        let parser = [
-            Self::parse_default,
-            Self::parse_mindroid,
-            Self::parse_csv,
-            Self::parse_bugreport,
-        ];
-
-        let mut parse = |record: &Record| -> Record {
-            for p in parser.iter() {
-                if let Ok(r) = p(&record.raw) {
-                    self.last = Some(*p);
-                    return r;
+    pub fn process(&mut self, record: Option<Record>) -> Result<Option<Record>> {
+        if let Some(record) = record {
+            if let Some(p) = self.last {
+                if let Ok(record) = p(&record.raw) {
+                    return Ok(Some(record));
                 }
             }
-            Record {
-                message: record.raw.clone(),
-                raw: record.raw.clone(),
-                ..Default::default()
-            }
-        };
 
-        Ok(parse(&record))
+            let parser = [
+                Self::parse_default,
+                Self::parse_mindroid,
+                Self::parse_csv,
+                Self::parse_bugreport,
+            ];
+
+            let mut parse = |record: &Record| -> Record {
+                for p in parser.iter() {
+                    if let Ok(r) = p(&record.raw) {
+                        self.last = Some(*p);
+                        return r;
+                    }
+                }
+                Record {
+                    message: record.raw.clone(),
+                    raw: record.raw.clone(),
+                    ..Default::default()
+                }
+            };
+
+            Ok(Some(parse(&record)))
+        } else {
+            Ok(record)
+        }
     }
 }
 

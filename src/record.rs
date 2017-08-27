@@ -117,7 +117,7 @@ impl Level {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Timestamp {
     pub tm: Tm,
 }
@@ -176,7 +176,7 @@ impl<'de> Deserialize<'de> for Timestamp {
     }
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct Record {
     pub timestamp: Option<Timestamp>,
     pub message: String,

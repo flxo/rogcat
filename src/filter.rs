@@ -5,8 +5,8 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use clap::ArgMatches;
-use profiles::*;
 use errors::*;
+use profiles::*;
 use record::{Level, Record};
 use regex::Regex;
 
@@ -59,31 +59,35 @@ impl<'a> Filter {
         Ok((positive, negative))
     }
 
-    pub fn filter(&mut self, record: &Record) -> bool {
-        if record.level < self.level {
-            return false;
-        }
+    pub fn filter(&mut self, record: &Option<Record>) -> bool {
+        if let &Some(ref record) = record {
+            if record.level < self.level {
+                return false;
+            }
 
-        if !self.message.is_empty() && !self.message.iter().any(|m| m.is_match(&record.message)) {
-            return false;
-        }
+            if !self.message.is_empty() && !self.message.iter().any(|m| m.is_match(&record.message)) {
+                return false;
+            }
 
-        if self.message_negative.iter().any(
-            |m| m.is_match(&record.message),
-        )
-        {
-            return false;
-        }
+            if self.message_negative.iter().any(
+                |m| m.is_match(&record.message),
+            )
+            {
+                return false;
+            }
 
-        if !self.tag.is_empty() && !self.tag.iter().any(|m| m.is_match(&record.tag)) {
-            return false;
-        }
+            if !self.tag.is_empty() && !self.tag.iter().any(|m| m.is_match(&record.tag)) {
+                return false;
+            }
 
-        if self.tag_negative.iter().any(|m| m.is_match(&record.tag)) {
-            return false;
-        }
+            if self.tag_negative.iter().any(|m| m.is_match(&record.tag)) {
+                return false;
+            }
 
-        true
+            true
+        } else {
+            true
+        }
     }
 }
 

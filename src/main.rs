@@ -35,6 +35,7 @@ extern crate tokio_core;
 extern crate tokio_io;
 extern crate tokio_process;
 extern crate tokio_proto;
+extern crate tokio_signal;
 extern crate toml;
 extern crate url;
 extern crate which;
@@ -42,13 +43,14 @@ extern crate zip;
 
 use clap::ArgMatches;
 use cli::*;
-use profiles::Profiles;
 use error_chain::ChainedError;
 use errors::*;
 use filewriter::FileWriter;
 use filter::Filter;
-use futures::{Sink, Stream};
+use futures::{Future, Sink, Stream};
+use futures::future::ok;
 use parser::Parser;
+use profiles::Profiles;
 use reader::{FileReader, SerialReader, StdinReader, TcpReader};
 use record::Record;
 use runner::Runner;
@@ -79,7 +81,8 @@ mod terminal;
 #[cfg(test)]
 mod tests;
 
-type RSink = Box<Sink<SinkItem = Record, SinkError = Error>>;
+pub type RSink = Box<Sink<SinkItem = Option<Record>, SinkError = Error>>;
+pub type RStream = Box<Stream<Item = Option<Record>, Error = Error>>;
 
 fn main() {
     match run() {
@@ -98,7 +101,7 @@ fn adb() -> Result<PathBuf> {
         .map_err(|e| format!("Cannot find adb: {}", e).into())
 }
 
-fn input(core: &mut Core, args: &ArgMatches) -> Result<Box<Stream<Item = Record, Error = Error>>> {
+fn input(core: &mut Core, args: &ArgMatches) -> Result<RStream> {
     if args.is_present("input") {
         let input = args.value_of("input").ok_or("Invalid input value")?;
         if SerialReader::parse_serial_arg(input).is_ok() {
@@ -157,15 +160,20 @@ fn run() -> Result<i32> {
         exit(output.code().ok_or("Failed to get exit code")?);
     }
 
+    let input = input(&mut core, &args)?;
+    let ctrl_c = tokio_signal::ctrl_c(&core.handle()).flatten_stream()
+        .map(|_| None)
+        .map_err(|e| e.into());
+    let mut parser = Parser::new();
+    let mut filter = Filter::new(&args, &profile)?;
     let output = if args.is_present("output") {
         Box::new(FileWriter::new(&args)?) as RSink
     } else {
         Box::new(Terminal::new(&args, &profile)?) as RSink
     };
-    let mut parser = Parser::new();
-    let mut filter = Filter::new(&args, &profile)?;
 
-    let result = input(&mut core, &args)?
+    let result = input.select(ctrl_c)
+        .take_while(|i| ok(i != &None) )
         .and_then(|m| parser.process(m))
         .filter(|m| filter.filter(m))
         .forward(output);
