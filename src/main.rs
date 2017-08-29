@@ -172,9 +172,8 @@ fn run() -> Result<i32> {
         Box::new(Terminal::new(&args, &profile)?) as RSink
     };
 
-    let result = input
-        .select(ctrl_c)
-        .take_while(|i| ok(i != &None))
+    let result = input.select(ctrl_c)
+        .take_while(|i| ok(!i.is_none()))
         .and_then(|m| parser.process(m))
         .filter(|m| filter.filter(m))
         .forward(output);

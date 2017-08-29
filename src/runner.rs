@@ -109,7 +109,7 @@ impl Stream for Runner {
                             self.output = output;
                             self.child = child;
                         } else {
-                            return Ok(Async::Ready(None));
+                            return Ok(Async::Ready(Some(None)));
                         }
                     }
                 }
