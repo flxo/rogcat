@@ -7,15 +7,48 @@
 use clap::ArgMatches;
 use errors::*;
 use futures::{Async, Poll, Stream};
-use std::io::BufReader;
+use std::io::{self, BufRead, BufReader};
+use std::mem;
 use std::process::{Command, Stdio};
 use super::adb;
 use super::record::Record;
 use super::terminal::DIMM_COLOR;
 use term_painter::ToStyle;
 use tokio_core::reactor::Handle;
-use tokio_io::io::lines;
+use tokio_io::AsyncRead;
 use tokio_process::{Child, CommandExt};
+
+pub struct LossyLines<A> {
+    io: A,
+    buffer: Vec<u8>,
+}
+
+pub fn lossy_lines<A>(a: A) -> LossyLines<A>
+    where A: AsyncRead + BufRead,
+{
+    LossyLines {
+        io: a,
+        buffer: Vec::new(),
+    }
+}
+
+impl<A> Stream for LossyLines<A>
+    where A: AsyncRead + BufRead,
+{
+    type Item = String;
+    type Error = io::Error;
+
+    fn poll(&mut self) -> Poll<Option<String>, io::Error> {
+        let n = try_nb!(self.io.read_until(b'\n', &mut self.buffer));
+        if n == 0 && self.buffer.len() == 0 {
+            return Ok(None.into())
+        }
+        self.buffer.pop();
+        let mut s = String::from_utf8_lossy(&self.buffer).into_owned();
+        self.buffer.clear();
+        Ok(Some(mem::replace(&mut s, String::new())).into())
+    }
+}
 
 type OutStream = Box<Stream<Item = String, Error = ::std::io::Error>>;
 
@@ -76,7 +109,7 @@ impl<'a> Runner {
         let stderr = child.stderr().take().ok_or("Failed get stderr")?;
         let stdout_reader = BufReader::new(stdout);
         let stderr_reader = BufReader::new(stderr);
-        let output = lines(stdout_reader).select(lines(stderr_reader)).boxed();
+        let output = lossy_lines(stdout_reader).select(lossy_lines(stderr_reader)).boxed();
         Ok((child, output))
     }
 }

@@ -51,16 +51,12 @@ impl LineReader {
                 match reader.read_until(b'\n', &mut buffer) {
                     Ok(len) => {
                         if len > 0 {
-                            let record = String::from_utf8(buffer)
-                                .map_err(|e| e.into())
-                                .map(|line| line.trim().to_owned())
-                                .map(|raw| {
-                                    Some(Record {
-                                        raw,
-                                        ..Default::default()
-                                    })
-                                });
-                            let f = ::futures::done(record);
+                            let raw = String::from_utf8_lossy(&buffer).into_owned().trim().to_owned();
+                            let record = Some(Record {
+                                raw,
+                                ..Default::default()
+                            });
+                            let f = ::futures::done(Ok(record));
                             remote.spawn(|_| {
                                 f.then(|res| tx.send(res).map(|_| ()).map_err(|_| ()))
                             });
@@ -318,16 +314,11 @@ impl Decoder for LineCodec {
         if let Some(n) = buf.as_ref().iter().position(|b| *b == b'\n') {
             let line = buf.split_to(n);
             buf.split_to(1);
-            return match str::from_utf8(&line.as_ref()) {
-                Ok(s) => Ok(Some(Record {
-                    raw: s.to_string(),
-                    ..Default::default()
-                })),
-                Err(_) => Err(::std::io::Error::new(
-                    ::std::io::ErrorKind::Other,
-                    "Invalid string",
-                )),
-            };
+            let s = String::from_utf8_lossy(&line).into_owned();
+            return Ok(Some(Record {
+                raw: s,
+                ..Default::default()
+            }));
         }
 
         Ok(None)

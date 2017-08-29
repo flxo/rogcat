@@ -6,6 +6,7 @@
 
 #[macro_use]
 pub(crate) mod utils;
+mod file_reader;
 mod filter;
 mod profiles;
 mod system;

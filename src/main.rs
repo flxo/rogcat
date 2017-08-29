@@ -32,6 +32,7 @@ extern crate time;
 extern crate term_painter;
 extern crate term_size;
 extern crate tokio_core;
+#[macro_use]
 extern crate tokio_io;
 extern crate tokio_process;
 extern crate tokio_proto;
