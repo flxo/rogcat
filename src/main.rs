@@ -35,7 +35,6 @@ extern crate tokio_core;
 #[macro_use]
 extern crate tokio_io;
 extern crate tokio_process;
-extern crate tokio_proto;
 extern crate tokio_signal;
 extern crate toml;
 extern crate url;
