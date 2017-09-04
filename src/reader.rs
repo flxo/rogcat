@@ -45,6 +45,10 @@ impl LineReader {
                 let mut buffer = Vec::new();
                 if let Some(c) = head {
                     if c == 0 {
+                        let f = ::futures::done(Ok(None));
+                        remote.spawn(|_| {
+                            f.then(|res| tx.send(res).map(|_| ()).map_err(|_| ()))
+                        });
                         break;
                     }
                 }
