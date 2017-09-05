@@ -112,17 +112,16 @@ fn adb() -> Result<PathBuf> {
 /// Detect configuration directory
 fn config_dir() -> Result<PathBuf> {
     appdirs::user_config_dir(Some("rogcat"), None, false)
-            .map_err(|_| "Failed to detect config dir".into())
+        .map_err(|_| "Failed to detect config dir".into())
 }
 
 /// Read a value from the configuration file
 /// config_dir/config.toml
 fn config_get<'a, T>(key: &'a str) -> Option<T>
-    where T: serde::Deserialize<'a>
+where
+    T: serde::Deserialize<'a>,
 {
-    CONFIG.read()
-        .ok()
-        .and_then(|c| c.get::<T>(key).ok())
+    CONFIG.read().ok().and_then(|c| c.get::<T>(key).ok())
 }
 
 fn input(core: &mut Core, args: &ArgMatches) -> Result<RStream> {
@@ -162,8 +161,11 @@ fn input(core: &mut Core, args: &ArgMatches) -> Result<RStream> {
 fn run() -> Result<i32> {
     let args = cli().get_matches();
     let config_file = config_dir()?.join("config.toml");
-    CONFIG.write().map_err(|_| "Failed to get config lock")?
-        .merge(config::File::from(config_file)).ok();
+    CONFIG
+        .write()
+        .map_err(|_| "Failed to get config lock")?
+        .merge(config::File::from(config_file))
+        .ok();
     let profiles = Profiles::new(&args)?;
     let profile = profiles.profile();
     let mut core = Core::new()?;
@@ -179,7 +181,7 @@ fn run() -> Result<i32> {
 
     if args.is_present("clear") {
         let buffer = ::config_get::<Vec<String>>("buffer")
-            .unwrap_or(vec!("all".to_owned()))
+            .unwrap_or(vec!["all".to_owned()])
             .join(" -b ");
         let child = Command::new(adb()?)
             .arg("logcat")
@@ -204,7 +206,8 @@ fn run() -> Result<i32> {
         Box::new(Terminal::new(&args, &profile)?) as RSink
     };
 
-    let result = input.select(ctrl_c)
+    let result = input
+        .select(ctrl_c)
         .take_while(|i| ok(!i.is_none()))
         .and_then(|m| parser.process(m))
         .filter(|m| filter.filter(m))

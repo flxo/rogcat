@@ -11,7 +11,10 @@ use tests::utils::*;
 #[test]
 fn invalid_string() {
     let path = tempfile().unwrap();
-    File::create(path.clone()).unwrap().write_all(b"some invalid bytes come here: \xF0\x90\x80\nhaha").unwrap();
+    File::create(path.clone())
+        .unwrap()
+        .write_all(b"some invalid bytes come here: \xF0\x90\x80\nhaha")
+        .unwrap();
     let args = svec!("-i", format!("{}", path.display()));
     let output = run_rogcat(&args, None).unwrap();
     assert!(output.0);

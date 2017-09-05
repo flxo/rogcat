@@ -46,16 +46,17 @@ impl LineReader {
                 if let Some(c) = head {
                     if c == 0 {
                         let f = ::futures::done(Ok(None));
-                        remote.spawn(|_| {
-                            f.then(|res| tx.send(res).map(|_| ()).map_err(|_| ()))
-                        });
+                        remote.spawn(|_| f.then(|res| tx.send(res).map(|_| ()).map_err(|_| ())));
                         break;
                     }
                 }
                 match reader.read_until(b'\n', &mut buffer) {
                     Ok(len) => {
                         if len > 0 {
-                            let raw = String::from_utf8_lossy(&buffer).into_owned().trim().to_owned();
+                            let raw = String::from_utf8_lossy(&buffer)
+                                .into_owned()
+                                .trim()
+                                .to_owned();
                             let record = Some(Record {
                                 raw,
                                 ..Default::default()

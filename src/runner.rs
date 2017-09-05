@@ -24,7 +24,8 @@ pub struct LossyLines<A> {
 }
 
 pub fn lossy_lines<A>(a: A) -> LossyLines<A>
-    where A: AsyncRead + BufRead,
+where
+    A: AsyncRead + BufRead,
 {
     LossyLines {
         io: a,
@@ -33,7 +34,8 @@ pub fn lossy_lines<A>(a: A) -> LossyLines<A>
 }
 
 impl<A> Stream for LossyLines<A>
-    where A: AsyncRead + BufRead,
+where
+    A: AsyncRead + BufRead,
 {
     type Item = String;
     type Error = io::Error;
@@ -41,7 +43,7 @@ impl<A> Stream for LossyLines<A>
     fn poll(&mut self) -> Poll<Option<String>, io::Error> {
         let n = try_nb!(self.io.read_until(b'\n', &mut self.buffer));
         if n == 0 && self.buffer.len() == 0 {
-            return Ok(None.into())
+            return Ok(None.into());
         }
         self.buffer.pop();
         let mut s = String::from_utf8_lossy(&self.buffer).into_owned();
@@ -86,7 +88,7 @@ impl<'a> Runner {
                 }
 
                 let buffer = ::config_get::<Vec<String>>("buffer")
-                    .unwrap_or(vec!("all".to_owned()))
+                    .unwrap_or(vec!["all".to_owned()])
                     .join(" -b ");
 
                 let cmd = format!("{} logcat -b {} {}", adb, buffer, logcat_args.join(" "));
@@ -119,7 +121,9 @@ impl<'a> Runner {
         let stderr = child.stderr().take().ok_or("Failed get stderr")?;
         let stdout_reader = BufReader::new(stdout);
         let stderr_reader = BufReader::new(stderr);
-        let output = lossy_lines(stdout_reader).select(lossy_lines(stderr_reader)).boxed();
+        let output = lossy_lines(stdout_reader)
+            .select(lossy_lines(stderr_reader))
+            .boxed();
         Ok((child, output))
     }
 }
