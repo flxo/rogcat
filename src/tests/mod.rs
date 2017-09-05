@@ -8,5 +8,6 @@
 pub(crate) mod utils;
 mod file_reader;
 mod filter;
+mod misc;
 mod profiles;
 mod system;
