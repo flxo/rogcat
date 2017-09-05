@@ -8,6 +8,7 @@ extern crate appdirs;
 extern crate bytes;
 #[macro_use]
 extern crate clap;
+extern crate config;
 extern crate csv;
 extern crate crc;
 #[macro_use]
@@ -27,6 +28,7 @@ extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
 extern crate serial;
+#[cfg(test)]
 extern crate tempdir;
 extern crate time;
 extern crate term_painter;
@@ -41,14 +43,15 @@ extern crate url;
 extern crate which;
 extern crate zip;
 
+use cli::cli;
 use clap::ArgMatches;
-use cli::*;
+use config::Config;
 use error_chain::ChainedError;
 use errors::*;
 use filewriter::FileWriter;
 use filter::Filter;
-use futures::{Future, Sink, Stream};
 use futures::future::ok;
+use futures::{Future, Sink, Stream};
 use parser::Parser;
 use profiles::Profiles;
 use reader::{FileReader, SerialReader, StdinReader, TcpReader};
@@ -59,6 +62,7 @@ use std::io::{stderr, Write};
 use std::net::ToSocketAddrs;
 use std::path::PathBuf;
 use std::process::{exit, Command};
+use std::sync::RwLock;
 use terminal::Terminal;
 use tokio_core::reactor::Core;
 use tokio_process::CommandExt;
@@ -81,6 +85,10 @@ mod terminal;
 #[cfg(test)]
 mod tests;
 
+lazy_static! {
+	static ref CONFIG: RwLock<Config> = RwLock::new(Config::default());
+}
+
 pub type RSink = Box<Sink<SinkItem = Option<Record>, SinkError = Error>>;
 pub type RStream = Box<Stream<Item = Option<Record>, Error = Error>>;
 
@@ -99,6 +107,22 @@ fn main() {
 fn adb() -> Result<PathBuf> {
     which_in("adb", env::var_os("PATH"), env::current_dir()?)
         .map_err(|e| format!("Cannot find adb: {}", e).into())
+}
+
+/// Detect configuration directory
+fn config_dir() -> Result<PathBuf> {
+    appdirs::user_config_dir(Some("rogcat"), None, false)
+            .map_err(|_| "Failed to detect config dir".into())
+}
+
+/// Read a value from the configuration file
+/// config_dir/config.toml
+fn config_get<'a, T>(key: &'a str) -> Option<T>
+    where T: serde::Deserialize<'a>
+{
+    CONFIG.read()
+        .ok()
+        .and_then(|c| c.get::<T>(key).ok())
 }
 
 fn input(core: &mut Core, args: &ArgMatches) -> Result<RStream> {
@@ -137,6 +161,9 @@ fn input(core: &mut Core, args: &ArgMatches) -> Result<RStream> {
 
 fn run() -> Result<i32> {
     let args = cli().get_matches();
+    let config_file = config_dir()?.join("config.toml");
+    CONFIG.write().map_err(|_| "Failed to get config lock")?
+        .merge(config::File::from(config_file)).ok();
     let profiles = Profiles::new(&args)?;
     let profile = profiles.profile();
     let mut core = Core::new()?;
@@ -151,10 +178,15 @@ fn run() -> Result<i32> {
     }
 
     if args.is_present("clear") {
-        // TODO: Add buffer selection
-        let child = Command::new(adb()?).arg("logcat").arg("-c").spawn_async(
-            &core.handle(),
-        )?;
+        let buffer = ::config_get::<Vec<String>>("buffer")
+            .unwrap_or(vec!("all".to_owned()))
+            .join(" -b ");
+        let child = Command::new(adb()?)
+            .arg("logcat")
+            .arg("-c")
+            .arg("-b")
+            .args(buffer.split(" "))
+            .spawn_async(&core.handle())?;
         let output = core.run(child)?;
         exit(output.code().ok_or("Failed to get exit code")?);
     }

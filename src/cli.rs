@@ -8,10 +8,10 @@ use clap::{App, AppSettings, Arg, ArgMatches, Shell, SubCommand};
 use errors::*;
 use record::Level;
 use std::io::stdout;
-use profiles::Profiles;
 
 lazy_static! {
-    static ref ABOUT: String = { format!("A 'adb logcat' wrapper and log processor. Your configuration file location is \"{}\".", Profiles::file(None).unwrap().display()) };
+    static ref ABOUT: String = { format!("A 'adb logcat' wrapper and log processor. Your config directory is \"{}\".",
+                                         ::config_dir().unwrap_or("unknown".into()).display()) };
 }
 
 pub fn cli() -> App<'static, 'static> {

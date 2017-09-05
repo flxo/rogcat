@@ -4,7 +4,6 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
-use appdirs::user_config_dir;
 use clap::ArgMatches;
 use errors::*;
 use std::collections::HashMap;
@@ -294,11 +293,8 @@ impl Profiles {
                     format!("Cannot find \"{}\" set in ROGCAT_PROFILES!", f.display()).into(),
                 )
             }
-        } else if let Ok(mut f) = user_config_dir(Some("rogcat"), None, false) {
-            f.push("profiles.toml");
-            Ok(f)
         } else {
-            Err("Failed to find config directory".into())
+            Ok(::config_dir()?.join("profiles.xml"))
         }
     }
 }

@@ -68,7 +68,12 @@ impl<'a> Runner {
             .map(|s| (s, args.is_present("restart")))
             .unwrap_or({
                 let mut logcat_args = vec![];
-                let mut restart = true;
+
+                let mut restart = args.is_present("restart");
+                if !restart {
+                    restart = ::config_get::<bool>("restart").unwrap_or(true);
+                }
+
                 if args.is_present("tail") {
                     let count = value_t!(args, "tail", u32).unwrap_or_else(|e| e.exit());
                     logcat_args.push(format!("-t {}", count));
@@ -79,7 +84,12 @@ impl<'a> Runner {
                     logcat_args.push("-d".to_owned());
                     restart = false;
                 }
-                let cmd = format!("{} logcat -b all {}", adb, logcat_args.join(" "));
+
+                let buffer = ::config_get::<Vec<String>>("buffer")
+                    .unwrap_or(vec!("all".to_owned()))
+                    .join(" -b ");
+
+                let cmd = format!("{} logcat -b {} {}", adb, buffer, logcat_args.join(" "));
                 (cmd, restart)
             });
         let (child, output) = Self::run(&cmd, &handle)?;

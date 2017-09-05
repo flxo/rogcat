@@ -29,11 +29,11 @@ Logs dumped to files are readable by `rogcat` (except `html` format) to allow mu
 
 ## Examples
 
-The following examples show a subset of Rogcats features. Please check usage in addition!
+The following examples show a subset of `rogcats` features. Please check usage in addition!
 
 ### Live
 
-Capture logs from a connected device and display unconditionally. Internally rogcat runs `adb logcat -b all`:
+Capture logs from a connected device and display unconditionally. `Rogcat` runs `adb logcat -b all`:
 
 `rogcat`
 
@@ -117,6 +117,30 @@ cargo install rogcat
 ```
 
 or grab one of the [binary releases](https://github.com/flxo/rogcat/releases) on the GitHub page.
+
+## Configuration
+
+When `rogcat` runs without any command supplied it defaults to running `adb logcat -b all`. The following options
+can be overwritten in the `rogcat` config file `config.toml`. The location of the config file is platform specific:
+
+* MacOS: `$HOME/Library/Application Support/rogcat/config.toml`
+* Linux: `$HOME/.config/rogcat/config.toml`
+* Windows: `%HOME%/AppData/Local/rogcat/config.toml`
+
+### Restart
+
+By default `rogcat` restarts `adb logcat` when that one exits. This is intentional behavior to make `rogcat` reconnect
+on device power cycles or disconnect/reconnects. A `Windows 7` bug prevents `rogcat` from restarting `adb`.  Place
+`restart = false` in the configuration file mentioned above to make `rogcat` exit when `adb` exits.
+
+### Buffer
+
+The default behavior of `rogcat` is to dump `all` logcat buffers. This can be overwritten by selecting specific buffers in
+the `rogcat` config file. e.g:
+
+```
+buffer = ["main", "events"]
+```
 
 ## Profiles
 
