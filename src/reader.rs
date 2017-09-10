@@ -8,7 +8,7 @@ use bytes::BytesMut;
 use clap::ArgMatches;
 use errors::*;
 use futures::sync::mpsc;
-use futures::{Async, Future, Sink, Stream, Poll};
+use futures::{stream, Future, Sink, Stream};
 use nom::{digit, IResult};
 use record::Record;
 use serial::prelude::*;
@@ -27,84 +27,73 @@ use tokio_core::reactor::Core;
 use tokio_io::AsyncRead;
 use tokio_io::codec::{Encoder, Decoder};
 
-fn records(reader: Box<Read + Send>, core: &Core) -> Result<RStream> {
+fn records<'a, T: Read + Send + Sized + 'static>(reader: T, core: &Core) -> Result<RStream> {
     let (tx, rx) = mpsc::channel(1);
     let mut reader = BufReader::new(reader);
     let remote = core.remote();
 
-    thread::spawn(move || {
-        loop {
-            let mut tx = tx.clone();
-            let mut buffer = Vec::new();
-            match reader.read_until(b'\n', &mut buffer) {
-                Ok(len) => {
-                    if len > 0 {
-                        let raw = String::from_utf8_lossy(&buffer).trim().to_owned();
-                        let record = Record {
-                            raw,
-                            ..Default::default()
-                        };
-                        let f = tx.send(Some(record)).map(|_| ()).map_err(|_| ());
-                        remote.spawn(|_| f);
-                    } else {
-                        let f = tx.clone().send(None).map(|_| ()).map_err(|_| ());
-                        remote.spawn(|_| f);
-                        tx.close().ok();
-                        break;
-                    }
-                }
-                Err(_) => {
+    thread::spawn(move || loop {
+        let mut tx = tx.clone();
+        let mut buffer = Vec::new();
+        match reader.read_until(b'\n', &mut buffer) {
+            Ok(len) => {
+                if len > 0 {
+                    let raw = String::from_utf8_lossy(&buffer).trim().to_owned();
+                    let record = Record {
+                        raw,
+                        ..Default::default()
+                    };
+                    let f = tx.send(Some(record)).map(|_| ()).map_err(|_| ());
+                    remote.spawn(|_| f);
+                } else {
+                    let f = tx.clone().send(None).map(|_| ()).map_err(|_| ());
+                    remote.spawn(|_| f);
                     tx.close().ok();
                     break;
                 }
             }
+            Err(_) => {
+                tx.close().ok();
+                break;
+            }
         }
     });
 
-    Ok(rx.map_err(|_| "Channel error".into()).boxed())
-}
-
-#[derive(Default)]
-pub struct FileReader {
-    files: Vec<RStream>,
+    Ok(Box::new(rx.map_err(|_| "Channel error".into())))
 }
 
 pub fn file_reader<'a>(args: &ArgMatches<'a>, core: &Core) -> Result<RStream> {
-    let file_names = args.values_of("input")
+    let files = args.values_of("input")
         .map(|f| f.map(PathBuf::from).collect::<Vec<PathBuf>>())
         .ok_or("Failed to parse input files")?;
 
-    let mut files = Vec::new();
-    for f in file_names {
-        let file = File::open(f.clone()).chain_err(
-            || format!("Failed to open {:?}", f),
-        )?;
-        files.push(records(Box::new(file), core)?);
-    }
-
-    Ok(Box::new(FileReader { files }))
-}
-
-impl Stream for FileReader {
-    type Item = Option<Record>;
-    type Error = Error;
-
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        loop {
-            let p = self.files[0].poll();
-            match p {
-                Ok(Async::Ready(Some(None))) => {
-                    if self.files.len() > 1 {
-                        self.files.remove(0);
-                        continue;
-                    } else {
-                        return p;
-                    }
-                }
-                _ => return p,
-            }
+    let mut streams = Vec::new();
+    for f in &files {
+        if !f.exists() {
+            return Err(format!("Cannot open {}", f.display()).into());
         }
+
+        let file = File::open(f).chain_err(
+            || format!("Failed to open {}", f.display()),
+        )?;
+
+        streams.push(records(file, core)?);
     }
+
+    // The flattened streams emmit None in between - filter those
+    // here...
+    let mut nones = streams.len();
+    let flat = stream::iter_ok::<_, Error>(streams).flatten().filter(
+        move |f| {
+            if f.is_some() {
+                true
+            } else {
+                nones = nones - 1;
+                nones == 0
+            }
+        },
+    );
+    Ok(Box::new(flat))
 }
 
 pub fn stdin_reader<'a>(core: &Core) -> Result<RStream> {
@@ -122,7 +111,7 @@ pub fn serial_reader<'a>(args: &ArgMatches<'a>, core: &Core) -> Result<RStream> 
     port.configure(&p.1)?;
     port.set_timeout(Duration::from_secs(999999999))?;
 
-    records(Box::new(port), core)
+    records(port, core)
 }
 
 struct LossyLineCodec;
@@ -138,9 +127,8 @@ impl Decoder for LossyLineCodec {
         if let Some(n) = buf.as_ref().iter().position(|b| *b == b'\n') {
             let line = buf.split_to(n);
             buf.split_to(1);
-            let s = String::from_utf8_lossy(&line).into_owned();
             return Ok(Some(Record {
-                raw: s,
+                raw: String::from_utf8_lossy(&line).into_owned(),
                 ..Default::default()
             }));
         }
@@ -165,7 +153,7 @@ pub fn tcp_reader(addr: &SocketAddr, core: &mut Core) -> Result<RStream> {
         .framed(LossyLineCodec)
         .map(|r| Some(r))
         .map_err(|e| e.into());
-    Ok(s.boxed())
+    Ok(Box::new(s))
 }
 
 named!(num_usize <usize>,

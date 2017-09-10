@@ -78,9 +78,9 @@ fn run(cmd: &str, handle: &Handle) -> Result<(Child, OutStream)> {
     let stderr = child.stderr().take().ok_or("Failed get stderr")?;
     let stdout_reader = BufReader::new(stdout);
     let stderr_reader = BufReader::new(stderr);
-    let output = lossy_lines(stdout_reader)
-        .select(lossy_lines(stderr_reader))
-        .boxed();
+    let output = Box::new(lossy_lines(stdout_reader).select(
+        lossy_lines(stderr_reader),
+    ));
     Ok((child, output))
 }
 
