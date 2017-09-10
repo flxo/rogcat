@@ -140,7 +140,7 @@ fn input(core: &mut Core, args: &ArgMatches) -> Result<RStream> {
         match args.value_of("COMMAND") {
             Some(c) => {
                 if c == "-" {
-                    stdin_reader(args, core)
+                    stdin_reader(core)
                 } else {
                     if let Ok(url) = Url::parse(c) {
                         match url.scheme() {
@@ -210,11 +210,28 @@ fn run() -> Result<i32> {
         Box::new(Terminal::new(&args, &profile)?) as RSink
     };
 
+    let mut cnt = if args.is_present("head") {
+        Some(value_t!(args, "head", usize)?)
+    } else {
+        None
+    };
+    let mut head = || {
+        ok(match cnt {
+            Some(0) => false,
+            Some(_) => {
+                cnt = cnt.map(|s| s - 1);
+                true
+            }
+            None => true,
+        })
+    };
+
     let result = input
         .select(ctrl_c)
-        .take_while(|i| ok(!i.is_none()))
+        .take_while(|i| ok(i.is_some()))
         .and_then(|m| parser.process(m))
         .filter(|m| filter.filter(m))
+        .take_while(|_| head())
         .forward(output);
 
     core.run(result).map(|_| 0)

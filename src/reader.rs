@@ -7,7 +7,6 @@
 use bytes::BytesMut;
 use clap::ArgMatches;
 use errors::*;
-use futures::sync::mpsc::Receiver;
 use futures::sync::mpsc;
 use futures::{Async, Future, Sink, Stream, Poll};
 use nom::{digit, IResult};
@@ -28,86 +27,46 @@ use tokio_core::reactor::Core;
 use tokio_io::AsyncRead;
 use tokio_io::codec::{Encoder, Decoder};
 
-pub struct Lines {
-    rx: Receiver<Result<Option<Record>>>,
-}
-
-fn lines(reader: Box<Read + Send>, core: &Core, head: Option<usize>) -> Lines {
+fn records(reader: Box<Read + Send>, core: &Core) -> Result<RStream> {
     let (tx, rx) = mpsc::channel(1);
     let mut reader = BufReader::new(reader);
     let remote = core.remote();
 
     thread::spawn(move || {
-        let mut head = head;
         loop {
             let mut tx = tx.clone();
             let mut buffer = Vec::new();
-            if let Some(c) = head {
-                if c == 0 {
-                    let f = ::futures::done(Ok(None));
-                    remote.spawn(|_| f.then(|res| tx.send(res).map(|_| ()).map_err(|_| ())));
-                    break;
-                }
-            }
             match reader.read_until(b'\n', &mut buffer) {
                 Ok(len) => {
                     if len > 0 {
-                        let raw = String::from_utf8_lossy(&buffer)
-                            .into_owned()
-                            .trim()
-                            .to_owned();
-                        let record = Some(Record {
+                        let raw = String::from_utf8_lossy(&buffer).trim().to_owned();
+                        let record = Record {
                             raw,
                             ..Default::default()
-                        });
-                        let f = ::futures::done(Ok(record));
-                        remote.spawn(|_| f.then(|res| tx.send(res).map(|_| ()).map_err(|_| ())));
-
-                        head = head.map(|c| c - 1);
+                        };
+                        let f = tx.send(Some(record)).map(|_| ()).map_err(|_| ());
+                        remote.spawn(|_| f);
                     } else {
-                        let f = ::futures::done(Ok(None));
-                        remote.spawn(|_| f.then(|res| tx.send(res).map(|_| ()).map_err(|_| ())));
+                        let f = tx.clone().send(None).map(|_| ()).map_err(|_| ());
+                        remote.spawn(|_| f);
+                        tx.close().ok();
                         break;
                     }
                 }
-                Err(e) => {
-                    let f = ::futures::future::err(e);
-                    remote.spawn(|_| f.map_err(|_| ()));
+                Err(_) => {
                     tx.close().ok();
+                    break;
                 }
             }
         }
     });
 
-    Lines { rx }
-}
-
-impl Stream for Lines {
-    type Item = Option<Record>;
-    type Error = Error;
-
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        // This definitly can be done smarter...
-        match self.rx.poll() {
-            Ok(a) => {
-                match a {
-                    Async::Ready(b) => {
-                        match b {
-                            Some(c) => c.map(|v| Async::Ready(Some(v))),
-                            None => Ok(Async::Ready(None)),
-                        }
-                    }
-                    Async::NotReady => Ok(Async::NotReady),
-                }
-            }
-            Err(_) => Err("Channel error".into()),
-        }
-    }
+    Ok(rx.map_err(|_| "Channel error".into()).boxed())
 }
 
 #[derive(Default)]
 pub struct FileReader {
-    files: Vec<Lines>,
+    files: Vec<RStream>,
 }
 
 pub fn file_reader<'a>(args: &ArgMatches<'a>, core: &Core) -> Result<RStream> {
@@ -120,11 +79,7 @@ pub fn file_reader<'a>(args: &ArgMatches<'a>, core: &Core) -> Result<RStream> {
         let file = File::open(f.clone()).chain_err(
             || format!("Failed to open {:?}", f),
         )?;
-        files.push(lines(
-            Box::new(file),
-            core,
-            value_t!(args, "head", usize).ok(),
-        ));
+        files.push(records(Box::new(file), core)?);
     }
 
     Ok(Box::new(FileReader { files }))
@@ -152,9 +107,8 @@ impl Stream for FileReader {
     }
 }
 
-pub fn stdin_reader<'a>(args: &ArgMatches<'a>, core: &Core) -> Result<RStream> {
-    let head = value_t!(args, "head", usize).ok();
-    Ok(lines(Box::new(stdin()), core, head).boxed())
+pub fn stdin_reader<'a>(core: &Core) -> Result<RStream> {
+    records(Box::new(stdin()), core)
 }
 
 pub fn serial_reader<'a>(args: &ArgMatches<'a>, core: &Core) -> Result<RStream> {
@@ -168,8 +122,7 @@ pub fn serial_reader<'a>(args: &ArgMatches<'a>, core: &Core) -> Result<RStream> 
     port.configure(&p.1)?;
     port.set_timeout(Duration::from_secs(999999999))?;
 
-    let head = value_t!(args, "head", usize).ok();
-    Ok(lines(Box::new(port), core, head).boxed())
+    records(Box::new(port), core)
 }
 
 struct LossyLineCodec;
