@@ -9,7 +9,7 @@ use errors::*;
 use futures::{Future, Async, AsyncSink, Sink, Poll, StartSend};
 use std::process::{Command, Stdio};
 use super::adb;
-use reader::StdinReader;
+use reader::stdin_reader;
 use record::{Level, Record};
 use tokio_core::reactor::{Core, Handle};
 use tokio_process::CommandExt;
@@ -72,7 +72,7 @@ pub fn run(args: &ArgMatches, core: &mut Core) -> Result<i32> {
                 level,
             };
 
-            let input = StdinReader::new(args, core);
+            let input = stdin_reader(args, core)?;
             let stream = sink.send_all(input);
             core.run(stream)
                 .map_err(|_| "Failed to run \"adb shell log\"".into())

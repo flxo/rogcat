@@ -28,67 +28,61 @@ use tokio_core::reactor::Core;
 use tokio_io::AsyncRead;
 use tokio_io::codec::{Encoder, Decoder};
 
-pub struct LineReader {
+pub struct Lines {
     rx: Receiver<Result<Option<Record>>>,
 }
 
-impl LineReader {
-    pub fn new(reader: Box<Read + Send>, core: &Core, head: Option<usize>) -> LineReader {
-        let (tx, rx) = mpsc::channel(1);
-        let mut reader = BufReader::new(reader);
-        let remote = core.remote();
+fn lines(reader: Box<Read + Send>, core: &Core, head: Option<usize>) -> Lines {
+    let (tx, rx) = mpsc::channel(1);
+    let mut reader = BufReader::new(reader);
+    let remote = core.remote();
 
-        thread::spawn(move || {
-            let mut head = head;
-            loop {
-                let mut tx = tx.clone();
-                let mut buffer = Vec::new();
-                if let Some(c) = head {
-                    if c == 0 {
+    thread::spawn(move || {
+        let mut head = head;
+        loop {
+            let mut tx = tx.clone();
+            let mut buffer = Vec::new();
+            if let Some(c) = head {
+                if c == 0 {
+                    let f = ::futures::done(Ok(None));
+                    remote.spawn(|_| f.then(|res| tx.send(res).map(|_| ()).map_err(|_| ())));
+                    break;
+                }
+            }
+            match reader.read_until(b'\n', &mut buffer) {
+                Ok(len) => {
+                    if len > 0 {
+                        let raw = String::from_utf8_lossy(&buffer)
+                            .into_owned()
+                            .trim()
+                            .to_owned();
+                        let record = Some(Record {
+                            raw,
+                            ..Default::default()
+                        });
+                        let f = ::futures::done(Ok(record));
+                        remote.spawn(|_| f.then(|res| tx.send(res).map(|_| ()).map_err(|_| ())));
+
+                        head = head.map(|c| c - 1);
+                    } else {
                         let f = ::futures::done(Ok(None));
                         remote.spawn(|_| f.then(|res| tx.send(res).map(|_| ()).map_err(|_| ())));
                         break;
                     }
                 }
-                match reader.read_until(b'\n', &mut buffer) {
-                    Ok(len) => {
-                        if len > 0 {
-                            let raw = String::from_utf8_lossy(&buffer)
-                                .into_owned()
-                                .trim()
-                                .to_owned();
-                            let record = Some(Record {
-                                raw,
-                                ..Default::default()
-                            });
-                            let f = ::futures::done(Ok(record));
-                            remote.spawn(|_| {
-                                f.then(|res| tx.send(res).map(|_| ()).map_err(|_| ()))
-                            });
-
-                            head = head.map(|c| c - 1);
-                        } else {
-                            let f = ::futures::done(Ok(None));
-                            remote.spawn(|_| {
-                                f.then(|res| tx.send(res).map(|_| ()).map_err(|_| ()))
-                            });
-                            break;
-                        }
-                    }
-                    Err(e) => {
-                        let f = ::futures::future::err(e);
-                        remote.spawn(|_| f.map_err(|_| ()));
-                        tx.close().ok();
-                    }
+                Err(e) => {
+                    let f = ::futures::future::err(e);
+                    remote.spawn(|_| f.map_err(|_| ()));
+                    tx.close().ok();
                 }
             }
-        });
+        }
+    });
 
-        LineReader { rx }
-    }
+    Lines { rx }
 }
 
-impl Stream for LineReader {
+impl Stream for Lines {
     type Item = Option<Record>;
     type Error = Error;
 
@@ -113,29 +107,27 @@ impl Stream for LineReader {
 
 #[derive(Default)]
 pub struct FileReader {
-    files: Vec<LineReader>,
+    files: Vec<Lines>,
 }
 
-impl<'a> FileReader {
-    pub fn new(args: &ArgMatches<'a>, core: &Core) -> Result<Self> {
-        let file_names = args.values_of("input")
-            .map(|f| f.map(PathBuf::from).collect::<Vec<PathBuf>>())
-            .ok_or("Failed to parse input files")?;
+pub fn file_reader<'a>(args: &ArgMatches<'a>, core: &Core) -> Result<RStream> {
+    let file_names = args.values_of("input")
+        .map(|f| f.map(PathBuf::from).collect::<Vec<PathBuf>>())
+        .ok_or("Failed to parse input files")?;
 
-        let mut files = Vec::new();
-        for f in file_names {
-            let file = File::open(f.clone()).chain_err(
-                || format!("Failed to open {:?}", f),
-            )?;
-            files.push(LineReader::new(
-                Box::new(file),
-                core,
-                value_t!(args, "head", usize).ok(),
-            ));
-        }
-
-        Ok(FileReader { files })
+    let mut files = Vec::new();
+    for f in file_names {
+        let file = File::open(f.clone()).chain_err(
+            || format!("Failed to open {:?}", f),
+        )?;
+        files.push(lines(
+            Box::new(file),
+            core,
+            value_t!(args, "head", usize).ok(),
+        ));
     }
+
+    Ok(Box::new(FileReader { files }))
 }
 
 impl Stream for FileReader {
@@ -146,7 +138,7 @@ impl Stream for FileReader {
         loop {
             let p = self.files[0].poll();
             match p {
-                Ok(Async::Ready(None)) => {
+                Ok(Async::Ready(Some(None))) => {
                     if self.files.len() > 1 {
                         self.files.remove(0);
                         continue;
@@ -160,25 +152,67 @@ impl Stream for FileReader {
     }
 }
 
-pub struct StdinReader {
-    reader: LineReader,
+pub fn stdin_reader<'a>(args: &ArgMatches<'a>, core: &Core) -> Result<RStream> {
+    let head = value_t!(args, "head", usize).ok();
+    Ok(lines(Box::new(stdin()), core, head).boxed())
 }
 
-impl<'a> StdinReader {
-    pub fn new(args: &ArgMatches<'a>, core: &Core) -> StdinReader {
-        StdinReader {
-            reader: LineReader::new(Box::new(stdin()), core, value_t!(args, "head", usize).ok()),
+pub fn serial_reader<'a>(args: &ArgMatches<'a>, core: &Core) -> Result<RStream> {
+    let i = args.value_of("input").ok_or("Invalid input value")?;
+    let p = match serial(i.as_bytes()) {
+        IResult::Done(_, v) => v,
+        IResult::Error(_) => return Err("Failed to parse serial port settings".into()),
+        IResult::Incomplete(_) => return Err("Serial port settings are incomplete".into()),
+    };
+    let mut port = ::serial::open(&p.0)?;
+    port.configure(&p.1)?;
+    port.set_timeout(Duration::from_secs(999999999))?;
+
+    let head = value_t!(args, "head", usize).ok();
+    Ok(lines(Box::new(port), core, head).boxed())
+}
+
+struct LossyLineCodec;
+
+impl Decoder for LossyLineCodec {
+    type Item = Record;
+    type Error = ::std::io::Error;
+
+    fn decode(
+        &mut self,
+        buf: &mut BytesMut,
+    ) -> ::std::result::Result<Option<Record>, ::std::io::Error> {
+        if let Some(n) = buf.as_ref().iter().position(|b| *b == b'\n') {
+            let line = buf.split_to(n);
+            buf.split_to(1);
+            let s = String::from_utf8_lossy(&line).into_owned();
+            return Ok(Some(Record {
+                raw: s,
+                ..Default::default()
+            }));
         }
+
+        Ok(None)
     }
 }
 
-impl Stream for StdinReader {
-    type Item = Option<Record>;
-    type Error = Error;
+impl Encoder for LossyLineCodec {
+    type Item = Record;
+    type Error = ::std::io::Error;
 
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        self.reader.poll()
+    fn encode(&mut self, _msg: Record, _buf: &mut BytesMut) -> ::std::io::Result<()> {
+        unimplemented!();
     }
+}
+
+pub fn tcp_reader(addr: &SocketAddr, core: &mut Core) -> Result<RStream> {
+    let handle = core.handle();
+    let s = core.run(TcpStream::connect(&addr, &handle))
+        .chain_err(|| "Failed to connect")?
+        .framed(LossyLineCodec)
+        .map(|r| Some(r))
+        .map_err(|e| e.into());
+    Ok(s.boxed())
 }
 
 named!(num_usize <usize>,
@@ -272,86 +306,6 @@ named!(serial <(String, ::serial::PortSettings)>,
        )
 );
 
-pub struct SerialReader {
-    reader: LineReader,
-}
-
-impl<'a> SerialReader {
-    pub fn new(args: &ArgMatches<'a>, settings: &str, core: &Core) -> Result<Self> {
-        let p = Self::parse_serial_arg(settings)?;
-        let mut port = ::serial::open(&p.0)?;
-        port.configure(&p.1)?;
-        port.set_timeout(Duration::from_secs(999999999))?;
-
-        Ok(SerialReader {
-            reader: LineReader::new(Box::new(port), core, value_t!(args, "head", usize).ok()),
-        })
-    }
-
-    pub fn parse_serial_arg(arg: &str) -> Result<(String, ::serial::PortSettings)> {
-        match serial(arg.as_bytes()) {
-            IResult::Done(_, v) => Ok(v),
-            IResult::Error(_) => Err("Failed to parse serial arguments".into()),
-            IResult::Incomplete(_) => Err("Not enough data".into()),
-        }
-    }
-}
-
-impl Stream for SerialReader {
-    type Item = Option<Record>;
-    type Error = Error;
-
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        self.reader.poll()
-    }
-}
-
-struct LineCodec;
-
-impl Decoder for LineCodec {
-    type Item = Record;
-    type Error = ::std::io::Error;
-
-    fn decode(
-        &mut self,
-        buf: &mut BytesMut,
-    ) -> ::std::result::Result<Option<Record>, ::std::io::Error> {
-        if let Some(n) = buf.as_ref().iter().position(|b| *b == b'\n') {
-            let line = buf.split_to(n);
-            buf.split_to(1);
-            let s = String::from_utf8_lossy(&line).into_owned();
-            return Ok(Some(Record {
-                raw: s,
-                ..Default::default()
-            }));
-        }
-
-        Ok(None)
-    }
-}
-
-impl Encoder for LineCodec {
-    type Item = Record;
-    type Error = ::std::io::Error;
-
-    fn encode(&mut self, _msg: Record, _buf: &mut BytesMut) -> ::std::io::Result<()> {
-        unimplemented!();
-    }
-}
-
-pub struct TcpReader {}
-
-impl<'a> TcpReader {
-    pub fn new(_args: &ArgMatches<'a>, addr: &SocketAddr, core: &mut Core) -> Result<RStream> {
-        let handle = core.handle();
-        let s = core.run(TcpStream::connect(&addr, &handle))
-            .chain_err(|| "Failed to connect")?
-            .framed(LineCodec)
-            .map(|r| Some(r))
-            .map_err(|e| e.into());
-        Ok(s.boxed())
-    }
-}
 
 #[test]
 fn parse_serial_baudrate() {

@@ -10,20 +10,20 @@ use futures::{Async, Poll, Stream};
 use std::io::{self, BufRead, BufReader};
 use std::mem;
 use std::process::{Command, Stdio};
-use super::adb;
 use super::record::Record;
 use super::terminal::DIMM_COLOR;
+use super::{adb, RStream};
 use term_painter::ToStyle;
 use tokio_core::reactor::Handle;
 use tokio_io::AsyncRead;
 use tokio_process::{Child, CommandExt};
 
-pub struct LossyLines<A> {
+struct LossyLines<A> {
     io: A,
     buffer: Vec<u8>,
 }
 
-pub fn lossy_lines<A>(a: A) -> LossyLines<A>
+fn lossy_lines<A>(a: A) -> LossyLines<A>
 where
     A: AsyncRead + BufRead,
 {
@@ -63,69 +63,67 @@ pub struct Runner {
     restart: bool,
 }
 
-impl<'a> Runner {
-    pub fn new(args: &ArgMatches<'a>, handle: Handle) -> Result<Self> {
-        let adb = format!("{}", adb()?.display());
-        let (cmd, restart) = value_t!(args, "COMMAND", String)
-            .map(|s| (s, args.is_present("restart")))
-            .unwrap_or({
-                let mut logcat_args = vec![];
+fn run(cmd: &str, handle: &Handle) -> Result<(Child, OutStream)> {
+    let cmd = cmd.split_whitespace()
+        .map(|s| s.to_owned())
+        .collect::<Vec<String>>();
 
-                let mut restart = args.is_present("restart");
-                if !restart {
-                    restart = ::config_get::<bool>("restart").unwrap_or(true);
-                }
+    let mut child = Command::new(&cmd[0])
+        .args(&cmd[1..])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn_async(&handle)?;
 
-                if args.is_present("tail") {
-                    let count = value_t!(args, "tail", u32).unwrap_or_else(|e| e.exit());
-                    logcat_args.push(format!("-t {}", count));
-                    restart = false;
-                };
+    let stdout = child.stdout().take().ok_or("Failed get stdout")?;
+    let stderr = child.stderr().take().ok_or("Failed get stderr")?;
+    let stdout_reader = BufReader::new(stdout);
+    let stderr_reader = BufReader::new(stderr);
+    let output = lossy_lines(stdout_reader)
+        .select(lossy_lines(stderr_reader))
+        .boxed();
+    Ok((child, output))
+}
 
-                if args.is_present("dump") {
-                    logcat_args.push("-d".to_owned());
-                    restart = false;
-                }
+pub fn runner<'a>(args: &ArgMatches<'a>, handle: Handle) -> Result<RStream> {
+    let adb = format!("{}", adb()?.display());
+    let (cmd, restart) = value_t!(args, "COMMAND", String)
+        .map(|s| (s, args.is_present("restart")))
+        .unwrap_or({
+            let mut logcat_args = vec![];
 
-                let buffer = ::config_get::<Vec<String>>("buffer")
-                    .unwrap_or(vec!["all".to_owned()])
-                    .join(" -b ");
+            let mut restart = args.is_present("restart");
+            if !restart {
+                restart = ::config_get::<bool>("restart").unwrap_or(true);
+            }
 
-                let cmd = format!("{} logcat -b {} {}", adb, buffer, logcat_args.join(" "));
-                (cmd, restart)
-            });
-        let (child, output) = Self::run(&cmd, &handle)?;
+            if args.is_present("tail") {
+                let count = value_t!(args, "tail", u32).unwrap_or_else(|e| e.exit());
+                logcat_args.push(format!("-t {}", count));
+                restart = false;
+            };
 
-        Ok(Runner {
-            child,
-            cmd: cmd.trim().to_owned(),
-            handle,
-            head: value_t!(args, "head", usize).ok(),
-            output,
-            restart,
-        })
-    }
+            if args.is_present("dump") {
+                logcat_args.push("-d".to_owned());
+                restart = false;
+            }
 
-    fn run(cmd: &str, handle: &Handle) -> Result<(Child, OutStream)> {
-        let cmd = cmd.split_whitespace()
-            .map(|s| s.to_owned())
-            .collect::<Vec<String>>();
+            let buffer = ::config_get::<Vec<String>>("buffer")
+                .unwrap_or(vec!["all".to_owned()])
+                .join(" -b ");
 
-        let mut child = Command::new(&cmd[0])
-            .args(&cmd[1..])
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn_async(&handle)?;
+            let cmd = format!("{} logcat -b {} {}", adb, buffer, logcat_args.join(" "));
+            (cmd, restart)
+        });
+    let (child, output) = run(&cmd, &handle)?;
 
-        let stdout = child.stdout().take().ok_or("Failed get stdout")?;
-        let stderr = child.stderr().take().ok_or("Failed get stderr")?;
-        let stdout_reader = BufReader::new(stdout);
-        let stderr_reader = BufReader::new(stderr);
-        let output = lossy_lines(stdout_reader)
-            .select(lossy_lines(stderr_reader))
-            .boxed();
-        Ok((child, output))
-    }
+    Ok(Box::new(Runner {
+        child,
+        cmd: cmd.trim().to_owned(),
+        handle,
+        head: value_t!(args, "head", usize).ok(),
+        output,
+        restart,
+    }))
 }
 
 impl Stream for Runner {
@@ -152,7 +150,7 @@ impl Stream for Runner {
                         if self.restart {
                             let text = format!("Restarting \"{}\"", self.cmd);
                             println!("{}", DIMM_COLOR.paint(&text));
-                            let (child, output) = Self::run(&self.cmd, &self.handle)?;
+                            let (child, output) = run(&self.cmd, &self.handle)?;
                             self.output = output;
                             self.child = child;
                         } else {

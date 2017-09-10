@@ -54,9 +54,9 @@ use futures::future::ok;
 use futures::{Future, Sink, Stream};
 use parser::Parser;
 use profiles::Profiles;
-use reader::{FileReader, SerialReader, StdinReader, TcpReader};
+use reader::{file_reader, serial_reader, stdin_reader, tcp_reader};
 use record::Record;
-use runner::Runner;
+use runner::runner;
 use std::env;
 use std::io::{stderr, Write};
 use std::net::ToSocketAddrs;
@@ -86,7 +86,7 @@ mod terminal;
 mod tests;
 
 lazy_static! {
-	static ref CONFIG: RwLock<Config> = RwLock::new(Config::default());
+    static ref CONFIG: RwLock<Config> = RwLock::new(Config::default());
 }
 
 pub type RSink = Box<Sink<SinkItem = Option<Record>, SinkError = Error>>;
@@ -127,33 +127,37 @@ where
 fn input(core: &mut Core, args: &ArgMatches) -> Result<RStream> {
     if args.is_present("input") {
         let input = args.value_of("input").ok_or("Invalid input value")?;
-        if SerialReader::parse_serial_arg(input).is_ok() {
-            Ok(Box::new(SerialReader::new(args, input, core)?))
-        } else {
-            Ok(Box::new(FileReader::new(args, core)?))
+        match Url::parse(input) {
+            Ok(url) => {
+                match url.scheme() {
+                    "serial" => serial_reader(args, core),
+                    _ => file_reader(args, core),
+                }
+            }
+            _ => file_reader(args, core),
         }
     } else {
         match args.value_of("COMMAND") {
             Some(c) => {
                 if c == "-" {
-                    Ok(Box::new(StdinReader::new(args, core)))
+                    stdin_reader(args, core)
                 } else {
                     if let Ok(url) = Url::parse(c) {
                         match url.scheme() {
                             "tcp" => {
                                 let addr =
                                     url.to_socket_addrs()?.next().ok_or("Failed to parse addr")?;
-                                Ok(Box::new(TcpReader::new(args, &addr, core)?))
+                                tcp_reader(&addr, core)
                             }
-                            "serial" => Ok(Box::new(SerialReader::new(args, c, core)?)),
-                            _ => Ok(Box::new(Runner::new(&args, core.handle())?)),
+                            "serial" => serial_reader(args, core),
+                            _ => runner(args, core.handle()),
                         }
                     } else {
-                        Ok(Box::new(Runner::new(&args, core.handle())?))
+                        runner(args, core.handle())
                     }
                 }
             }
-            None => Ok(Box::new(Runner::new(args, core.handle())?)),
+            None => runner(args, core.handle()),
         }
     }
 }
