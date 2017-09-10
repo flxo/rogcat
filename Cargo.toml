@@ -1,10 +1,12 @@
 [package]
 authors = ["Felix Obenhuber <felix@obenhuber.de>"]
+categories = ["command-line-utilities", "development-tools"]
 description = "A adb logcat wrapper and log processor"
 homepage = "https://github.com/flxo/rogcat"
 keywords = ["android", "adb", "debugging", "log", "logcat"]
 license = "WTFPL"
 name = "rogcat"
+repository = "https://github.com/flxo/rogcat"
 version = "0.2.10-pre"
 [dependencies]
 appdirs = "0.2.0"
