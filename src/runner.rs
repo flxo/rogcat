@@ -58,7 +58,6 @@ pub struct Runner {
     child: Child,
     cmd: String,
     handle: Handle,
-    head: Option<usize>,
     output: OutStream,
     restart: bool,
 }
@@ -120,7 +119,6 @@ pub fn runner<'a>(args: &ArgMatches<'a>, handle: Handle) -> Result<RStream> {
         child,
         cmd: cmd.trim().to_owned(),
         handle,
-        head: value_t!(args, "head", usize).ok(),
         output,
         restart,
     }))
@@ -132,11 +130,6 @@ impl Stream for Runner {
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         loop {
-            if let Some(c) = self.head {
-                if c == 0 {
-                    return Ok(Async::Ready(None));
-                }
-            }
             match self.output.poll() {
                 Ok(Async::Ready(t)) => {
                     if let Some(s) = t {
@@ -144,7 +137,6 @@ impl Stream for Runner {
                             raw: s,
                             ..Default::default()
                         });
-                        self.head = self.head.map(|c| c - 1);
                         return Ok(Async::Ready(Some(r)));
                     } else {
                         if self.restart {
