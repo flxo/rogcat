@@ -116,6 +116,12 @@ With a working/recent `Rust` and `cargo` setup run
 cargo install rogcat
 ```
 
+or use Homebrew by running
+
+```
+brew install flxo/tap/rogcat
+```
+
 or grab one of the [binary releases](https://github.com/flxo/rogcat/releases) on the GitHub page.
 
 ## Configuration
