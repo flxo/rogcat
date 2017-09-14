@@ -30,10 +30,10 @@ impl Into<Profile> for ProfileFile {
     fn into(self) -> Profile {
         Profile {
             comment: self.comment,
-            extends: self.extends.unwrap_or(vec![]),
-            highlight: self.highlight.unwrap_or(vec![]),
-            message: self.message.unwrap_or(vec![]),
-            tag: self.tag.unwrap_or(vec![]),
+            extends: self.extends.unwrap_or_else(|| vec![]),
+            highlight: self.highlight.unwrap_or_else(|| vec![]),
+            message: self.message.unwrap_or_else(|| vec![]),
+            tag: self.tag.unwrap_or_else(|| vec![]),
         }
     }
 }
@@ -122,7 +122,7 @@ impl Profiles {
             if let Some(n) = args.value_of("profile") {
                 profile = profiles
                     .get(n)
-                    .ok_or(format!("Unknown profile \"{}\"", n))?
+                    .ok_or_else(|| format!("Unknown profile \"{}\"", n))?
                     .clone();
                 Self::expand(n, &mut profile, &profiles)?;
             }
@@ -141,11 +141,9 @@ impl Profiles {
             let extends = p.extends.clone();
             p.extends.clear();
             for e in &extends {
-                let f = a.get(e).ok_or(format!(
-                    "Unknown extend profile name \"{}\" used in \"{}\"",
-                    e,
-                    n
-                ))?;
+                let f = a.get(e).ok_or_else(|| {
+                    format!("Unknown extend profile name \"{}\" used in \"{}\"", e, n)
+                })?;
                 *p += f.clone();
             }
 
@@ -175,9 +173,10 @@ impl Profiles {
                     println!(
                         " * {}{}",
                         k,
-                        v.comment().clone().map(|c| format!(": {}", c)).unwrap_or(
-                            "".into(),
-                        )
+                        v.comment()
+                            .clone()
+                            .map(|c| format!(": {}", c))
+                            .unwrap_or_else(|| "".into())
                     );
                 }
             }
@@ -285,7 +284,7 @@ impl Profiles {
                 }
             }
         }
-        if let Ok(f) = var("ROGCAT_PROFILES").map(|c| PathBuf::from(c)) {
+        if let Ok(f) = var("ROGCAT_PROFILES").map(PathBuf::from) {
             if f.exists() {
                 return Ok(f);
             } else {

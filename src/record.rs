@@ -161,7 +161,7 @@ impl<'de> Deserialize<'de> for Timestamp {
                 E: Error,
             {
                 strptime(str_data, "%m-%d %H:%M:%S.%f")
-                    .map(|d| Timestamp::new(d))
+                    .map(Timestamp::new)
                     .map_err(|_| {
                         Error::invalid_value(::serde::de::Unexpected::Str(str_data), &self)
                     })
@@ -189,23 +189,23 @@ pub struct Record {
 
 impl Record {
     pub fn format(&self, format: &Format) -> Result<String> {
-        match format {
-            &Format::Csv => {
+        match *format {
+            Format::Csv => {
                 let mut wtr = WriterBuilder::new().has_headers(false).from_writer(vec![]);
                 wtr.serialize(self)?;
                 wtr.flush()?;
                 Ok(
                     String::from_utf8(wtr.into_inner().unwrap())?
-                        .trim_right_matches("\n")
+                        .trim_right_matches('\n')
                         .to_owned(),
                 )
             }
-            &Format::Html => unimplemented!(),
-            &Format::Human => unimplemented!(),
-            &Format::Json => {
+            Format::Html => unimplemented!(),
+            Format::Human => unimplemented!(),
+            Format::Json => {
                 ::serde_json::to_string(self).map_err(|_| "json serialization error".into())
             }
-            &Format::Raw => Ok(self.raw.clone()),
+            Format::Raw => Ok(self.raw.clone()),
         }
     }
 }

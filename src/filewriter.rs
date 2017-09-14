@@ -132,9 +132,9 @@ impl Html {
         let mut digest = crc32::Digest::new(crc32::IEEE);
         digest.write(value.as_bytes());
         let h = digest.sum32();
-        let r = (h & 0x000000FF) >> 0;
-        let g = (h & 0x0000FF00) >> 8;
-        let b = (h & 0x00FF0000) >> 16;
+        let r = h & 0xFF;
+        let g = (h & 0xFF00) >> 8;
+        let b = (h & 0xFF0000) >> 16;
         format!("#{:02x}{:02x}{:02x}", r, g, b)
     }
 
@@ -143,11 +143,11 @@ impl Html {
         _: &Handlebars,
         rc: &mut RenderContext,
     ) -> ::std::result::Result<(), RenderError> {
-        let param = h.param(0).ok_or(RenderError::new(
-            "Param 0 is required for format helper.",
-        ))?;
+        let param = h.param(0).ok_or_else(|| {
+            RenderError::new("Param 0 is required for format helper.")
+        })?;
         let value = param.value().render();
-        let rendered = if value.len() == 0 || value == "0" {
+        let rendered = if value.is_empty() || value == "0" {
             format!("<span style=\"color:grey\">{}</span>", value)
         } else {
             format!(
@@ -156,7 +156,7 @@ impl Html {
                 value
             )
         };
-        rc.writer.write(rendered.into_bytes().as_ref())?;
+        rc.writer.write_all(rendered.into_bytes().as_ref())?;
         Ok(())
     }
 
@@ -257,9 +257,9 @@ impl<'a> FileWriter {
                         .and_then(|size| Some((size, caps.at(2))))
                 })
                 .and_then(|(size, suffix)| match suffix {
-                    Some("k") => Some(1000 * size),
-                    Some("M") => Some(1000_000 * size),
-                    Some("G") => Some(1000_000_000 * size),
+                    Some("k") => Some(1_000 * size),
+                    Some("M") => Some(1_000_000 * size),
+                    Some("G") => Some(1_000_000_000 * size),
                     _ => None,
                 })
                 .or_else(|| u64::from_str(l).ok())
@@ -338,7 +338,7 @@ impl<'a> FileWriter {
                     );
                 }
 
-                let dir = self.filename.parent().unwrap_or(Path::new(""));
+                let dir = self.filename.parent().unwrap_or_else(|| Path::new(""));
                 if !dir.is_dir() {
                     DirBuilder::new().recursive(true).create(dir).chain_err(
                         || "Failed to create outfile parent directory",
@@ -376,7 +376,7 @@ impl<'a> FileWriter {
                 let mut e: Option<u32> = if overwrite { None } else { Some(0) };
 
                 loop {
-                    let dir = self.filename.parent().unwrap_or(Path::new(""));
+                    let dir = self.filename.parent().unwrap_or_else(|| Path::new(""));
                     if !dir.is_dir() {
                         DirBuilder::new().recursive(true).create(dir).chain_err(
                             || {
@@ -392,7 +392,9 @@ impl<'a> FileWriter {
                     let now = strftime("%F-%T", &now())?;
                     #[cfg(windows)]
                     let now = strftime("%F-%H_%M_%S", &now())?;
-                    let enumeration = e.map(|a| format!("-{:03}", a)).unwrap_or("".to_owned());
+                    let enumeration = e.map(|a| format!("-{:03}", a)).unwrap_or_else(
+                        || "".to_owned(),
+                    );
                     let filename = self.filename
                         .file_name()
                         .ok_or("Invalid path")?

@@ -19,6 +19,7 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::from_utf8;
 use std::str;
+use std::u64;
 use std::thread;
 use std::time::Duration;
 use super::RStream;
@@ -27,7 +28,7 @@ use tokio_core::reactor::Core;
 use tokio_io::AsyncRead;
 use tokio_io::codec::{Encoder, Decoder};
 
-fn records<'a, T: Read + Send + Sized + 'static>(reader: T, core: &Core) -> Result<RStream> {
+fn records<T: Read + Send + Sized + 'static>(reader: T, core: &Core) -> Result<RStream> {
     let (tx, rx) = mpsc::channel(1);
     let mut reader = BufReader::new(reader);
     let remote = core.remote();
@@ -88,7 +89,7 @@ pub fn file_reader<'a>(args: &ArgMatches<'a>, core: &Core) -> Result<RStream> {
             if f.is_some() {
                 true
             } else {
-                nones = nones - 1;
+                nones -= 1;
                 nones == 0
             }
         },
@@ -96,7 +97,7 @@ pub fn file_reader<'a>(args: &ArgMatches<'a>, core: &Core) -> Result<RStream> {
     Ok(Box::new(flat))
 }
 
-pub fn stdin_reader<'a>(core: &Core) -> Result<RStream> {
+pub fn stdin_reader(core: &Core) -> Result<RStream> {
     records(Box::new(stdin()), core)
 }
 
@@ -109,7 +110,7 @@ pub fn serial_reader<'a>(args: &ArgMatches<'a>, core: &Core) -> Result<RStream> 
     };
     let mut port = ::serial::open(&p.0)?;
     port.configure(&p.1)?;
-    port.set_timeout(Duration::from_secs(999999999))?;
+    port.set_timeout(Duration::from_secs(u64::MAX))?;
 
     records(port, core)
 }
@@ -148,10 +149,10 @@ impl Encoder for LossyLineCodec {
 
 pub fn tcp_reader(addr: &SocketAddr, core: &mut Core) -> Result<RStream> {
     let handle = core.handle();
-    let s = core.run(TcpStream::connect(&addr, &handle))
+    let s = core.run(TcpStream::connect(addr, &handle))
         .chain_err(|| "Failed to connect")?
         .framed(LossyLineCodec)
-        .map(|r| Some(r))
+        .map(Some)
         .map_err(|e| e.into());
     Ok(Box::new(s))
 }
@@ -176,10 +177,10 @@ named!(baudrate <::serial::BaudRate>,
                 2400 => ::serial::Baud2400,
                 4800 => ::serial::Baud4800,
                 9600 => ::serial::Baud9600,
-                19200 => ::serial::Baud19200,
-                38400 => ::serial::Baud38400,
-                57600 => ::serial::Baud57600,
-                115200 => ::serial::Baud115200,
+                19_200 => ::serial::Baud19200,
+                38_400 => ::serial::Baud38400,
+                57_600 => ::serial::Baud57600,
+                115_200 => ::serial::Baud115200,
                 _ => ::serial::BaudOther(b),
            }
        })

@@ -86,7 +86,7 @@ pub fn create(args: &ArgMatches, core: &mut Core) -> Result<i32> {
     let stdout = child.stdout().take().ok_or("Failed get stdout")?;
     let stdout_reader = BufReader::new(stdout);
 
-    let dir = filename_path.parent().unwrap_or(Path::new(""));
+    let dir = filename_path.parent().unwrap_or_else(|| Path::new(""));
     if !dir.is_dir() {
         DirBuilder::new().recursive(true).create(dir).chain_err(
             || "Failed to create outfile parent directory",
@@ -113,8 +113,8 @@ pub fn create(args: &ArgMatches, core: &mut Core) -> Result<i32> {
 
     let output = lines(stdout_reader)
         .for_each(|l| {
-            write.write_all(&l.as_bytes()).expect("Failed to write");
-            write.write_all("\n".as_bytes()).expect("Failed to write");
+            write.write_all(l.as_bytes()).expect("Failed to write");
+            write.write_all(b"\n").expect("Failed to write");
             progress.inc(1);
             ok(())
         })

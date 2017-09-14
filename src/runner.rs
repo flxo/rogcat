@@ -42,7 +42,7 @@ where
 
     fn poll(&mut self) -> Poll<Option<String>, io::Error> {
         let n = try_nb!(self.io.read_until(b'\n', &mut self.buffer));
-        if n == 0 && self.buffer.len() == 0 {
+        if n == 0 && self.buffer.is_empty() {
             return Ok(None.into());
         }
         self.buffer.pop();
@@ -71,7 +71,7 @@ fn run(cmd: &str, handle: &Handle) -> Result<(Child, OutStream)> {
         .args(&cmd[1..])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .spawn_async(&handle)?;
+        .spawn_async(handle)?;
 
     let stdout = child.stdout().take().ok_or("Failed get stdout")?;
     let stderr = child.stderr().take().ok_or("Failed get stderr")?;
@@ -107,7 +107,7 @@ pub fn runner<'a>(args: &ArgMatches<'a>, handle: Handle) -> Result<RStream> {
             }
 
             let buffer = ::config_get::<Vec<String>>("buffer")
-                .unwrap_or(vec!["all".to_owned()])
+                .unwrap_or_else(|| vec!["all".to_owned()])
                 .join(" -b ");
 
             let cmd = format!("{} logcat -b {} {}", adb, buffer, logcat_args.join(" "));
@@ -138,16 +138,14 @@ impl Stream for Runner {
                             ..Default::default()
                         });
                         return Ok(Async::Ready(Some(r)));
+                    } else if self.restart {
+                        let text = format!("Restarting \"{}\"", self.cmd);
+                        println!("{}", DIMM_COLOR.paint(&text));
+                        let (child, output) = run(&self.cmd, &self.handle)?;
+                        self.output = output;
+                        self.child = child;
                     } else {
-                        if self.restart {
-                            let text = format!("Restarting \"{}\"", self.cmd);
-                            println!("{}", DIMM_COLOR.paint(&text));
-                            let (child, output) = run(&self.cmd, &self.handle)?;
-                            self.output = output;
-                            self.child = child;
-                        } else {
-                            return Ok(Async::Ready(Some(None)));
-                        }
+                        return Ok(Async::Ready(Some(None)));
                     }
                 }
                 Ok(Async::NotReady) => return Ok(Async::NotReady),

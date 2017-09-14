@@ -11,7 +11,7 @@ use std::io::stdout;
 
 lazy_static! {
     static ref ABOUT: String = { format!("A 'adb logcat' wrapper and log processor. Your config directory is \"{}\".",
-                                         ::config_dir().unwrap_or("unknown".into()).display()) };
+                                         ::config_dir().unwrap_or_else(|_| "unknown".into()).display()) };
 }
 
 pub fn cli() -> App<'static, 'static> {

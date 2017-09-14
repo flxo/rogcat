@@ -72,7 +72,7 @@ named!(timestamp <Tm>,
                 tm_yday: 0,
                 tm_isdst: 0,
                 tm_utcoff: utcoff.unwrap_or(0),
-                tm_nsec: millisecond * 1000_000,
+                tm_nsec: millisecond * 1_000_000,
             }
         )
     )
@@ -221,8 +221,8 @@ impl Parser {
     }
 
     fn parse_bugreport(line: &str) -> Result<Record> {
-        if line.starts_with("=") || line.starts_with("-") ||
-            (line.starts_with("[") && line.ends_with("]"))
+        if line.starts_with('=') || line.starts_with('-') ||
+            (line.starts_with('[') && line.ends_with(']'))
         {
             if line.chars().all(|c| c == '=') {
                 Ok(Record {
@@ -285,9 +285,9 @@ impl Parser {
             ];
 
             let mut parse = |record: &Record| -> Record {
-                for p in parser.iter() {
+                for &p in parser.iter() {
                     if let Ok(r) = p(&record.raw) {
-                        self.last = Some(*p);
+                        self.last = Some(p);
                         return r;
                     }
                 }

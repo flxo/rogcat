@@ -60,12 +60,10 @@ impl<'a> Terminal {
                 } else {
                     ("%m-%d %H:%M:%S.%f".to_owned(), 18)
                 }
+            } else if args.is_present("no_timestamp") {
+                ("".to_owned(), 0)
             } else {
-                if args.is_present("no_timestamp") {
-                    ("".to_owned(), 0)
-                } else {
-                    ("%H:%M:%S.%f".to_owned(), 12)
-                }
+                ("%H:%M:%S.%f".to_owned(), 12)
             },
             format: args.value_of("terminal_format")
                 .and_then(|f| Format::from_str(f).ok())
@@ -89,7 +87,7 @@ impl<'a> Terminal {
 
     /// Filter some unreadable (on dark background) or nasty colors
     fn hashed_color(item: &str) -> Color {
-        match item.bytes().fold(42u16, |c, x| c ^ x as u16) {
+        match item.bytes().fold(42u16, |c, x| c ^ u16::from(x)) {
             c @ 0...1 => Color::Custom(c + 2),
             c @ 16...21 => Color::Custom(c + 6),
             c @ 52...55 | c @ 126...129 => Color::Custom(c + 4),

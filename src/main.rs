@@ -116,7 +116,7 @@ fn config_dir() -> Result<PathBuf> {
 }
 
 /// Read a value from the configuration file
-/// config_dir/config.toml
+/// `config_dir/config.toml`
 fn config_get<'a, T>(key: &'a str) -> Option<T>
 where
     T: serde::Deserialize<'a>,
@@ -141,20 +141,17 @@ fn input(core: &mut Core, args: &ArgMatches) -> Result<RStream> {
             Some(c) => {
                 if c == "-" {
                     stdin_reader(core)
-                } else {
-                    if let Ok(url) = Url::parse(c) {
-                        match url.scheme() {
-                            "tcp" => {
-                                let addr =
-                                    url.to_socket_addrs()?.next().ok_or("Failed to parse addr")?;
-                                tcp_reader(&addr, core)
-                            }
-                            "serial" => serial_reader(args, core),
-                            _ => runner(args, core.handle()),
+                } else if let Ok(url) = Url::parse(c) {
+                    match url.scheme() {
+                        "tcp" => {
+                            let addr = url.to_socket_addrs()?.next().ok_or("Failed to parse addr")?;
+                            tcp_reader(&addr, core)
                         }
-                    } else {
-                        runner(args, core.handle())
+                        "serial" => serial_reader(args, core),
+                        _ => runner(args, core.handle()),
                     }
+                } else {
+                    runner(args, core.handle())
                 }
             }
             None => runner(args, core.handle()),
@@ -185,13 +182,13 @@ fn run() -> Result<i32> {
 
     if args.is_present("clear") {
         let buffer = ::config_get::<Vec<String>>("buffer")
-            .unwrap_or(vec!["all".to_owned()])
+            .unwrap_or_else(|| vec!["all".to_owned()])
             .join(" -b ");
         let child = Command::new(adb()?)
             .arg("logcat")
             .arg("-c")
             .arg("-b")
-            .args(buffer.split(" "))
+            .args(buffer.split(' '))
             .spawn_async(&core.handle())?;
         let output = core.run(child)?;
         exit(output.code().ok_or("Failed to get exit code")?);

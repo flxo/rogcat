@@ -22,12 +22,12 @@ struct Logger {
 
 impl Logger {
     fn level(level: &Level) -> &str {
-        match level {
-            &Level::Trace | &Level::Verbose => "v",
-            &Level::Debug | &Level::None => "d",
-            &Level::Info => "i",
-            &Level::Warn => "w",
-            &Level::Error | &Level::Fatal | &Level::Assert => "e",
+        match *level {
+            Level::Trace | Level::Verbose => "v",
+            Level::Debug | Level::None => "d",
+            Level::Info => "i",
+            Level::Warn => "w",
+            Level::Error | Level::Fatal | Level::Assert => "e",
         }
     }
 }

@@ -22,11 +22,11 @@ impl<'a> Filter {
     pub fn new(args: &ArgMatches<'a>, profile: &Profile) -> Result<Self> {
         let mut tag_filter = args.values_of("tag")
             .map(|m| m.map(|f| f.to_owned()).collect::<Vec<String>>())
-            .unwrap_or(vec![]);
+            .unwrap_or_else(|| vec![]);
         tag_filter.extend(profile.tag().clone());
         let mut message_filter = args.values_of("message")
             .map(|m| m.map(|f| f.to_owned()).collect::<Vec<String>>())
-            .unwrap_or(vec![]);
+            .unwrap_or_else(|| vec![]);
         message_filter.extend(profile.message().clone());
 
         let (tag, tag_negative) = Self::init_filter(tag_filter.clone())?;
@@ -45,7 +45,7 @@ impl<'a> Filter {
         let mut positive = vec![];
         let mut negative = vec![];
         for r in &i {
-            if r.starts_with("!") {
+            if r.starts_with('!') {
                 let r = &r[1..];
                 negative.push(Regex::new(r).chain_err(
                     || format!("Invalid regex string: \"{}\"", r),
@@ -60,7 +60,7 @@ impl<'a> Filter {
     }
 
     pub fn filter(&mut self, record: &Option<Record>) -> bool {
-        if let &Some(ref record) = record {
+        if let Some(ref record) = *record {
             if record.level < self.level {
                 return false;
             }
