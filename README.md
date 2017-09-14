@@ -198,9 +198,9 @@ To check your setup, run `rogcat profiles --list` and select a profile for a run
 ## Usage
 
 ```
-rogcat 0.2.7-pre
+rogcat 0.2.12-pre
 Felix Obenhuber <felix@obenhuber.de>
-A 'adb logcat' wrapper and log processor. Your configuration file location is "/Users/felix/Library/Application Support/rogcat/profiles.toml".
+A 'adb logcat' wrapper and log processor. Your config directory is "/Users/felix/Library/Application Support/rogcat".
 
 USAGE:
     rogcat [FLAGS] [OPTIONS] [COMMAND] [SUBCOMMAND]
