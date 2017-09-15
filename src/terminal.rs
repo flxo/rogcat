@@ -178,9 +178,17 @@ impl<'a> Terminal {
         };
 
         self.process_width = max(self.process_width, record.process.chars().count());
-        let pid = format!("{:<width$}", record.process, width = self.process_width);
+        let pid = if record.process.is_empty() {
+            " ".repeat(self.process_width)
+        } else {
+            format!("{:<width$}", record.process, width = self.process_width)
+        };
         let tid = if record.thread.is_empty() {
-            "".to_owned()
+            if self.thread_width > 0 {
+                " ".repeat(self.thread_width + 1)
+            } else {
+                "".to_owned()
+            }
         } else {
             self.thread_width = max(self.thread_width, record.thread.chars().count());
             format!(" {:>width$}", record.thread, width = self.thread_width)
