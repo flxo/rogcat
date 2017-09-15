@@ -11,15 +11,14 @@ use profiles::*;
 use regex::Regex;
 use std::cmp::max;
 use std::collections::HashMap;
-use std::env;
 use std::io::Write;
 use std::io::stdout;
 use std::str::FromStr;
 use super::record::{Format, Level, Record};
 use term_painter::Attr::*;
 use term_painter::{Color, Style, ToStyle};
-use term_size::dimensions;
 use time::Tm;
+use utils::terminal_width;
 
 #[cfg(not(target_os = "windows"))]
 pub const DIMM_COLOR: Color = Color::Custom(243);
@@ -158,7 +157,7 @@ impl<'a> Terminal {
                 diff = "".to_owned();
                 self.tag_timestamps.clear();
                 // Print horizontal line if temrinal width is detectable
-                if let Some((width, _)) = dimensions() {
+                if let Some(width) = terminal_width() {
                     println!("{}", (0..width).map(|_| "─").collect::<String>());
                 }
                 // "beginnig of" messages never have a tag
@@ -249,16 +248,7 @@ impl<'a> Terminal {
             );
         };
 
-        let width = match dimensions() {
-            Some((width, _)) => Some(width),
-            None => {
-                env::var("COLUMNS").ok().and_then(
-                    |e| e.parse::<usize>().ok(),
-                )
-            }
-        };
-
-        if let Some(width) = width {
+        if let Some(width) = terminal_width() {
             let preamble_width = timestamp_width + 1 + self.diff_width + 1 + tag_width + 1 + 1 +
                 self.process_width +
                 if self.thread_width == 0 { 0 } else { 1 } +

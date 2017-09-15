@@ -71,17 +71,18 @@ use which::which_in;
 
 mod bugreport;
 mod cli;
-mod profiles;
 mod devices;
 mod errors;
 mod filewriter;
 mod filter;
 mod log;
 mod parser;
-mod record;
+mod profiles;
 mod reader;
+mod record;
 mod runner;
 mod terminal;
+mod utils;
 #[cfg(test)]
 mod tests;
 
