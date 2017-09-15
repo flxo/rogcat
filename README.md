@@ -1,6 +1,6 @@
 [![Build Status](https://travis-ci.org/flxo/rogcat.svg)](https://travis-ci.org/flxo/rogcat)
 [![Build status](https://ci.appveyor.com/api/projects/status/ng8npy7ym6l8lsy0?svg=true)](https://ci.appveyor.com/project/flxo/rogcat)
-[![crates.io](https://img.shields.io/crates/v/rogcat.svg)](https://img.shields.io/crates/v/rogcat.svg)
+[![crates.io](https://img.shields.io/crates/v/rogcat.svg)](https://crates.io/crates/rogcat)
 
 # rogcat
 
