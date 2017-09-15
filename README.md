@@ -217,6 +217,7 @@ FLAGS:
         --shorten-tags      Shorten tags by removing vovels if too long for human terminal format
         --show-date         Show month and day in terminal output
         --show-time-diff    Show the time difference between the occurence of equal tags in terminal output
+    -s, --skip              Skip records on a command restart until the last received last record is received again. Use with caution!
     -V, --version           Prints version information
 
 OPTIONS:

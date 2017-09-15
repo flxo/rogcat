@@ -6,14 +6,14 @@
 
 use clap::ArgMatches;
 use errors::*;
+use futures::future::ok;
 use futures::{Async, Poll, Stream};
+use record::{Format, Level};
 use std::io::{self, BufRead, BufReader};
 use std::mem;
 use std::process::{Command, Stdio};
 use super::record::Record;
-use super::terminal::DIMM_COLOR;
 use super::{adb, RStream};
-use term_painter::ToStyle;
 use tokio_core::reactor::Handle;
 use tokio_io::AsyncRead;
 use tokio_process::{Child, CommandExt};
@@ -58,11 +58,13 @@ pub struct Runner {
     child: Child,
     cmd: String,
     handle: Handle,
+    skip_until: Option<String>,
     output: OutStream,
     restart: bool,
+    skip: bool,
 }
 
-fn run(cmd: &str, handle: &Handle) -> Result<(Child, OutStream)> {
+fn run(cmd: &str, handle: &Handle, skip_until: &Option<String>) -> Result<(Child, OutStream)> {
     let cmd = cmd.split_whitespace()
         .map(|s| s.to_owned())
         .collect::<Vec<String>>();
@@ -77,9 +79,16 @@ fn run(cmd: &str, handle: &Handle) -> Result<(Child, OutStream)> {
     let stderr = child.stderr().take().ok_or("Failed get stderr")?;
     let stdout_reader = BufReader::new(stdout);
     let stderr_reader = BufReader::new(stderr);
-    let output = Box::new(lossy_lines(stdout_reader).select(
+    let output = lossy_lines(stdout_reader).select(
         lossy_lines(stderr_reader),
-    ));
+    );
+
+    let output: OutStream = if let Some(l) = skip_until.clone() {
+        Box::new(output.skip_while(move |r| ok(&l != r)).skip(1))
+    } else {
+        Box::new(output)
+    };
+
     Ok((child, output))
 }
 
@@ -113,14 +122,16 @@ pub fn runner<'a>(args: &ArgMatches<'a>, handle: Handle) -> Result<RStream> {
             let cmd = format!("{} logcat -b {} {}", adb, buffer, logcat_args.join(" "));
             (cmd, restart)
         });
-    let (child, output) = run(&cmd, &handle)?;
+    let (child, output) = run(&cmd, &handle, &None)?;
 
     Ok(Box::new(Runner {
         child,
         cmd: cmd.trim().to_owned(),
         handle,
+        skip_until: None,
         output,
         restart,
+        skip: args.is_present("skip"),
     }))
 }
 
@@ -133,17 +144,33 @@ impl Stream for Runner {
             match self.output.poll() {
                 Ok(Async::Ready(t)) => {
                     if let Some(s) = t {
+                        if self.skip {
+                            self.skip_until = Some(s.clone());
+                        }
+
                         let r = Some(Record {
                             raw: s,
                             ..Default::default()
                         });
                         return Ok(Async::Ready(Some(r)));
                     } else if self.restart {
-                        let text = format!("Restarting \"{}\"", self.cmd);
-                        println!("{}", DIMM_COLOR.paint(&text));
-                        let (child, output) = run(&self.cmd, &self.handle)?;
+                        let (child, output) = run(&self.cmd, &self.handle, &self.skip_until)?;
                         self.output = output;
                         self.child = child;
+                        if let Some(ref s) = self.skip_until {
+                            let r = Record {
+                                tag: "ROGCAT".to_owned(),
+                                message: format!("Skipping until: {}", s),
+                                level: Level::Warn,
+                                ..Default::default()
+                            };
+                            let r = Some(Record {
+                                raw: r.format(&Format::Csv)?,
+                                ..Default::default()
+                            });
+                            return Ok(Async::Ready(Some(r)));
+                        }
+                        // Next poll polls the new child...
                     } else {
                         return Ok(Async::Ready(Some(None)));
                     }
