@@ -9,7 +9,7 @@ use errors::*;
 use serde::de::{Deserialize, Deserializer, Error, Visitor};
 use serde::ser::Serializer;
 use serde::Serialize;
-use std::fmt;
+use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use std::ops::Deref;
 use time::{Tm, strptime, strftime};
@@ -36,6 +36,22 @@ impl FromStr for Format {
             "raw" => Ok(Format::Raw),
             _ => Err("Format parsing error"),
         }
+    }
+}
+
+impl Display for Format {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match *self {
+                Format::Csv => "csv",
+                Format::Html => "html",
+                Format::Human => "human",
+                Format::Json => "json",
+                Format::Raw => "raw",
+            }
+        )
     }
 }
 
@@ -69,7 +85,7 @@ pub enum Level {
     Assert,
 }
 
-impl ::std::fmt::Display for Level {
+impl Display for Level {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         write!(
             f,
@@ -167,7 +183,7 @@ impl<'de> Deserialize<'de> for Timestamp {
                     })
             }
 
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut Formatter) -> ::std::fmt::Result {
                 formatter.write_str("string %m-%d %H:%M:%S.%f")
             }
         }

@@ -79,9 +79,7 @@ fn run(cmd: &str, handle: &Handle, skip_until: &Option<String>) -> Result<(Child
     let stderr = child.stderr().take().ok_or("Failed get stderr")?;
     let stdout_reader = BufReader::new(stdout);
     let stderr_reader = BufReader::new(stderr);
-    let output = lossy_lines(stdout_reader).select(
-        lossy_lines(stderr_reader),
-    );
+    let output = lossy_lines(stdout_reader).select(lossy_lines(stderr_reader));
 
     let output: OutStream = if let Some(l) = skip_until.clone() {
         Box::new(output.skip_while(move |r| ok(&l != r)).skip(1))
@@ -170,7 +168,7 @@ impl Stream for Runner {
                             });
                             return Ok(Async::Ready(Some(r)));
                         }
-                        // Next poll polls the new child...
+                    // Next poll polls the new child...
                     } else {
                         return Ok(Async::Ready(Some(None)));
                     }

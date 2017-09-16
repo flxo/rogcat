@@ -1,6 +1,6 @@
 [![Build Status](https://travis-ci.org/flxo/rogcat.svg)](https://travis-ci.org/flxo/rogcat)
 [![Build status](https://ci.appveyor.com/api/projects/status/ng8npy7ym6l8lsy0?svg=true)](https://ci.appveyor.com/project/flxo/rogcat)
-[![crates.io](https://img.shields.io/crates/v/rogcat.svg)](https://img.shields.io/crates/v/rogcat.svg)
+[![crates.io](https://img.shields.io/crates/v/rogcat.svg)](https://crates.io/crates/rogcat)
 
 # rogcat
 
@@ -14,26 +14,28 @@ is a painted and reformatted view. `rogcat` can read logs from
 * one or multiple files
 * `stdin`
 * a serial port
+* TCP host and port
 
 The processing steps within a `rogcat` run include parsing of the input stream and applying filters (if provided).
-`rogcat` comes with a set of implemented in and output formats including `csv` and `html` (output only).
+`rogcat` comes with a set of implemented in and output formats:
 
-The output destination options of `rogcat` are
+* `csv:` Comma separated values
+* `raw:` Record (line) as received
+* `html:` A static single page html with a static table. This option cannot be used as input format. The page layout needs some love...
+* `human:` A human friendly colored column based format. See screenshot
+* `json:` Single line JSON
 
-* `stdout`
-* file(s)
-
-Logs dumped to files are readable by `rogcat` (except `html` format) to allow multi pass processing.
+Except the `human` and `html` format the output of `rogcat` is parseable by `rogcat`.
 
 ![Screenshot](/screenshot.png)
 
 ## Examples
 
-The following examples show a subset of `rogcats` features. Please check usage in addition!
+The following examples show a subset of `rogcats` features. *Please read `--help`!*
 
 ### Live
 
-Capture logs from a connected device and display unconditionally. `Rogcat` runs `adb logcat -b all`:
+Capture logs from a connected device and display unconditionally. Unless configurated otherwise, `Rogcat` runs `adb logcat -b all`:
 
 `rogcat`
 
@@ -46,7 +48,7 @@ it is created:
 
 `rogcat -o ./trace/testrun.log -n 1000` or `rogcat -o ./trace/testrun.log -n 1k`
 
-### STDIN
+### stdin
 
 Process the `stdout/stderr` output of `somecommand`:
 
@@ -62,7 +64,7 @@ The Read all files matching `trace*` in alphanumerical order and dump lines matc
 
 `rogcat -i trace* -m hmmm  -o /tmp/filtered`
 
-Check the `--message` and `--highlight` options in the `help`.
+Check the `--message` and `--highlight` options in the helptext.
 
 ### Serial
 
@@ -94,9 +96,30 @@ Capture a `Android` bugreport and write (zipped) to `bugreport.zip`:
 
 ### Log
 
-Place messages (on level `INFO`) read on `stdin` in the devices log buffer (e.g annotations during manual testing):
+Write message "some text" into the device log buffer (e.g annotations during manual testing):
 
-`rogcat log -l info  -`
+`rogcat log "some text"`
+
+Set level and tag or read from `stdin`:
+
+```
+rogcat-log
+Add log message(s) log buffer
+
+USAGE:
+    rogcat log [OPTIONS] [MESSAGE]
+
+FLAGS:
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+
+OPTIONS:
+    -l, --level <LEVEL>    Log on level [values: trace, debug, info, warn, error, fatal, assert, T, D, I, W, E, F, A]
+    -t, --tag <TAG>        Log tag
+
+ARGS:
+    <MESSAGE>    Log message. Pass "-" to capture from stdin'
+```
 
 ### Profiles
 
@@ -142,7 +165,7 @@ on device power cycles or disconnect/reconnects. A `Windows 7` bug prevents `rog
 ### Buffer
 
 The default behavior of `rogcat` is to dump `all` logcat buffers. This can be overwritten by selecting specific buffers in
-the `rogcat` config file. e.g:
+the `rogcat` configuration file. e.g:
 
 ```
 buffer = ["main", "events"]
@@ -151,7 +174,7 @@ buffer = ["main", "events"]
 ## Profiles
 
 Optionally `rogcat` reads a (`toml` formated) configuration file if present. This configuration may include tracing profiles
-('-p') and settings. The possible options in the config file are a subset of the command line options. The configuration
+('-p') and settings. The possible options in the configuration file are a subset of the command line options. The configuration
 file is read from the location set in the environment variable `ROGCAT_PROFILES` or a fixed pathes depending on your OS:
 
 * MacOS: `$HOME/Library/Application Support/rogcat/profiles.toml`
@@ -221,10 +244,10 @@ FLAGS:
     -V, --version           Prints version information
 
 OPTIONS:
-    -f, --file-format <file_format>              Select output file format [values: csv, html, json, raw]
     -a, --filename-format <filename_format>      Select a format for output file names. By passing 'single' the filename provided with the '-o' option is used (default).'enumerate' appends a file sequence
-                                                 number after the filename passed with '-o' option whenever a new file is created (see 'records-per-file' option). 'date' will prefix the output filename
-                                                 with the current local date when a new file is created [values: single, enumerate, date]
+                                                 number after the filename passed with '-o' option whenever a new file is created (see 'records-per-file' option). 'date' will prefix the output filename with
+                                                 the current local date when a new file is created [values: single, enumerate, date]
+    -f, --format <format>                        Output format. Defaults to human on stdout and raw on file output [values: csv, html, human, json, raw]
     -H, --head <head>                            Read n records and exit
     -h, --highlight <highlight>...               Highlight messages that match this pattern in RE2. The prefix '!' inverts the match
     -i, --input <input>...                       Read from file instead of command. Use 'serial://COM0@115200,8N1 or similiar for reading a serial port
@@ -236,7 +259,6 @@ OPTIONS:
     -n, --records-per-file <records_per_file>    Write n records per file. Use k, M, G suffixes or a plain number
     -t, --tag <tag>...                           Tag filters in RE2. The prefix '!' inverts the match
     -T, --tail <tail>                            Dump only the most recent <COUNT> lines (implies --dump)
-    -e, --terminal-format <terminal_format>      Select format for stdout [default: human]  [values: csv, human, json, raw]
 
 ARGS:
     <COMMAND>    Optional command to run and capture stdout from. Pass "-" to d capture stdin'. If omitted, rogcat will run "adb logcat -b all" and restarts this commmand if 'adb' terminates

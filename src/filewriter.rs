@@ -265,10 +265,13 @@ impl<'a> FileWriter {
                 .or_else(|| u64::from_str(l).ok())
         });
 
-        let format = match args.value_of("file_format") {
-            Some(s) => Format::from_str(s)?,
-            None => Format::Raw,
-        };
+        let format = args.value_of("format")
+            .and_then(|f| Format::from_str(f).ok())
+            .unwrap_or(Format::Raw);
+        if format == Format::Human {
+            return Err("Human format is unsupported when writing to files".into());
+        }
+
         let overwrite = args.is_present("overwrite");
 
         let records = records_per_file.unwrap_or(::std::u64::MAX);

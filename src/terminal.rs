@@ -50,6 +50,13 @@ impl<'a> Terminal {
         }
         let highlight = hl.iter().flat_map(|h| Regex::new(h)).collect();
 
+        let format = args.value_of("format")
+            .and_then(|f| Format::from_str(f).ok())
+            .unwrap_or(Format::Human);
+        if format == Format::Html {
+            return Err("HTML format is unsupported when writing to files".into());
+        }
+
         Ok(Terminal {
             beginning_of: Regex::new(r"--------- beginning of.*").unwrap(),
             color: !args.is_present("no_color"),
@@ -64,10 +71,8 @@ impl<'a> Terminal {
             } else {
                 ("%H:%M:%S.%f".to_owned(), 12)
             },
-            format: args.value_of("terminal_format")
-                .and_then(|f| Format::from_str(f).ok())
-                .unwrap_or(Format::Human),
-            highlight: highlight,
+            format,
+            highlight,
             shorten_tag: args.is_present("shorten_tags"),
             no_dimm: args.is_present("no_dimm"),
             process_width: 0,
@@ -100,14 +105,12 @@ impl<'a> Terminal {
     fn print_record(&mut self, record: &Record) -> Result<()> {
         match self.format {
             Format::Csv | Format::Json | Format::Raw => {
-                record.format(&self.format).and_then(|s| {
-                    println!("{}", s);
-                    Ok(())
-                })
+                println!("{}", record.format(&self.format)?);
+                Ok(())
             }
             Format::Human => self.print_human(record),
             Format::Html => {
-                panic!("Unimplemented format html");
+                unreachable!("Unimplemented format html");
             }
         }
     }
