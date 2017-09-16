@@ -8,6 +8,7 @@ use csv::ReaderBuilder;
 use errors::*;
 use nom::{digit, hex_digit, IResult, rest, space};
 use record::{Level, Record, Timestamp};
+use serde_json::from_str;
 use std::str::from_utf8;
 use time::Tm;
 
@@ -220,6 +221,10 @@ impl Parser {
         Err("Failed to parse csv".into())
     }
 
+    fn parse_json(line: &str) -> Result<Record> {
+        from_str(line).chain_err(|| "Failed to deserialize json")
+    }
+
     fn parse_bugreport(line: &str) -> Result<Record> {
         if line.starts_with('=') || line.starts_with('-') ||
             (line.starts_with('[') && line.ends_with(']'))
@@ -281,6 +286,7 @@ impl Parser {
                 Self::parse_default,
                 Self::parse_mindroid,
                 Self::parse_csv,
+                Self::parse_json,
                 Self::parse_bugreport,
             ];
 
