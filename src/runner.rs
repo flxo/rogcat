@@ -91,35 +91,35 @@ fn run(cmd: &str, handle: &Handle, skip_until: &Option<String>) -> Result<(Child
 }
 
 pub fn runner<'a>(args: &ArgMatches<'a>, handle: Handle) -> Result<RStream> {
-    let adb = format!("{}", adb()?.display());
-    let (cmd, restart) = value_t!(args, "COMMAND", String)
-        .map(|s| (s, args.is_present("restart")))
-        .unwrap_or({
-            let mut logcat_args = vec![];
+    let (cmd, restart) = if let Ok(cmd) = value_t!(args, "COMMAND", String) {
+        (cmd, args.is_present("restart"))
+    } else {
+        let adb = format!("{}", adb()?.display());
+        let mut logcat_args = vec![];
 
-            let mut restart = args.is_present("restart");
-            if !restart {
-                restart = ::config_get::<bool>("restart").unwrap_or(true);
-            }
+        let mut restart = args.is_present("restart");
+        if !restart {
+            restart = ::config_get::<bool>("restart").unwrap_or(true);
+        }
 
-            if args.is_present("tail") {
-                let count = value_t!(args, "tail", u32).unwrap_or_else(|e| e.exit());
-                logcat_args.push(format!("-t {}", count));
-                restart = false;
-            };
+        if args.is_present("tail") {
+            let count = value_t!(args, "tail", u32).unwrap_or_else(|e| e.exit());
+            logcat_args.push(format!("-t {}", count));
+            restart = false;
+        };
 
-            if args.is_present("dump") {
-                logcat_args.push("-d".to_owned());
-                restart = false;
-            }
+        if args.is_present("dump") {
+            logcat_args.push("-d".to_owned());
+            restart = false;
+        }
 
-            let buffer = ::config_get::<Vec<String>>("buffer")
-                .unwrap_or_else(|| vec!["all".to_owned()])
-                .join(" -b ");
+        let buffer = ::config_get::<Vec<String>>("buffer")
+            .unwrap_or_else(|| vec!["all".to_owned()])
+            .join(" -b ");
 
-            let cmd = format!("{} logcat -b {} {}", adb, buffer, logcat_args.join(" "));
-            (cmd, restart)
-        });
+        let cmd = format!("{} logcat -b {} {}", adb, buffer, logcat_args.join(" "));
+        (cmd, restart)
+    };
     let (child, output) = run(&cmd, &handle, &None)?;
 
     Ok(Box::new(Runner {
