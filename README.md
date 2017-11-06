@@ -171,6 +171,21 @@ the `rogcat` configuration file. e.g:
 buffer = ["main", "events"]
 ```
 
+### Terminal settings
+
+Some parameters of the `human` format are adjustable via the config file:
+
+```
+terminal_tag_width = 20
+terminal_shorten_tag = true
+terminal_show_time_diff = true
+terminal_show_date = false
+terminal_time_diff_width = 10
+terminal_hide_timestamp = true
+terminal_monochrome = false
+terminal_no_dimm = true
+```
+
 ## Profiles
 
 Optionally `rogcat` reads a (`toml` formated) configuration file if present. This configuration may include tracing profiles
@@ -221,7 +236,7 @@ To check your setup, run `rogcat profiles --list` and select a profile for a run
 ## Usage
 
 ```
-rogcat 0.2.12-pre
+rogcat 0.2.13-pre
 Felix Obenhuber <felix@obenhuber.de>
 A 'adb logcat' wrapper and log processor. Your config directory is "/Users/felix/Library/Application Support/rogcat".
 
@@ -232,9 +247,9 @@ FLAGS:
     -c, --clear             Clear (flush) the entire log and exit
     -d, --dump              Dump the log and then exit (don't block)
         --help              Prints help information
-        --no-color          Monochrome terminal output
+        --hide-timestamp    Hide timestamp in terminal output
+        --monochrome        Monochrome terminal output
         --no-dimm           Use white as dimm color
-        --no-timestamp      No timestamp in terminal output
         --overwrite         Overwrite output file if present
     -r, --restart           Restart command on exit
         --shorten-tags      Shorten tags by removing vovels if too long for human terminal format
@@ -244,9 +259,9 @@ FLAGS:
     -V, --version           Prints version information
 
 OPTIONS:
-    -a, --filename-format <filename_format>      Select a format for output file names. By passing 'single' the filename provided with the '-o' option is used (default).'enumerate' appends a file sequence
-                                                 number after the filename passed with '-o' option whenever a new file is created (see 'records-per-file' option). 'date' will prefix the output filename with
-                                                 the current local date when a new file is created [values: single, enumerate, date]
+    -a, --filename-format <filename_format>      Select a format for output file names. By passing 'single' the filename provided with the '-o' option is used (default).'enumerate' appends a file sequence number
+                                                 after the filename passed with '-o' option whenever a new file is created (see 'records-per-file' option). 'date' will prefix the output filename with the current
+                                                 local date when a new file is created [values: single, enumerate, date]
     -f, --format <format>                        Output format. Defaults to human on stdout and raw on file output [values: csv, html, human, json, raw]
     -H, --head <head>                            Read n records and exit
     -h, --highlight <highlight>...               Highlight messages that match this pattern in RE2. The prefix '!' inverts the match

@@ -14,6 +14,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::io::stdout;
 use std::str::FromStr;
+use super::config_get;
 use super::record::{Format, Level, Record};
 use term_painter::Attr::*;
 use term_painter::{Color, Style, ToStyle};
@@ -57,35 +58,44 @@ impl<'a> Terminal {
             return Err("HTML format is unsupported when writing to files".into());
         }
 
+        let color = !args.is_present("monochrome") && !config_get("terminal_monochrome").unwrap_or(false);
+        let hide_timestamp = args.is_present("hide_timestamp") || config_get("terminal_hide_timestamp").unwrap_or(false);
+        let no_dimm = args.is_present("no_dimm") || config_get("terminal_no_dimm").unwrap_or(false);
+        let shorten_tag = args.is_present("shorten_tags") || config_get("terminal_shorten_tags").unwrap_or(false);
+        let show_date = args.is_present("show_date") || config_get("terminal_show_date").unwrap_or(false);
+        let tag_width = config_get("terminal_tag_width").unwrap_or(40);
+        let time_diff = args.is_present("show_time_diff") || config_get("terminal_show_time_diff").unwrap_or(false);
+        let time_diff_width = config_get("terminal_time_diff_width").unwrap_or(8);
+
         Ok(Terminal {
             beginning_of: Regex::new(r"--------- beginning of.*").unwrap(),
-            color: !args.is_present("no_color"),
-            date_format: if args.is_present("show_date") {
-                if args.is_present("no_timestamp") {
+            color,
+            date_format: if show_date {
+                if hide_timestamp {
                     ("%m-%d".to_owned(), 5)
                 } else {
                     ("%m-%d %H:%M:%S.%f".to_owned(), 18)
                 }
-            } else if args.is_present("no_timestamp") {
+            } else if hide_timestamp {
                 ("".to_owned(), 0)
             } else {
                 ("%H:%M:%S.%f".to_owned(), 12)
             },
             format,
             highlight,
-            shorten_tag: args.is_present("shorten_tags"),
-            no_dimm: args.is_present("no_dimm"),
+            shorten_tag,
+            no_dimm,
             process_width: 0,
             tag_timestamps: HashMap::new(),
             vovels: Regex::new(r"a|e|i|o|u").unwrap(),
-            tag_width: 20,
+            tag_width,
             thread_width: 0,
-            diff_width: if args.is_present("show_time_diff") {
-                8
+            diff_width: if time_diff {
+                time_diff_width
             } else {
                 0
             },
-            time_diff: args.is_present("show_time_diff"),
+            time_diff,
         })
     }
 
