@@ -35,11 +35,11 @@ The following examples show a subset of `rogcats` features. *Please read `--help
 
 ### Live
 
-Capture logs from a connected device and display unconditionally. Unless configurated otherwise, `Rogcat` runs `adb logcat -b all`:
+Capture logs from a connected device and display unconditionally. Unless configurated otherwise, `Rogcat` runs `adb logcat -b main -b events -b crash -b kernel`:
 
 `rogcat`
 
-Write captured (from `adb logcat -b all`) logs to `testrun.log`:
+Write captured logs to `testrun.log`:
 
 `rogcat -o testrun.log`
 
@@ -259,9 +259,10 @@ FLAGS:
     -V, --version           Prints version information
 
 OPTIONS:
-    -a, --filename-format <filename_format>      Select a format for output file names. By passing 'single' the filename provided with the '-o' option is used (default).'enumerate' appends a file sequence number
-                                                 after the filename passed with '-o' option whenever a new file is created (see 'records-per-file' option). 'date' will prefix the output filename with the current
-                                                 local date when a new file is created [values: single, enumerate, date]
+    -b, --buffer <buffer>...                     Select specific (logcat) log buffers. Defaults to main, events, kernel and crash (logcat default)
+    -a, --filename-format <filename_format>      Select a format for output file names. By passing 'single' the filename provided with the '-o' option is used (default).'enumerate' appends a file sequence
+                                                 number after the filename passed with '-o' option whenever a new file is created (see 'records-per-file' option). 'date' will prefix the output filename with
+                                                 the current local date when a new file is created [values: single, enumerate, date]
     -f, --format <format>                        Output format. Defaults to human on stdout and raw on file output [values: csv, html, human, json, raw]
     -H, --head <head>                            Read n records and exit
     -h, --highlight <highlight>...               Highlight messages that match this pattern in RE2. The prefix '!' inverts the match

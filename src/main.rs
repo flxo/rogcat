@@ -182,14 +182,20 @@ fn run() -> Result<i32> {
     }
 
     if args.is_present("clear") {
-        let buffer = ::config_get::<Vec<String>>("buffer")
-            .unwrap_or_else(|| vec!["all".to_owned()])
+        let buffers = args.values_of("buffer")
+            .map(|m| m.map(|f| f.to_owned()).collect::<Vec<String>>())
+            .unwrap_or_else(|| vec![
+                "main".to_owned(),
+                "events".to_owned(),
+                "crash".to_owned(),
+                "kernel".to_owned(),
+            ])
             .join(" -b ");
         let child = Command::new(adb()?)
             .arg("logcat")
             .arg("-c")
             .arg("-b")
-            .args(buffer.split(' '))
+            .args(buffers.split(' '))
             .spawn_async(&core.handle())?;
         let output = core.run(child)?;
         exit(output.code().ok_or("Failed to get exit code")?);
