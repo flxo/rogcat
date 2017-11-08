@@ -8,7 +8,7 @@ license = "WTFPL"
 name = "rogcat"
 readme = "README.md"
 repository = "https://github.com/flxo/rogcat"
-version = "0.2.13-pre"
+version = "0.2.13"
 
 [dependencies]
 appdirs = "0.2.0"
