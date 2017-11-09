@@ -113,17 +113,17 @@ pub fn runner<'a>(args: &ArgMatches<'a>, handle: Handle) -> Result<RStream> {
             restart = false;
         }
 
-        let buffers = args.values_of("buffer")
+        let buffer = args.values_of("buffer")
             .map(|m| m.map(|f| f.to_owned()).collect::<Vec<String>>())
-            .unwrap_or_else(|| vec![
-                "main".to_owned(),
-                "events".to_owned(),
-                "crash".to_owned(),
-                "kernel".to_owned(),
-            ])
+            .or_else(|| ::config_get("buffer"))
+            .unwrap_or_else(|| {
+                ::DEFAULT_BUFFER.iter()
+                    .map(|&s| s.to_owned())
+                    .collect()
+            })
             .join(" -b ");
 
-        let cmd = format!("{} logcat -b {} {}", adb, buffers, logcat_args.join(" "));
+        let cmd = format!("{} logcat -b {} {}", adb, buffer, logcat_args.join(" "));
         (cmd, restart)
     };
     let (child, output) = run(&cmd, &handle, &None)?;

@@ -93,6 +93,8 @@ lazy_static! {
 pub type RSink = Box<Sink<SinkItem = Option<Record>, SinkError = Error>>;
 pub type RStream = Box<Stream<Item = Option<Record>, Error = Error>>;
 
+const DEFAULT_BUFFER: [&str; 4] = ["main", "events", "crash", "kernel"];
+
 fn main() {
     match run() {
         Err(e) => {
@@ -182,20 +184,20 @@ fn run() -> Result<i32> {
     }
 
     if args.is_present("clear") {
-        let buffers = args.values_of("buffer")
+        let buffer = args.values_of("buffer")
             .map(|m| m.map(|f| f.to_owned()).collect::<Vec<String>>())
-            .unwrap_or_else(|| vec![
-                "main".to_owned(),
-                "events".to_owned(),
-                "crash".to_owned(),
-                "kernel".to_owned(),
-            ])
+            .or_else(|| ::config_get("buffer"))
+            .unwrap_or_else(|| {
+                DEFAULT_BUFFER.iter()
+                    .map(|&s| s.to_owned())
+                    .collect()
+            })
             .join(" -b ");
         let child = Command::new(adb()?)
             .arg("logcat")
             .arg("-c")
             .arg("-b")
-            .args(buffers.split(' '))
+            .args(buffer.split(' '))
             .spawn_async(&core.handle())?;
         let output = core.run(child)?;
         exit(output.code().ok_or("Failed to get exit code")?);
