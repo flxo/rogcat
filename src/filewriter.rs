@@ -61,28 +61,28 @@ tr:hover {
     color: yellow;
 }
 td.level-D {
-	color: white;
-	background: #555;
+    color: white;
+    background: #555;
 }
 td.level-I {
     color: black;
-	background: #A8FF60;
+    background: #A8FF60;
 }
 td.level-W {
     color: black;
-	background: #FFFFB6;
+    background: #FFFFB6;
 }
 td.level-E {
     color: black;
-	background: #FF6C60;
+    background: #FF6C60;
 }
 td.level-A {
     color: black;
-	background: #FF6C60;
+    background: #FF6C60;
 }
 td.level-F {
     color: black;
-	background: #FF6C60;
+    background: #FF6C60;
 }
 table tr td:first-child + td + td {
     text-align: right
@@ -252,9 +252,10 @@ impl<'a> FileWriter {
                 .unwrap()
                 .captures(l)
                 .and_then(|caps| {
-                    caps.at(1)
+                    caps.get(1)
+                        .map(|m| m.as_str())
                         .and_then(|size| u64::from_str(size).ok())
-                        .and_then(|size| Some((size, caps.at(2))))
+                        .map(|size| (size, caps.get(2).map(|m| m.as_str())))
                 })
                 .and_then(|(size, suffix)| match suffix {
                     Some("k") => Some(1_000 * size),

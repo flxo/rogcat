@@ -58,13 +58,18 @@ impl<'a> Terminal {
             return Err("HTML format is unsupported when writing to files".into());
         }
 
-        let color = !args.is_present("monochrome") && !config_get("terminal_monochrome").unwrap_or(false);
-        let hide_timestamp = args.is_present("hide_timestamp") || config_get("terminal_hide_timestamp").unwrap_or(false);
+        let color = !args.is_present("monochrome") &&
+            !config_get("terminal_monochrome").unwrap_or(false);
+        let hide_timestamp = args.is_present("hide_timestamp") ||
+            config_get("terminal_hide_timestamp").unwrap_or(false);
         let no_dimm = args.is_present("no_dimm") || config_get("terminal_no_dimm").unwrap_or(false);
-        let shorten_tag = args.is_present("shorten_tags") || config_get("terminal_shorten_tags").unwrap_or(false);
-        let show_date = args.is_present("show_date") || config_get("terminal_show_date").unwrap_or(false);
+        let shorten_tag = args.is_present("shorten_tags") ||
+            config_get("terminal_shorten_tags").unwrap_or(false);
+        let show_date = args.is_present("show_date") ||
+            config_get("terminal_show_date").unwrap_or(false);
         let tag_width = config_get("terminal_tag_width").unwrap_or(40);
-        let time_diff = args.is_present("show_time_diff") || config_get("terminal_show_time_diff").unwrap_or(false);
+        let time_diff = args.is_present("show_time_diff") ||
+            config_get("terminal_show_time_diff").unwrap_or(false);
         let time_diff_width = config_get("terminal_time_diff_width").unwrap_or(8);
 
         Ok(Terminal {
@@ -90,11 +95,7 @@ impl<'a> Terminal {
             vovels: Regex::new(r"a|e|i|o|u").unwrap(),
             tag_width,
             thread_width: 0,
-            diff_width: if time_diff {
-                time_diff_width
-            } else {
-                0
-            },
+            diff_width: if time_diff { time_diff_width } else { 0 },
             time_diff,
         })
     }
@@ -181,7 +182,7 @@ impl<'a> Terminal {
 
             if t.chars().count() > self.tag_width {
                 if self.shorten_tag {
-                    t = self.vovels.replace_all(&t, "")
+                    t = self.vovels.replace_all(&t.to_owned(), "").to_string();
                 }
                 if t.chars().count() > self.tag_width {
                     t.truncate(self.tag_width);

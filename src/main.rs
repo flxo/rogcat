@@ -46,7 +46,6 @@ extern crate zip;
 use cli::cli;
 use clap::ArgMatches;
 use config::Config;
-use error_chain::ChainedError;
 use errors::*;
 use filewriter::FileWriter;
 use filter::Filter;
@@ -100,7 +99,7 @@ fn main() {
         Err(e) => {
             let stderr = &mut stderr();
             let errmsg = "Error writing to stderr";
-            writeln!(stderr, "{}", e.display()).expect(errmsg);
+            writeln!(stderr, "{}", e).expect(errmsg);
             exit(1)
         }
         Ok(r) => exit(r),
@@ -187,11 +186,7 @@ fn run() -> Result<i32> {
         let buffer = args.values_of("buffer")
             .map(|m| m.map(|f| f.to_owned()).collect::<Vec<String>>())
             .or_else(|| ::config_get("buffer"))
-            .unwrap_or_else(|| {
-                DEFAULT_BUFFER.iter()
-                    .map(|&s| s.to_owned())
-                    .collect()
-            })
+            .unwrap_or_else(|| DEFAULT_BUFFER.iter().map(|&s| s.to_owned()).collect())
             .join(" -b ");
         let child = Command::new(adb()?)
             .arg("logcat")
