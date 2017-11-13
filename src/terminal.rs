@@ -37,7 +37,7 @@ pub struct Terminal {
     process_width: usize,
     shorten_tag: bool,
     tag_timestamps: HashMap<String, Tm>,
-    tag_width: usize,
+    tag_width: Option<usize>,
     thread_width: usize,
     time_diff: bool,
     vovels: Regex,
@@ -67,7 +67,7 @@ impl<'a> Terminal {
             config_get("terminal_shorten_tags").unwrap_or(false);
         let show_date = args.is_present("show_date") ||
             config_get("terminal_show_date").unwrap_or(false);
-        let tag_width = config_get("terminal_tag_width").unwrap_or(40);
+        let tag_width = config_get("terminal_tag_width");
         let time_diff = args.is_present("show_time_diff") ||
             config_get("terminal_show_time_diff").unwrap_or(false);
         let time_diff_width = config_get("terminal_time_diff_width").unwrap_or(8);
@@ -166,12 +166,23 @@ impl<'a> Terminal {
             ("".to_owned(), "".to_owned())
         };
 
+        let terminal_width = terminal_width();
+        let tag_width = self.tag_width.unwrap_or_else(|| {
+            match terminal_width {
+                Some(n) if n <= 80 => 15,
+                Some(n) if n <= 90 => 20,
+                Some(n) if n <= 100 => 25,
+                Some(n) if n <= 110 => 30,
+                _ => 35,
+            }
+        });
+
         let tag = {
             let mut t = if self.beginning_of.is_match(&record.message) {
                 diff = "".to_owned();
                 self.tag_timestamps.clear();
                 // Print horizontal line if temrinal width is detectable
-                if let Some(width) = terminal_width() {
+                if let Some(width) = terminal_width {
                     println!("{}", (0..width).map(|_| "─").collect::<String>());
                 }
                 // "beginnig of" messages never have a tag
@@ -180,15 +191,15 @@ impl<'a> Terminal {
                 record.tag.clone()
             };
 
-            if t.chars().count() > self.tag_width {
+            if t.chars().count() > tag_width {
                 if self.shorten_tag {
                     t = self.vovels.replace_all(&t.to_owned(), "").to_string();
                 }
-                if t.chars().count() > self.tag_width {
-                    t.truncate(self.tag_width);
+                if t.chars().count() > tag_width {
+                    t.truncate(tag_width);
                 }
             }
-            format!("{:>width$}", t, width = self.tag_width)
+            format!("{:>width$}", t, width = tag_width)
         };
 
         self.process_width = max(self.process_width, record.process.chars().count());
@@ -224,7 +235,6 @@ impl<'a> Terminal {
 
         let mut highlight = false;
         let color = self.color;
-        let tag_width = self.tag_width;
         let diff_width = self.diff_width;
         let timestamp_width = self.date_format.1;
         let msg_style = self.highlight_style(&record.message, level_color, &mut highlight);
@@ -270,7 +280,7 @@ impl<'a> Terminal {
             );
         };
 
-        if let Some(width) = terminal_width() {
+        if let Some(width) = terminal_width {
             let preamble_width = timestamp_width + 1 + self.diff_width + 1 + tag_width + 1 + 1 +
                 self.process_width +
                 if self.thread_width == 0 { 0 } else { 1 } +
