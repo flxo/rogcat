@@ -18,6 +18,8 @@ use tokio_core::reactor::Handle;
 use tokio_io::AsyncRead;
 use tokio_process::{Child, CommandExt};
 
+const CRNL: &[char] = &['\n', '\r'];
+
 struct LossyLines<A> {
     io: A,
     buffer: Vec<u8>,
@@ -41,14 +43,15 @@ where
     type Error = io::Error;
 
     fn poll(&mut self) -> Poll<Option<String>, io::Error> {
+        self.buffer.clear();
         let n = try_nb!(self.io.read_until(b'\n', &mut self.buffer));
         if n == 0 && self.buffer.is_empty() {
             return Ok(None.into());
         }
         self.buffer.pop();
-        let mut s = String::from_utf8_lossy(&self.buffer).into_owned();
-        self.buffer.clear();
-        Ok(Some(mem::replace(&mut s, String::new())).into())
+        let line = String::from_utf8_lossy(&self.buffer);
+        let trimmed_line = line.trim_matches(CRNL);
+        Ok(Some(mem::replace(&mut trimmed_line.to_owned(), String::new())).into())
     }
 }
 

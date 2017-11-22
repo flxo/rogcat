@@ -28,6 +28,8 @@ use tokio_core::reactor::Core;
 use tokio_io::AsyncRead;
 use tokio_io::codec::{Encoder, Decoder};
 
+const CRNL: &[char] = &['\n', '\r'];
+
 fn records<T: Read + Send + Sized + 'static>(reader: T, core: &Core) -> Result<RStream> {
     let (tx, rx) = mpsc::channel(1);
     let mut reader = BufReader::new(reader);
@@ -39,7 +41,8 @@ fn records<T: Read + Send + Sized + 'static>(reader: T, core: &Core) -> Result<R
         match reader.read_until(b'\n', &mut buffer) {
             Ok(len) => {
                 if len > 0 {
-                    let raw = String::from_utf8_lossy(&buffer).trim().to_owned();
+                    let raw = String::from_utf8_lossy(&buffer);
+                    let raw = raw.trim_matches(CRNL).to_owned();
                     let record = Record {
                         raw,
                         ..Default::default()
