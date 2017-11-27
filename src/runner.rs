@@ -17,8 +17,7 @@ use super::{adb, RStream};
 use tokio_core::reactor::Handle;
 use tokio_io::AsyncRead;
 use tokio_process::{Child, CommandExt};
-
-const CRNL: &[char] = &['\n', '\r'];
+use utils::trim_cr_nl;
 
 struct LossyLines<A> {
     io: A,
@@ -50,8 +49,8 @@ where
         }
         self.buffer.pop();
         let line = String::from_utf8_lossy(&self.buffer);
-        let trimmed_line = line.trim_matches(CRNL);
-        Ok(Some(mem::replace(&mut trimmed_line.to_owned(), String::new())).into())
+        let mut trimmed_line = trim_cr_nl(&line);
+        Ok(Some(mem::replace(&mut trimmed_line, String::new())).into())
     }
 }
 

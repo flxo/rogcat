@@ -27,8 +27,7 @@ use tokio_core::net::TcpStream;
 use tokio_core::reactor::Core;
 use tokio_io::AsyncRead;
 use tokio_io::codec::{Encoder, Decoder};
-
-const CRNL: &[char] = &['\n', '\r'];
+use utils::trim_cr_nl;
 
 fn records<T: Read + Send + Sized + 'static>(reader: T, core: &Core) -> Result<RStream> {
     let (tx, rx) = mpsc::channel(1);
@@ -42,9 +41,8 @@ fn records<T: Read + Send + Sized + 'static>(reader: T, core: &Core) -> Result<R
             Ok(len) => {
                 if len > 0 {
                     let raw = String::from_utf8_lossy(&buffer);
-                    let raw = raw.trim_matches(CRNL).to_owned();
                     let record = Record {
-                        raw,
+                        raw: trim_cr_nl(&raw),
                         ..Default::default()
                     };
                     let f = tx.send(Some(record)).map(|_| ()).map_err(|_| ());
