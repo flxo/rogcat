@@ -4,7 +4,7 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
-use errors::*;
+use failure::Error;
 use tests::utils::*;
 
 const CONFIG: &str = "
@@ -30,7 +30,7 @@ extends = [\"CircleB\"]
 [profile.CircleB]
 extends = [\"CircleA\"]";
 
-fn run_rogcat_with_config_and_input_file(args: &SVec, payload: &SVec) -> Result<SVec> {
+fn run_rogcat_with_config_and_input_file(args: &SVec, payload: &SVec) -> Result<SVec, Error> {
     let lines = CONFIG.lines().map(|s| s.to_string()).collect();
     let config = tempfile_with_content(&lines)?.display().to_string();
     let mut a = svec!("-P", config);

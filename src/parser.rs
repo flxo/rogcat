@@ -5,7 +5,7 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use csv::ReaderBuilder;
-use errors::*;
+use failure::Error;
 use nom::{digit, hex_digit, IResult, rest, space};
 use record::{Level, Record, Timestamp};
 use serde_json::from_str;
@@ -179,7 +179,7 @@ named!(property <(String, String)>,
 );
 
 pub struct Parser {
-    last: Option<fn(&str) -> Result<Record>>,
+    last: Option<fn(&str) -> Result<Record, Error>>,
 }
 
 impl Parser {
@@ -187,29 +187,29 @@ impl Parser {
         Parser { last: None }
     }
 
-    fn parse_default(line: &str) -> Result<Record> {
+    fn parse_default(line: &str) -> Result<Record, Error> {
         match printable(line.as_bytes()) {
             IResult::Done(_, mut v) => {
                 v.raw = line.to_owned();
                 Ok(v)
             }
-            IResult::Error(e) => Err(e.into()),
-            IResult::Incomplete(_) => Err("Not enough data".into()),
+            IResult::Error(e) => Err(format_err!("{:?}", e)),
+            IResult::Incomplete(_) => Err(format_err!("Not enough data")),
         }
     }
 
-    fn parse_mindroid(line: &str) -> Result<Record> {
+    fn parse_mindroid(line: &str) -> Result<Record, Error> {
         match mindroid(line.as_bytes()) {
             IResult::Done(_, mut v) => {
                 v.raw = line.to_owned();
                 Ok(v)
             }
-            IResult::Error(e) => Err(e.into()),
-            IResult::Incomplete(_) => Err("Not enough data".into()),
+            IResult::Error(e) => Err(format_err!("{:?}", e)),
+            IResult::Incomplete(_) => Err(format_err!("Not enough data")),
         }
     }
 
-    fn parse_csv(line: &str) -> Result<Record> {
+    fn parse_csv(line: &str) -> Result<Record, Error> {
         let mut line = line.to_owned();
         line.push('\n');
         let mut rdr = ReaderBuilder::new().has_headers(false).from_reader(
@@ -218,14 +218,14 @@ impl Parser {
         for result in rdr.deserialize() {
             return result.map_err(|e| e.into());
         }
-        Err("Failed to parse csv".into())
+        Err(format_err!("Failed to parse csv"))
     }
 
-    fn parse_json(line: &str) -> Result<Record> {
-        from_str(line).chain_err(|| "Failed to deserialize json")
+    fn parse_json(line: &str) -> Result<Record, Error> {
+        from_str(line).map_err(|e| format_err!("Failed to deserialize json: {:?}", e))
     }
 
-    fn parse_bugreport(line: &str) -> Result<Record> {
+    fn parse_bugreport(line: &str) -> Result<Record, Error> {
         if line.starts_with('=') || line.starts_with('-') ||
             (line.starts_with('[') && line.ends_with(']'))
         {
@@ -245,7 +245,7 @@ impl Parser {
                     ..Default::default()
                 })
             } else if line.is_empty() {
-                Err("Unparseable".into())
+                Err(format_err!("Unparseable"))
             } else if let IResult::Done(_, (prop, value)) = property(line.as_bytes()) {
                 Ok(Record {
                     message: value,
@@ -265,16 +265,16 @@ impl Parser {
                             ..Default::default()
                         })
                     }
-                    IResult::Error(e) => Err(e.into()),
-                    IResult::Incomplete(_) => Err("Not enough data".into()),
+                    IResult::Error(e) => Err(format_err!("{:?}", e)),
+                    IResult::Incomplete(_) => Err(format_err!("Not enough data")),
                 }
             }
         } else {
-            Err("Unparseable".into())
+            Err(format_err!("Unparseable"))
         }
     }
 
-    pub fn process(&mut self, record: Option<Record>) -> Result<Option<Record>> {
+    pub fn process(&mut self, record: Option<Record>) -> Result<Option<Record>, Error> {
         if let Some(record) = record {
             if let Some(p) = self.last {
                 if let Ok(record) = p(&record.raw) {

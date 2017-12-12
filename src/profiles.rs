@@ -5,7 +5,7 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use clap::ArgMatches;
-use errors::*;
+use failure::Error;
 use std::collections::HashMap;
 use std::env::var;
 use std::fs::File;
@@ -95,7 +95,7 @@ pub struct Profiles {
 }
 
 impl Profiles {
-    pub fn new(args: &ArgMatches) -> Result<Self> {
+    pub fn new(args: &ArgMatches) -> Result<Self, Error> {
         let file = Self::file(Some(args))?;
         if !file.exists() {
             Ok(Profiles {
@@ -105,12 +105,10 @@ impl Profiles {
         } else {
             let mut config = String::new();
             File::open(file.clone())
-                .chain_err(|| format!("Failed to open {:?}", file))?
+                .map_err(|e| format_err!("Failed to open {:?}: {:?}", file, e))?
                 .read_to_string(&mut config)?;
 
-            let mut config_file: ConfigurationFile = from_str(&config).chain_err(|| {
-                format!("Failed to parse \"{}\"", file.display())
-            })?;
+            let mut config_file: ConfigurationFile = from_str(&config).map_err(|e| format_err!("Failed to parse \"{}\": {:?}", file.display(), e))?;
 
             let profiles: HashMap<String, Profile> = config_file
                 .profile
@@ -122,7 +120,7 @@ impl Profiles {
             if let Some(n) = args.value_of("profile") {
                 profile = profiles
                     .get(n)
-                    .ok_or_else(|| format!("Unknown profile \"{}\"", n))?
+                    .ok_or_else(|| format_err!("Unknown profile \"{}\"", n))?
                     .clone();
                 Self::expand(n, &mut profile, &profiles)?;
             }
@@ -135,25 +133,21 @@ impl Profiles {
         }
     }
 
-    fn expand(n: &str, p: &mut Profile, a: &HashMap<String, Profile>) -> Result<()> {
+    fn expand(n: &str, p: &mut Profile, a: &HashMap<String, Profile>) -> Result<(), Error> {
         let mut loops = EXTEND_LIMIT;
         while !p.extends.is_empty() {
             let extends = p.extends.clone();
             p.extends.clear();
             for e in &extends {
                 let f = a.get(e).ok_or_else(|| {
-                    format!("Unknown extend profile name \"{}\" used in \"{}\"", e, n)
+                    format_err!("Unknown extend profile name \"{}\" used in \"{}\"", e, n)
                 })?;
                 *p += f.clone();
             }
 
             loops -= 1;
             if loops == 0 {
-                let err = format!(
-                    "Reached recursion limit while resolving profile \"{}\" extends",
-                    n
-                );
-                return Err(err.into());
+                return Err(format_err!("Reached recursion limit while resolving profile \"{}\" extends", n));
             }
         }
         Ok(())
@@ -163,7 +157,7 @@ impl Profiles {
         self.profile.clone()
     }
 
-    pub fn subcommand(self, args: &ArgMatches) -> Result<i32> {
+    pub fn subcommand(self, args: &ArgMatches) -> Result<i32, Error> {
         if args.is_present("list") {
             if self.profiles.is_empty() {
                 println!("No profiles present in \"{}\".", self.file.display());
@@ -255,7 +249,7 @@ impl Profiles {
 
             to_string(&example)
                 .map_err(|e| {
-                    format!("Internal example serialization error: {}", e).into()
+                    format_err!("Internal example serialization error: {}", e)
                 })
                 .map(|s| {
                     println!("Example profiles:");
@@ -264,23 +258,18 @@ impl Profiles {
                     0
                 })
         } else {
-            Err("Missing option for profiles subcommand!".into())
+            Err(format_err!("Missing option for profiles subcommand!"))
         }
     }
 
-    pub fn file(args: Option<&ArgMatches>) -> Result<PathBuf> {
+    pub fn file(args: Option<&ArgMatches>) -> Result<PathBuf, Error> {
         if let Some(args) = args {
             if args.is_present("profiles_path") {
                 let f = PathBuf::from(value_t!(args, "profiles_path", String)?);
                 if f.exists() {
                     return Ok(f);
                 } else {
-                    return Err(
-                        format!(
-                            "Cannot find \"{}\". Use --profiles_path to specify the path manually!",
-                            f.display()
-                        ).into(),
-                    );
+                    return Err(format_err!("Cannot find \"{}\". Use --profiles_path to specify the path manually!", f.display()));
                 }
             }
         }
@@ -288,10 +277,7 @@ impl Profiles {
             if f.exists() {
                 return Ok(f);
             } else {
-                Err(
-                    format!("Cannot find \"{}\" set in ROGCAT_PROFILES!", f.display()).into(),
-                )
-            }
+                Err(format_err!("Cannot find \"{}\" set in ROGCAT_PROFILES!", f.display())) }
         } else {
             Ok(::config_dir()?.join("profiles.xml"))
         }

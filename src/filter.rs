@@ -5,7 +5,7 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use clap::ArgMatches;
-use errors::*;
+use failure::Error;
 use profiles::*;
 use record::{Level, Record};
 use regex::Regex;
@@ -19,7 +19,7 @@ pub struct Filter {
 }
 
 impl<'a> Filter {
-    pub fn new(args: &ArgMatches<'a>, profile: &Profile) -> Result<Self> {
+    pub fn new(args: &ArgMatches<'a>, profile: &Profile) -> Result<Self, Error> {
         let mut tag_filter = args.values_of("tag")
             .map(|m| m.map(|f| f.to_owned()).collect::<Vec<String>>())
             .unwrap_or_else(|| vec![]);
@@ -41,19 +41,15 @@ impl<'a> Filter {
         })
     }
 
-    fn init_filter(i: Vec<String>) -> Result<(Vec<Regex>, Vec<Regex>)> {
+    fn init_filter(i: Vec<String>) -> Result<(Vec<Regex>, Vec<Regex>), Error> {
         let mut positive = vec![];
         let mut negative = vec![];
         for r in &i {
             if r.starts_with('!') {
                 let r = &r[1..];
-                negative.push(Regex::new(r).chain_err(
-                    || format!("Invalid regex string: \"{}\"", r),
-                )?)
+                negative.push(Regex::new(r).map_err(|_| format_err!("Invalid regex string: \"{}\"", r))?)
             } else {
-                positive.push(Regex::new(r).chain_err(
-                    || format!("Invalid regex string: \"{}\"", r),
-                )?)
+                positive.push(Regex::new(r).map_err(|_| format_err!("Invalid regex string: \"{}\"", r))?)
             }
         }
         Ok((positive, negative))

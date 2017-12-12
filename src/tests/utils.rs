@@ -4,7 +4,7 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
-use errors::*;
+use failure::Error;
 use rand::*;
 use std::env;
 use std::fs::File;
@@ -23,28 +23,26 @@ macro_rules! svec {
 
 pub type SVec = Vec<String>;
 
-pub fn tempdir() -> Result<PathBuf> {
-    TempDir::new("rogcat").map(|e| e.into_path()).map_err(
-        |e| e.into(),
-    )
+pub fn tempdir() -> Result<PathBuf, Error> {
+    TempDir::new("rogcat")
+        .map(|e| e.into_path())
+        .map_err(|e| format_err!("Tempdir error: {:?}", e))
 }
 
-pub fn tempfile() -> Result<PathBuf> {
+pub fn tempfile() -> Result<PathBuf, Error> {
     let mut path = tempdir()?;
     let filename: String = thread_rng().gen_iter::<char>().take(8).collect();
     path.push(filename);
     Ok(path)
 }
 
-pub fn tempfile_with_content(c: &SVec) -> Result<PathBuf> {
+pub fn tempfile_with_content(c: &SVec) -> Result<PathBuf, Error> {
     let path = tempfile()?;
-    File::create(path.clone())?.write_all(
-        c.join("\n").as_bytes(),
-    )?;
+    File::create(path.clone())?.write_all(c.join("\n").as_bytes())?;
     Ok(path)
 }
 
-pub fn file_content(file: &PathBuf) -> Result<SVec> {
+pub fn file_content(file: &PathBuf) -> Result<SVec, Error> {
     let content = BufReader::new(File::open(file)?)
         .lines()
         .map(|e| e.unwrap())
@@ -52,7 +50,7 @@ pub fn file_content(file: &PathBuf) -> Result<SVec> {
     Ok(content)
 }
 
-pub fn check_file_content(file: &PathBuf, content: &SVec) -> Result<bool> {
+pub fn check_file_content(file: &PathBuf, content: &SVec) -> Result<bool, Error> {
     Ok(content == &file_content(file)?)
 }
 
@@ -72,7 +70,7 @@ pub fn find_rogcat_binary() -> PathBuf {
         ))
 }
 
-pub fn run_rogcat(args: &SVec, input: Option<SVec>) -> Result<(bool, SVec)> {
+pub fn run_rogcat(args: &SVec, input: Option<SVec>) -> Result<(bool, SVec), Error> {
     let rogcat = find_rogcat_binary();
     let mut process = Command::new(format!("{}", rogcat.display()))
         .args(args)
@@ -102,7 +100,7 @@ pub fn run_rogcat(args: &SVec, input: Option<SVec>) -> Result<(bool, SVec)> {
     Ok((output.status.success(), stdout))
 }
 
-pub fn run_rogcat_with_input_file(args: &SVec, payload: &SVec) -> Result<(bool, SVec)> {
+pub fn run_rogcat_with_input_file(args: &SVec, payload: &SVec) -> Result<(bool, SVec), Error> {
     let input = tempfile_with_content(payload).expect("Failed to crate input file");
     let mut a = svec!("-i", format!("{}", input.display()));
     a.extend(args.clone());

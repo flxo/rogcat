@@ -6,7 +6,7 @@
 
 use bytes::BytesMut;
 use clap::ArgMatches;
-use errors::*;
+use failure::Error;
 use futures::sync::mpsc;
 use futures::{stream, Future, Sink, Stream};
 use nom::{digit, IResult};
@@ -22,14 +22,14 @@ use std::str;
 use std::u64;
 use std::thread;
 use std::time::Duration;
-use super::RStream;
+use RStream;
 use tokio_core::net::TcpStream;
 use tokio_core::reactor::Core;
 use tokio_io::AsyncRead;
 use tokio_io::codec::{Encoder, Decoder};
 use utils::trim_cr_nl;
 
-fn records<T: Read + Send + Sized + 'static>(reader: T, core: &Core) -> Result<RStream> {
+fn records<T: Read + Send + Sized + 'static>(reader: T, core: &Core) -> Result<RStream, Error> {
     let (tx, rx) = mpsc::channel(1);
     let mut reader = BufReader::new(reader);
     let remote = core.remote();
@@ -45,10 +45,16 @@ fn records<T: Read + Send + Sized + 'static>(reader: T, core: &Core) -> Result<R
                         raw: trim_cr_nl(&raw),
                         ..Default::default()
                     };
-                    let f = tx.send(Some(record)).map(|_| ()).map_err(|_| ());
+                    let f = tx
+                        .send(Some(record))
+                        .map(|_| ())
+                        .map_err(|_| ());
                     remote.spawn(|_| f);
                 } else {
-                    let f = tx.clone().send(None).map(|_| ()).map_err(|_| ());
+                    let f = tx.clone()
+                        .send(None)
+                        .map(|_| ())
+                        .map_err(|_| ());
                     remote.spawn(|_| f);
                     tx.close().ok();
                     break;
@@ -61,23 +67,21 @@ fn records<T: Read + Send + Sized + 'static>(reader: T, core: &Core) -> Result<R
         }
     });
 
-    Ok(Box::new(rx.map_err(|_| "Channel error".into())))
+    Ok(Box::new(rx.map_err(|e| format_err!("Channel error: {:?}", e))))
 }
 
-pub fn file_reader<'a>(args: &ArgMatches<'a>, core: &Core) -> Result<RStream> {
+pub fn file_reader<'a>(args: &ArgMatches<'a>, core: &Core) -> Result<RStream, Error> {
     let files = args.values_of("input")
         .map(|f| f.map(PathBuf::from).collect::<Vec<PathBuf>>())
-        .ok_or("Failed to parse input files")?;
+        .ok_or(format_err!("Failed to parse input files"))?;
 
     let mut streams = Vec::new();
     for f in &files {
         if !f.exists() {
-            return Err(format!("Cannot open {}", f.display()).into());
+            return Err(format_err!("Cannot open {}", f.display()));
         }
 
-        let file = File::open(f).chain_err(
-            || format!("Failed to open {}", f.display()),
-        )?;
+        let file = File::open(f).map_err(|e| format_err!("Failed to open {}: {:?}", f.display(), e))?;
 
         streams.push(records(file, core)?);
     }
@@ -98,16 +102,16 @@ pub fn file_reader<'a>(args: &ArgMatches<'a>, core: &Core) -> Result<RStream> {
     Ok(Box::new(flat))
 }
 
-pub fn stdin_reader(core: &Core) -> Result<RStream> {
+pub fn stdin_reader(core: &Core) -> Result<RStream, Error> {
     records(Box::new(stdin()), core)
 }
 
-pub fn serial_reader<'a>(args: &ArgMatches<'a>, core: &Core) -> Result<RStream> {
-    let i = args.value_of("input").ok_or("Invalid input value")?;
+pub fn serial_reader<'a>(args: &ArgMatches<'a>, core: &Core) -> Result<RStream, Error> {
+    let i = args.value_of("input").ok_or(format_err!("Invalid input value"))?;
     let p = match serial(i.as_bytes()) {
         IResult::Done(_, v) => v,
-        IResult::Error(_) => return Err("Failed to parse serial port settings".into()),
-        IResult::Incomplete(_) => return Err("Serial port settings are incomplete".into()),
+        IResult::Error(_) => return Err(format_err!("Failed to parse serial port settings")),
+        IResult::Incomplete(_) => return Err(format_err!("Serial port settings are incomplete")),
     };
     let mut port = ::serial::open(&p.0)?;
     port.configure(&p.1)?;
@@ -148,10 +152,10 @@ impl Encoder for LossyLineCodec {
     }
 }
 
-pub fn tcp_reader(addr: &SocketAddr, core: &mut Core) -> Result<RStream> {
+pub fn tcp_reader(addr: &SocketAddr, core: &mut Core) -> Result<RStream, Error> {
     let handle = core.handle();
     let s = core.run(TcpStream::connect(addr, &handle))
-        .chain_err(|| "Failed to connect")?
+        .map_err(|e| format_err!("Failed to connect: {}", e))?
         .framed(LossyLineCodec)
         .map(Some)
         .map_err(|e| e.into());

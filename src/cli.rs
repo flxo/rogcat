@@ -5,7 +5,7 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use clap::{App, AppSettings, Arg, ArgMatches, Shell, SubCommand};
-use errors::*;
+use failure::Error;
 use record::Level;
 use std::io::stdout;
 
@@ -190,14 +190,9 @@ pub fn cli() -> App<'static, 'static> {
                 .arg_from_usage("[MESSAGE] 'Log message. Pass \"-\" to capture from stdin'."))
 }
 
-pub fn subcommand_completions(args: &ArgMatches) -> Result<i32> {
+pub fn subcommand_completions(args: &ArgMatches) -> Result<i32, Error> {
     args.value_of("shell")
-        .ok_or("Missing required argument shell")
-        .map_err(|e| e.into())
-        .and_then(|s| s.parse::<Shell>())
-        .map_err(|e| e.into())
-        .map(|s| {
-            cli().gen_completions_to(crate_name!(), s, &mut stdout());
-            0
-        })
+        .ok_or(format_err!("Missing required argument shell"))
+        .map(|s| s.parse::<Shell>())
+        .map(|s| { cli().gen_completions_to(crate_name!(), s.unwrap(), &mut stdout()); 0 })
 }

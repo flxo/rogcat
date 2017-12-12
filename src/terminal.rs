@@ -5,7 +5,7 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use clap::ArgMatches;
-use errors::*;
+use failure::Error;
 use futures::{Sink, StartSend, Async, AsyncSink, Poll};
 use profiles::*;
 use regex::Regex;
@@ -44,7 +44,7 @@ pub struct Terminal {
 }
 
 impl<'a> Terminal {
-    pub fn new(args: &ArgMatches<'a>, profile: &Profile) -> Result<Self> {
+    pub fn new(args: &ArgMatches<'a>, profile: &Profile) -> Result<Self, Error> {
         let mut hl = profile.highlight().clone();
         if args.is_present("highlight") {
             hl.extend(values_t!(args.values_of("highlight"), String)?);
@@ -55,7 +55,7 @@ impl<'a> Terminal {
             .and_then(|f| Format::from_str(f).ok())
             .unwrap_or(Format::Human);
         if format == Format::Html {
-            return Err("HTML format is unsupported when writing to files".into());
+            return Err(format_err!("HTML format is unsupported when writing to files"));
         }
 
         let color = !args.is_present("monochrome") &&
@@ -113,7 +113,7 @@ impl<'a> Terminal {
         }
     }
 
-    fn print_record(&mut self, record: &Record) -> Result<()> {
+    fn print_record(&mut self, record: &Record) -> Result<(), Error> {
         match self.format {
             Format::Csv | Format::Json | Format::Raw => {
                 println!("{}", record.format(&self.format)?);
@@ -137,7 +137,7 @@ impl<'a> Terminal {
 
     // TODO
     // Rework this to use a more column based approach!
-    fn print_human(&mut self, record: &Record) -> Result<()> {
+    fn print_human(&mut self, record: &Record) -> Result<(), Error> {
         let (timestamp, mut diff) = if let Some(ts) = record.timestamp.clone() {
             let ts = *ts;
             let timestamp = match ::time::strftime(&self.date_format.0, &ts) {

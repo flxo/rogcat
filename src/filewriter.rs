@@ -6,7 +6,7 @@
 
 use clap::ArgMatches;
 use crc::{crc32, Hasher32};
-use errors::*;
+use failure::Error;
 use futures::{Sink, StartSend, Async, AsyncSink, Poll};
 use handlebars::{Handlebars, RenderContext, RenderError, Helper, JsonRender, to_json};
 use indicatif::{ProgressBar, ProgressStyle};
@@ -22,11 +22,11 @@ use time::{now, strftime};
 
 /// Interface for a output file format
 trait Writer {
-    fn new(filename: &PathBuf, format: &Format) -> Result<Box<Self>>
+    fn new(filename: &PathBuf, format: &Format) -> Result<Box<Self>, Error>
     where
         Self: Sized;
-    fn write(&mut self, record: &Record, index: usize) -> Result<()>;
-    fn flush(&mut self) -> Result<()> {
+    fn write(&mut self, record: &Record, index: usize) -> Result<(), Error>;
+    fn flush(&mut self) -> Result<(), Error> {
         Ok(())
     }
 }
@@ -160,20 +160,21 @@ impl Html {
         Ok(())
     }
 
-    fn flush(&mut self) -> Result<()> {
+    fn flush(&mut self) -> Result<(), Error> {
         let mut hb = Handlebars::new();
         let mut data: Map<String, Json> = Map::new();
         data.insert("records".to_owned(), to_json(&self.records));
         let mut output_file = File::create(&self.filename)?;
         hb.register_helper("color", Box::new(Self::color_helper));
-        hb.register_template_string("t1", TEMPLATE).ok();
-        hb.renderw("t1", &data, &mut output_file)?;
-        Ok(())
+        hb.register_template_string("t1", TEMPLATE)?;
+        hb.renderw("t1", &data, &mut output_file)
+            .map_err(|e| format_err!("{:?}", e))
+            .map(|_| ())
     }
 }
 
 impl Writer for Html {
-    fn new(filename: &PathBuf, _: &Format) -> Result<Box<Self>> {
+    fn new(filename: &PathBuf, _: &Format) -> Result<Box<Self>, Error> {
         let html = Html {
             filename: filename.clone(),
             records: Vec::new(),
@@ -181,7 +182,7 @@ impl Writer for Html {
         Ok(Box::new(html))
     }
 
-    fn write(&mut self, record: &Record, index: usize) -> Result<()> {
+    fn write(&mut self, record: &Record, index: usize) -> Result<(), Error> {
         let r = HtmlRecord {
             index: index,
             record: record.clone(),
@@ -203,9 +204,9 @@ struct Textfile {
 }
 
 impl Writer for Textfile {
-    fn new(filename: &PathBuf, format: &Format) -> Result<Box<Self>> {
-        let file = File::create(filename).chain_err(|| {
-            format!("Failed to create output file: {:?}", filename.display())
+    fn new(filename: &PathBuf, format: &Format) -> Result<Box<Self>, Error> {
+        let file = File::create(filename).map_err(|e| {
+            format_err!("Failed to create output file {:?}: {}", filename.display(), e)
         })?;
         let textfile = Textfile {
             file: file,
@@ -214,11 +215,12 @@ impl Writer for Textfile {
         Ok(Box::new(textfile))
     }
 
-    fn write(&mut self, record: &Record, _index: usize) -> Result<()> {
+    fn write(&mut self, record: &Record, _index: usize) -> Result<(), Error> {
         self.file
             .write(record.format(&self.format)?.as_bytes())
-            .chain_err(|| "Failed to write")?;
-        self.file.write(b"\n").chain_err(|| "Failed to write")?;
+            .map_err(|e| format_err!("Failed to write: {}", e))?;
+        self.file.write(b"\n")
+            .map_err(|e| format_err!("Failed to write: {}", e))?;
         Ok(())
     }
 }
@@ -242,10 +244,10 @@ pub struct FileWriter {
 }
 
 impl<'a> FileWriter {
-    pub fn new(args: &ArgMatches<'a>) -> Result<Self> {
+    pub fn new(args: &ArgMatches<'a>) -> Result<Self, Error> {
         let filename = args.value_of("output")
             .and_then(|f| Some(PathBuf::from(f)))
-            .ok_or("Invalid output filename!")?;
+            .ok_or(format_err!("Invalid output filename!"))?;
 
         let records_per_file = args.value_of("records_per_file").and_then(|l| {
             Regex::new(r"^(\d+)([kMG])$")
@@ -270,7 +272,7 @@ impl<'a> FileWriter {
             .and_then(|f| Format::from_str(f).ok())
             .unwrap_or(Format::Raw);
         if format == Format::Human {
-            return Err("Human format is unsupported when writing to files".into());
+            return Err(format_err!("Human format is unsupported when writing to files"));
         }
 
         let overwrite = args.is_present("overwrite");
@@ -324,40 +326,35 @@ impl<'a> FileWriter {
         })
     }
 
-    fn next_file(&self) -> Result<PathBuf> {
+    fn next_file(&self) -> Result<PathBuf, Error> {
         match self.filename_format {
             FilenameFormat::Single(overwrite) => {
                 if self.filename.exists() && !overwrite {
-                    Err(
-                        format!("{:?} exists. Use overwrite flag to force!", self.filename).into(),
-                    )
+                    Err(format_err!("{:?} exists. Use overwrite flag to force!", self.filename))
                 } else {
                     Ok(self.filename.clone())
                 }
             }
             FilenameFormat::Enumerate(_overwrite, _) => {
                 if self.filename.as_path().is_dir() {
-                    return Err(
-                        format!("Output file {:?} is a directory", self.filename).into(),
-                    );
+                    return Err(format_err!("Output file {:?} is a directory", self.filename));
                 }
 
                 let dir = self.filename.parent().unwrap_or_else(|| Path::new(""));
                 if !dir.is_dir() {
-                    DirBuilder::new().recursive(true).create(dir).chain_err(
-                        || "Failed to create outfile parent directory",
-                    )?
+                    DirBuilder::new()
+                        .recursive(true)
+                        .create(dir)
+                        .map_err(|e| format_err!("Failed to create outfile parent directory: {:?}", e))?
                 }
 
-                let next = |index| -> Result<PathBuf> {
+                let next = |index| -> Result<PathBuf, Error> {
                     let mut name = self.filename.clone();
                     name = PathBuf::from(format!(
                         "{}-{:03}",
-                        name.file_stem().ok_or("Invalid path")?.to_str().ok_or(
-                            "Invalid path",
-                        )?,
-                        index
-                    ));
+                        name.file_stem().ok_or(format_err!("Invalid path"))?
+                        .to_str()
+                        .ok_or(format_err!("Invalid path"))?, index));
                     if let Some(extension) = self.filename.extension() {
                         name.set_extension(extension);
                     }
@@ -382,14 +379,10 @@ impl<'a> FileWriter {
                 loop {
                     let dir = self.filename.parent().unwrap_or_else(|| Path::new(""));
                     if !dir.is_dir() {
-                        DirBuilder::new().recursive(true).create(dir).chain_err(
-                            || {
-                                format!(
-                                    "Failed to create outfile parent directory: {}",
-                                    dir.display()
-                                )
-                            },
-                        )?
+                        DirBuilder::new()
+                            .recursive(true)
+                            .create(dir)
+                            .map_err(|e| format_err!("Failed to create outfile parent directory {}: {:?}", dir.display(), e))?;
                     }
 
                     let now = strftime("%F-%H_%M_%S", &now())?;
@@ -398,9 +391,9 @@ impl<'a> FileWriter {
                     );
                     let filename = self.filename
                         .file_name()
-                        .ok_or("Invalid path")?
+                        .ok_or(format_err!("Invalid path"))?
                         .to_str()
-                        .ok_or("Invalid path")?;
+                        .ok_or(format_err!("Invalid path"))?;
                     let candidate = PathBuf::from(format!("{}{}_{}", now, enumeration, filename));
                     let candidate = dir.join(candidate);
                     if !overwrite && candidate.exists() {
@@ -414,7 +407,7 @@ impl<'a> FileWriter {
         }
     }
 
-    fn write(&mut self, record: &Record) -> Result<()> {
+    fn write(&mut self, record: &Record) -> Result<(), Error> {
         match self.writer {
             Some(ref mut writer) => {
                 writer.write(record, self.index)?;
@@ -453,7 +446,7 @@ impl<'a> FileWriter {
         }
     }
 
-    fn flush(&mut self) -> Result<()> {
+    fn flush(&mut self) -> Result<(), Error> {
         if let Some(ref mut writer) = self.writer {
             writer.flush()?;
         }

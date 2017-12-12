@@ -5,8 +5,8 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use csv::WriterBuilder;
-use errors::*;
-use serde::de::{Deserialize, Deserializer, Error, Visitor};
+use failure::Error;
+use serde::de::{Deserialize, Deserializer, Visitor};
 use serde::ser::Serializer;
 use serde::Serialize;
 use std::fmt::{Display, Formatter};
@@ -174,12 +174,12 @@ impl<'de> Deserialize<'de> for Timestamp {
             type Value = Timestamp;
             fn visit_str<E>(self, str_data: &str) -> StdResult<Timestamp, E>
             where
-                E: Error,
+                E: ::serde::de::Error,
             {
                 strptime(str_data, "%m-%d %H:%M:%S.%f")
                     .map(Timestamp::new)
                     .map_err(|_| {
-                        Error::invalid_value(::serde::de::Unexpected::Str(str_data), &self)
+                        ::serde::de::Error::invalid_value(::serde::de::Unexpected::Str(str_data), &self)
                     })
             }
 
@@ -204,7 +204,7 @@ pub struct Record {
 }
 
 impl Record {
-    pub fn format(&self, format: &Format) -> Result<String> {
+    pub fn format(&self, format: &Format) -> Result<String, Error> {
         match *format {
             Format::Csv => {
                 let mut wtr = WriterBuilder::new().has_headers(false).from_writer(vec![]);
@@ -219,7 +219,7 @@ impl Record {
             Format::Html => unimplemented!(),
             Format::Human => unimplemented!(),
             Format::Json => {
-                ::serde_json::to_string(self).map_err(|_| "json serialization error".into())
+                ::serde_json::to_string(self).map_err(|e| format_err!("Json serialization error: {}", e))
             }
             Format::Raw => Ok(self.raw.clone()),
         }

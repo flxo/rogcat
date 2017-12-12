@@ -4,7 +4,7 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
-use errors::*;
+use failure::Error;
 use futures::Stream;
 use std::io::BufReader;
 use std::process::{Command, Stdio};
@@ -15,12 +15,12 @@ use tokio_core::reactor::Core;
 use tokio_io::io::lines;
 use tokio_process::CommandExt;
 
-pub fn devices(core: &mut Core) -> Result<i32> {
+pub fn devices(core: &mut Core) -> Result<i32, Error> {
     let mut child = Command::new(adb()?)
         .arg("devices")
         .stdout(Stdio::piped())
         .spawn_async(&core.handle())?;
-    let stdout = child.stdout().take().ok_or("Failed to read stdout of adb")?;
+    let stdout = child.stdout().take().ok_or(format_err!("Failed to read stdout of adb"))?;
     let reader = BufReader::new(stdout);
     let lines = lines(reader);
     let result = lines.skip(1).for_each(|l| {
@@ -40,5 +40,7 @@ pub fn devices(core: &mut Core) -> Result<i32> {
         Ok(())
     });
 
-    core.run(result).map_err(|e| e.into()).map(|_| 0)
+    core.run(result)
+        .map_err(|e| format_err!("{}", e))
+        .map(|_| 0)
 }

@@ -12,7 +12,7 @@ extern crate config;
 extern crate csv;
 extern crate crc;
 #[macro_use]
-extern crate error_chain;
+extern crate failure;
 extern crate handlebars;
 extern crate futures;
 extern crate indicatif;
@@ -46,7 +46,7 @@ extern crate zip;
 use cli::cli;
 use clap::ArgMatches;
 use config::Config;
-use errors::*;
+use failure::Error;
 use filewriter::FileWriter;
 use filter::Filter;
 use futures::future::ok;
@@ -71,7 +71,6 @@ use which::which_in;
 mod bugreport;
 mod cli;
 mod devices;
-mod errors;
 mod filewriter;
 mod filter;
 mod log;
@@ -90,7 +89,7 @@ lazy_static! {
 }
 
 pub type RSink = Box<Sink<SinkItem = Option<Record>, SinkError = Error>>;
-pub type RStream = Box<Stream<Item = Option<Record>, Error = Error>>;
+pub type RStream = Box<Stream<Item = std::option::Option<Record>, Error = Error>>;
 
 const DEFAULT_BUFFER: [&str; 4] = ["main", "events", "crash", "kernel"];
 
@@ -106,15 +105,15 @@ fn main() {
     }
 }
 
-fn adb() -> Result<PathBuf> {
+fn adb() -> Result<PathBuf, Error> {
     which_in("adb", env::var_os("PATH"), env::current_dir()?)
-        .map_err(|e| format!("Cannot find adb: {}", e).into())
+        .map_err(|e| format_err!("Cannot find adb: {}", e))
 }
 
 /// Detect configuration directory
-fn config_dir() -> Result<PathBuf> {
+fn config_dir() -> Result<PathBuf, Error> {
     appdirs::user_config_dir(Some("rogcat"), None, false)
-        .map_err(|_| "Failed to detect config dir".into())
+        .map_err(|e| format_err!("Failed to detect config dir: {:?}", e))
 }
 
 /// Read a value from the configuration file
@@ -126,9 +125,9 @@ where
     CONFIG.read().ok().and_then(|c| c.get::<T>(key).ok())
 }
 
-fn input(core: &mut Core, args: &ArgMatches) -> Result<RStream> {
+fn input(core: &mut Core, args: &ArgMatches) -> Result<RStream, Error> {
     if args.is_present("input") {
-        let input = args.value_of("input").ok_or("Invalid input value")?;
+        let input = args.value_of("input").ok_or(format_err!("Invalid input value"))?;
         match Url::parse(input) {
             Ok(url) => {
                 match url.scheme() {
@@ -146,7 +145,7 @@ fn input(core: &mut Core, args: &ArgMatches) -> Result<RStream> {
                 } else if let Ok(url) = Url::parse(c) {
                     match url.scheme() {
                         "tcp" => {
-                            let addr = url.to_socket_addrs()?.next().ok_or("Failed to parse addr")?;
+                            let addr = url.to_socket_addrs()?.next().ok_or(format_err!("Failed to parse addr"))?;
                             tcp_reader(&addr, core)
                         }
                         "serial" => serial_reader(args, core),
@@ -161,12 +160,12 @@ fn input(core: &mut Core, args: &ArgMatches) -> Result<RStream> {
     }
 }
 
-fn run() -> Result<i32> {
+fn run() -> Result<i32, Error> {
     let args = cli().get_matches();
     let config_file = config_dir()?.join("config.toml");
     CONFIG
         .write()
-        .map_err(|_| "Failed to get config lock")?
+        .map_err(|e| format_err!("Failed to get config lock: {:?}", e))?
         .merge(config::File::from(config_file))
         .ok();
     let profiles = Profiles::new(&args)?;
@@ -195,7 +194,7 @@ fn run() -> Result<i32> {
             .args(buffer.split(' '))
             .spawn_async(&core.handle())?;
         let output = core.run(child)?;
-        exit(output.code().ok_or("Failed to get exit code")?);
+        exit(output.code().ok_or(format_err!("Failed to get exit code"))?);
     }
 
     let input = input(&mut core, &args)?;

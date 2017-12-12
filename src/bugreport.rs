@@ -5,7 +5,7 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use clap::ArgMatches;
-use errors::*;
+use failure::Error;
 use futures::future::*;
 use futures::Stream;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -27,14 +27,14 @@ struct ZipFile {
 }
 
 impl ZipFile {
-    fn new(filename: String) -> Result<Self> {
+    fn new(filename: String) -> Result<Self, Error> {
         let file = File::create(&format!("{}.zip", filename))?;
         let options = FileOptions::default()
             .compression_method(CompressionMethod::Deflated)
             .unix_permissions(0o644);
         let filename_path = PathBuf::from(&filename);
         let f = filename_path.file_name().and_then(|f| f.to_str()).ok_or(
-            "Failed to get filename",
+            format_err!("Failed to get filename"),
         )?;
         let mut zip = ZipWriter::new(file);
         zip.start_file(f, options)?;
@@ -60,7 +60,7 @@ impl Drop for ZipFile {
     }
 }
 
-fn report_filename() -> Result<String> {
+fn report_filename() -> Result<String, Error> {
     #[cfg(not(windows))]
     let sep = ":";
     #[cfg(windows)]
@@ -71,11 +71,11 @@ fn report_filename() -> Result<String> {
 }
 
 /// Performs a dumpstate and write to fs. Note: The Android 7+ dumpstate is not supported.
-pub fn create(args: &ArgMatches, core: &mut Core) -> Result<i32> {
+pub fn create(args: &ArgMatches, core: &mut Core) -> Result<i32, Error> {
     let filename = value_t!(args.value_of("file"), String).unwrap_or(report_filename()?);
     let filename_path = PathBuf::from(&filename);
     if !args.is_present("overwrite") && filename_path.exists() {
-        return Err(format!("File {} exists", filename).into());
+        return Err(format_err!("File {} exists", filename).into());
     }
 
     let mut child = Command::new(adb()?)
@@ -83,14 +83,13 @@ pub fn create(args: &ArgMatches, core: &mut Core) -> Result<i32> {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn_async(&core.handle())?;
-    let stdout = child.stdout().take().ok_or("Failed get stdout")?;
+    let stdout = child.stdout().take().ok_or(format_err!("Failed get stdout"))?;
     let stdout_reader = BufReader::new(stdout);
 
     let dir = filename_path.parent().unwrap_or_else(|| Path::new(""));
     if !dir.is_dir() {
-        DirBuilder::new().recursive(true).create(dir).chain_err(
-            || "Failed to create outfile parent directory",
-        )?
+        DirBuilder::new().recursive(true).create(dir).map_err(
+            |e| format_err!("Failed to create outfile parent directory: {:?}", e))?
     }
 
     let progress = ProgressBar::new(::std::u64::MAX);

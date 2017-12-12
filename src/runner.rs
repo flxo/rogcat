@@ -5,7 +5,7 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use clap::ArgMatches;
-use errors::*;
+use failure::Error;
 use futures::future::ok;
 use futures::{Async, Poll, Stream};
 use record::{Format, Level};
@@ -66,7 +66,7 @@ pub struct Runner {
     skip: bool,
 }
 
-fn run(cmd: &str, handle: &Handle, skip_until: &Option<String>) -> Result<(Child, OutStream)> {
+fn run(cmd: &str, handle: &Handle, skip_until: &Option<String>) -> Result<(Child, OutStream), Error> {
     let cmd = cmd.split_whitespace()
         .map(|s| s.to_owned())
         .collect::<Vec<String>>();
@@ -77,8 +77,8 @@ fn run(cmd: &str, handle: &Handle, skip_until: &Option<String>) -> Result<(Child
         .stderr(Stdio::piped())
         .spawn_async(handle)?;
 
-    let stdout = child.stdout().take().ok_or("Failed get stdout")?;
-    let stderr = child.stderr().take().ok_or("Failed get stderr")?;
+    let stdout = child.stdout().take().ok_or(format_err!("Failed get stdout"))?;
+    let stderr = child.stderr().take().ok_or(format_err!("Failed get stderr"))?;
     let stdout_reader = BufReader::new(stdout);
     let stderr_reader = BufReader::new(stderr);
     let output = lossy_lines(stdout_reader).select(lossy_lines(stderr_reader));
@@ -92,7 +92,7 @@ fn run(cmd: &str, handle: &Handle, skip_until: &Option<String>) -> Result<(Child
     Ok((child, output))
 }
 
-pub fn runner<'a>(args: &ArgMatches<'a>, handle: Handle) -> Result<RStream> {
+pub fn runner<'a>(args: &ArgMatches<'a>, handle: Handle) -> Result<RStream, Error> {
     let (cmd, restart) = if let Ok(cmd) = value_t!(args, "COMMAND", String) {
         (cmd, args.is_present("restart"))
     } else {

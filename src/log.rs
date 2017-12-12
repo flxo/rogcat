@@ -5,7 +5,7 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use clap::ArgMatches;
-use errors::*;
+use failure::Error;
 use futures::{Future, Async, AsyncSink, Sink, Poll, StartSend};
 use std::process::{Command, Stdio};
 use super::adb;
@@ -60,7 +60,7 @@ impl Sink for Logger {
     }
 }
 
-pub fn run(args: &ArgMatches, core: &mut Core) -> Result<i32> {
+pub fn run(args: &ArgMatches, core: &mut Core) -> Result<i32, Error> {
     let message = args.value_of("MESSAGE").unwrap_or("");
     let tag = args.value_of("tag").unwrap_or("Rogcat").to_owned();
     let level = Level::from(args.value_of("level").unwrap_or(""));
@@ -75,7 +75,7 @@ pub fn run(args: &ArgMatches, core: &mut Core) -> Result<i32> {
             let input = stdin_reader(core)?;
             let stream = sink.send_all(input);
             core.run(stream)
-                .map_err(|_| "Failed to run \"adb shell log\"".into())
+                .map_err(|e| format_err!("Failed to run \"adb shell log\": {}", e))
                 .map(|_| 0)
         }
         _ => {
@@ -92,7 +92,7 @@ pub fn run(args: &ArgMatches, core: &mut Core) -> Result<i32> {
                 .map(|_| ())
                 .map_err(|_| ());
             core.run(child)
-                .map_err(|_| "Failed to run \"adb shell log\"".into())
+                .map_err(|e| format_err!("Failed to run \"adb shell log\": {:?}", e))
                 .map(|_| 0)
         }
     }
