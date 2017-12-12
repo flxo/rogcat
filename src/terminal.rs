@@ -60,8 +60,8 @@ impl<'a> Terminal {
             ));
         }
 
-        let color =
-            !args.is_present("monochrome") && !config_get("terminal_monochrome").unwrap_or(false);
+        let term = stdout().ok_or(format_err!("Failed to lock terminal"))?;
+        let color = term.supports_color() && !args.is_present("monochrome") && !config_get("terminal_monochrome").unwrap_or(false);
         let hide_timestamp = args.is_present("hide_timestamp")
             || config_get("terminal_hide_timestamp").unwrap_or(false);
         let no_dimm = args.is_present("no_dimm") || config_get("terminal_no_dimm").unwrap_or(false);
@@ -73,7 +73,6 @@ impl<'a> Terminal {
         let time_diff = args.is_present("show_time_diff")
             || config_get("terminal_show_time_diff").unwrap_or(false);
         let time_diff_width = config_get("terminal_time_diff_width").unwrap_or(8);
-        let term = stdout().ok_or(format_err!("Failed to lock terminal"))?;
 
         Ok(Terminal {
             beginning_of: Regex::new(r"--------- beginning of.*").unwrap(),
