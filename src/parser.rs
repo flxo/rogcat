@@ -167,7 +167,7 @@ impl Parser {
                 v.raw = line.to_owned();
                 Ok(v)
             }
-            IResult::Error(e) => Err(format_err!("{:?}", e)),
+            IResult::Error(e) => Err(format_err!("{}", e)),
             IResult::Incomplete(_) => Err(format_err!("Not enough data")),
         }
     }
@@ -178,7 +178,7 @@ impl Parser {
                 v.raw = line.to_owned();
                 Ok(v)
             }
-            IResult::Error(e) => Err(format_err!("{:?}", e)),
+            IResult::Error(e) => Err(format_err!("{}", e)),
             IResult::Incomplete(_) => Err(format_err!("Not enough data")),
         }
     }
@@ -196,7 +196,7 @@ impl Parser {
     }
 
     fn parse_json(line: &str) -> Result<Record, Error> {
-        from_str(line).map_err(|e| format_err!("Failed to deserialize json: {:?}", e))
+        from_str(line).map_err(|e| format_err!("Failed to deserialize json: {}", e))
     }
 
     fn parse_bugreport(line: &str) -> Result<Record, Error> {
@@ -237,7 +237,7 @@ impl Parser {
                         tag: tag,
                         ..Default::default()
                     }),
-                    IResult::Error(e) => Err(format_err!("{:?}", e)),
+                    IResult::Error(e) => Err(format_err!("{}", e)),
                     IResult::Incomplete(_) => Err(format_err!("Not enough data")),
                 }
             }

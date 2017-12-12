@@ -166,7 +166,7 @@ fn run() -> Result<i32, Error> {
     let config_file = config_dir()?.join("config.toml");
     CONFIG
         .write()
-        .map_err(|e| format_err!("Failed to get config lock: {:?}", e))?
+        .map_err(|e| format_err!("Failed to get config lock: {}", e))?
         .merge(config::File::from(config_file))
         .ok();
     let profiles = Profiles::new(&args)?;

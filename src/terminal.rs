@@ -225,9 +225,9 @@ impl<'a> Terminal {
                      bg: Option<Color>|
          -> Result<(), Error> {
             if let Some(bg) = bg {
-                term.bg(bg).map_err(|e| format_err!("{:?}", e))?;
+                term.bg(bg).map_err(|e| format_err!("{}", e))?;
             }
-            term.fg(fg).map_err(|e| format_err!("{:?}", e))?;
+            term.fg(fg).map_err(|e| format_err!("{}", e))?;
             write!(term, "{}", t)?;
             if bg.is_some() {
                 term.reset()?;
@@ -268,7 +268,7 @@ impl<'a> Terminal {
                 write!(term, " ")?;
                 paint(&mut term, &format!("{} {}", sign, chunk), level_color, None)?;
                 write!(term, "\n")?;
-                term.reset().map_err(|e| format_err!("{:?}", e))
+                term.reset().map_err(|e| format_err!("{}", e))
             } else {
                 writeln!(
                     term,
@@ -284,7 +284,7 @@ impl<'a> Terminal {
                     timestamp_width = timestamp_width,
                     diff_width = diff_width,
                     tag_width = tag_width
-                ).map_err(|e| format_err!("{:?}", e))
+                ).map_err(|e| format_err!("{}", e))
             }
         };
 

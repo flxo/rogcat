@@ -4,16 +4,17 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
+use RStream;
+use adb;
 use clap::ArgMatches;
 use failure::Error;
 use futures::future::ok;
 use futures::{Async, Poll, Stream};
+use record::Record;
 use record::{Format, Level};
 use std::io::{self, BufRead, BufReader};
 use std::mem;
 use std::process::{Command, Stdio};
-use super::record::Record;
-use super::{adb, RStream};
 use tokio_core::reactor::Handle;
 use tokio_io::AsyncRead;
 use tokio_process::{Child, CommandExt};

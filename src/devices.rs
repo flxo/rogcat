@@ -4,11 +4,11 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
+use adb;
 use failure::Error;
 use futures::Stream;
 use std::io::BufReader;
 use std::process::{Command, Stdio};
-use super::adb;
 use tokio_core::reactor::Core;
 use tokio_io::io::lines;
 use tokio_process::CommandExt;

@@ -4,13 +4,13 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
+use adb;
 use clap::ArgMatches;
 use failure::Error;
 use futures::{Async, AsyncSink, Future, Poll, Sink, StartSend};
-use std::process::{Command, Stdio};
-use super::adb;
 use reader::stdin_reader;
 use record::{Level, Record};
+use std::process::{Command, Stdio};
 use tokio_core::reactor::{Core, Handle};
 use tokio_process::CommandExt;
 

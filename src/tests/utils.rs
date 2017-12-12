@@ -26,7 +26,7 @@ pub type SVec = Vec<String>;
 pub fn tempdir() -> Result<PathBuf, Error> {
     TempDir::new("rogcat")
         .map(|e| e.into_path())
-        .map_err(|e| format_err!("Tempdir error: {:?}", e))
+        .map_err(|e| format_err!("Tempdir error: {}", e))
 }
 
 pub fn tempfile() -> Result<PathBuf, Error> {

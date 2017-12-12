@@ -167,7 +167,7 @@ impl Html {
         hb.register_helper("color", Box::new(Self::color_helper));
         hb.register_template_string("t1", TEMPLATE)?;
         hb.renderw("t1", &data, &mut output_file)
-            .map_err(|e| format_err!("{:?}", e))
+            .map_err(|e| format_err!("Rednering error: {}", e))
             .map(|_| ())
     }
 }
@@ -205,11 +205,7 @@ struct Textfile {
 impl Writer for Textfile {
     fn new(filename: &PathBuf, format: &Format) -> Result<Box<Self>, Error> {
         let file = File::create(filename).map_err(|e| {
-            format_err!(
-                "Failed to create output file {:?}: {}",
-                filename.display(),
-                e
-            )
+            format_err!("Failed to create output file {}: {}", filename.display(), e)
         })?;
         let textfile = Textfile {
             file: file,
@@ -337,8 +333,8 @@ impl<'a> FileWriter {
             FilenameFormat::Single(overwrite) => {
                 if self.filename.exists() && !overwrite {
                     Err(format_err!(
-                        "{:?} exists. Use overwrite flag to force!",
-                        self.filename
+                        "{} exists. Use overwrite flag to force!",
+                        self.filename.display()
                     ))
                 } else {
                     Ok(self.filename.clone())
@@ -347,8 +343,8 @@ impl<'a> FileWriter {
             FilenameFormat::Enumerate(_overwrite, _) => {
                 if self.filename.as_path().is_dir() {
                     return Err(format_err!(
-                        "Output file {:?} is a directory",
-                        self.filename
+                        "Output file {} is a directory",
+                        self.filename.display()
                     ));
                 }
 
@@ -395,7 +391,7 @@ impl<'a> FileWriter {
                     if !dir.is_dir() {
                         DirBuilder::new().recursive(true).create(dir).map_err(|e| {
                             format_err!(
-                                "Failed to create outfile parent directory {}: {:?}",
+                                "Failed to create outfile parent directory {}: {}",
                                 dir.display(),
                                 e
                             )

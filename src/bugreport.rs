@@ -14,7 +14,7 @@ use std::io::BufReader;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use super::adb;
+use adb;
 use time::{now, strftime};
 use tokio_core::reactor::Core;
 use tokio_io::io::lines;
@@ -77,7 +77,7 @@ pub fn create(args: &ArgMatches, core: &mut Core) -> Result<i32, Error> {
     let filename = value_t!(args.value_of("file"), String).unwrap_or(report_filename()?);
     let filename_path = PathBuf::from(&filename);
     if !args.is_present("overwrite") && filename_path.exists() {
-        return Err(format_err!("File {} exists", filename).into());
+        return Err(format_err!("File {} already exists", filename).into());
     }
 
     let mut child = Command::new(adb()?)
@@ -96,7 +96,7 @@ pub fn create(args: &ArgMatches, core: &mut Core) -> Result<i32, Error> {
         DirBuilder::new()
             .recursive(true)
             .create(dir)
-            .map_err(|e| format_err!("Failed to create outfile parent directory: {:?}", e))?
+            .map_err(|e| format_err!("Failed to create outfile parent directory: {}", e))?
     }
 
     let progress = ProgressBar::new(::std::u64::MAX);

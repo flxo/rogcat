@@ -47,11 +47,11 @@ impl<'a> Filter {
         for r in &i {
             if r.starts_with('!') {
                 let r = &r[1..];
-                negative.push(Regex::new(r)
-                    .map_err(|_| format_err!("Invalid regex string: \"{}\"", r))?)
+                negative
+                    .push(Regex::new(r).map_err(|_| format_err!("Invalid regex string: {}", r))?)
             } else {
-                positive.push(Regex::new(r)
-                    .map_err(|_| format_err!("Invalid regex string: \"{}\"", r))?)
+                positive
+                    .push(Regex::new(r).map_err(|_| format_err!("Invalid regex string: {}", r))?)
             }
         }
         Ok((positive, negative))

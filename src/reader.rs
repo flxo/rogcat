@@ -77,8 +77,7 @@ pub fn file_reader<'a>(args: &ArgMatches<'a>, core: &Core) -> Result<RStream, Er
             return Err(format_err!("Cannot open {}", f.display()));
         }
 
-        let file =
-            File::open(f).map_err(|e| format_err!("Failed to open {}: {:?}", f.display(), e))?;
+        let file = File::open(f).map_err(|e| format_err!("Failed to open {}: {}", f.display(), e))?;
 
         streams.push(records(file, core)?);
     }

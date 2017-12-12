@@ -105,11 +105,11 @@ impl Profiles {
         } else {
             let mut config = String::new();
             File::open(file.clone())
-                .map_err(|e| format_err!("Failed to open {:?}: {:?}", file, e))?
+                .map_err(|e| format_err!("Failed to open {}: {}", file.display(), e))?
                 .read_to_string(&mut config)?;
 
             let mut config_file: ConfigurationFile = from_str(&config)
-                .map_err(|e| format_err!("Failed to parse \"{}\": {:?}", file.display(), e))?;
+                .map_err(|e| format_err!("Failed to parse {}: {}", file.display(), e))?;
 
             let profiles: HashMap<String, Profile> = config_file
                 .profile
@@ -121,7 +121,7 @@ impl Profiles {
             if let Some(n) = args.value_of("profile") {
                 profile = profiles
                     .get(n)
-                    .ok_or_else(|| format_err!("Unknown profile \"{}\"", n))?
+                    .ok_or_else(|| format_err!("Unknown profile {}", n))?
                     .clone();
                 Self::expand(n, &mut profile, &profiles)?;
             }
@@ -140,16 +140,15 @@ impl Profiles {
             let extends = p.extends.clone();
             p.extends.clear();
             for e in &extends {
-                let f = a.get(e).ok_or_else(|| {
-                    format_err!("Unknown extend profile name \"{}\" used in \"{}\"", e, n)
-                })?;
+                let f = a.get(e)
+                    .ok_or_else(|| format_err!("Unknown extend profile name {} used in {}", e, n))?;
                 *p += f.clone();
             }
 
             loops -= 1;
             if loops == 0 {
                 return Err(format_err!(
-                    "Reached recursion limit while resolving profile \"{}\" extends",
+                    "Reached recursion limit while resolving profile {} extends",
                     n
                 ));
             }
@@ -271,7 +270,7 @@ impl Profiles {
                     return Ok(f);
                 } else {
                     return Err(format_err!(
-                        "Cannot find \"{}\". Use --profiles_path to specify the path manually!",
+                        "Cannot find {}. Use --profiles_path to specify the path manually!",
                         f.display()
                     ));
                 }
@@ -282,7 +281,7 @@ impl Profiles {
                 return Ok(f);
             } else {
                 Err(format_err!(
-                    "Cannot find \"{}\" set in ROGCAT_PROFILES!",
+                    "Cannot find {} set in ROGCAT_PROFILES!",
                     f.display()
                 ))
             }
