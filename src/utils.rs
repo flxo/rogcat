@@ -16,11 +16,9 @@ pub fn trim_cr_nl(s: &str) -> String {
 pub fn terminal_width() -> Option<usize> {
     match dimensions() {
         Some((width, _)) => Some(width),
-        None => {
-            env::var("COLUMNS").ok().and_then(
-                |e| e.parse::<usize>().ok(),
-            )
-        }
+        None => env::var("COLUMNS")
+            .ok()
+            .and_then(|e| e.parse::<usize>().ok()),
     }
 }
 

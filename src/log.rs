@@ -6,7 +6,7 @@
 
 use clap::ArgMatches;
 use failure::Error;
-use futures::{Future, Async, AsyncSink, Sink, Poll, StartSend};
+use futures::{Async, AsyncSink, Future, Poll, Sink, StartSend};
 use std::process::{Command, Stdio};
 use super::adb;
 use reader::stdin_reader;

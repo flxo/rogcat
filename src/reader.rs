@@ -14,7 +14,7 @@ use record::Record;
 use serial::prelude::*;
 use std::fs::File;
 use std::io::stdin;
-use std::io::{BufReader, BufRead, Read};
+use std::io::{BufRead, BufReader, Read};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::from_utf8;
@@ -26,7 +26,7 @@ use RStream;
 use tokio_core::net::TcpStream;
 use tokio_core::reactor::Core;
 use tokio_io::AsyncRead;
-use tokio_io::codec::{Encoder, Decoder};
+use tokio_io::codec::{Decoder, Encoder};
 use utils::trim_cr_nl;
 
 fn records<T: Read + Send + Sized + 'static>(reader: T, core: &Core) -> Result<RStream, Error> {
@@ -45,16 +45,10 @@ fn records<T: Read + Send + Sized + 'static>(reader: T, core: &Core) -> Result<R
                         raw: trim_cr_nl(&raw),
                         ..Default::default()
                     };
-                    let f = tx
-                        .send(Some(record))
-                        .map(|_| ())
-                        .map_err(|_| ());
+                    let f = tx.send(Some(record)).map(|_| ()).map_err(|_| ());
                     remote.spawn(|_| f);
                 } else {
-                    let f = tx.clone()
-                        .send(None)
-                        .map(|_| ())
-                        .map_err(|_| ());
+                    let f = tx.clone().send(None).map(|_| ()).map_err(|_| ());
                     remote.spawn(|_| f);
                     tx.close().ok();
                     break;
@@ -67,7 +61,9 @@ fn records<T: Read + Send + Sized + 'static>(reader: T, core: &Core) -> Result<R
         }
     });
 
-    Ok(Box::new(rx.map_err(|e| format_err!("Channel error: {:?}", e))))
+    Ok(Box::new(rx.map_err(|e| {
+        format_err!("Channel error: {:?}", e)
+    })))
 }
 
 pub fn file_reader<'a>(args: &ArgMatches<'a>, core: &Core) -> Result<RStream, Error> {
@@ -81,7 +77,8 @@ pub fn file_reader<'a>(args: &ArgMatches<'a>, core: &Core) -> Result<RStream, Er
             return Err(format_err!("Cannot open {}", f.display()));
         }
 
-        let file = File::open(f).map_err(|e| format_err!("Failed to open {}: {:?}", f.display(), e))?;
+        let file =
+            File::open(f).map_err(|e| format_err!("Failed to open {}: {:?}", f.display(), e))?;
 
         streams.push(records(file, core)?);
     }
@@ -89,16 +86,16 @@ pub fn file_reader<'a>(args: &ArgMatches<'a>, core: &Core) -> Result<RStream, Er
     // The flattened streams emmit None in between - filter those
     // here...
     let mut nones = streams.len();
-    let flat = stream::iter_ok::<_, Error>(streams).flatten().filter(
-        move |f| {
+    let flat = stream::iter_ok::<_, Error>(streams)
+        .flatten()
+        .filter(move |f| {
             if f.is_some() {
                 true
             } else {
                 nones -= 1;
                 nones == 0
             }
-        },
-    );
+        });
     Ok(Box::new(flat))
 }
 
@@ -107,7 +104,8 @@ pub fn stdin_reader(core: &Core) -> Result<RStream, Error> {
 }
 
 pub fn serial_reader<'a>(args: &ArgMatches<'a>, core: &Core) -> Result<RStream, Error> {
-    let i = args.value_of("input").ok_or(format_err!("Invalid input value"))?;
+    let i = args.value_of("input")
+        .ok_or(format_err!("Invalid input value"))?;
     let p = match serial(i.as_bytes()) {
         IResult::Done(_, v) => v,
         IResult::Error(_) => return Err(format_err!("Failed to parse serial port settings")),
@@ -162,97 +160,81 @@ pub fn tcp_reader(addr: &SocketAddr, core: &mut Core) -> Result<RStream, Error> 
     Ok(Box::new(s))
 }
 
-named!(num_usize <usize>,
-    map_res!(
-        map_res!(
-            digit,
-            from_utf8
-        ),
-        str::parse::<usize>
+named!(
+    num_usize<usize>,
+    map_res!(map_res!(digit, from_utf8), str::parse::<usize>)
+);
+
+named!(
+    baudrate<::serial::BaudRate>,
+    map!(num_usize, |b| match b {
+        110 => ::serial::Baud110,
+        300 => ::serial::Baud300,
+        600 => ::serial::Baud600,
+        1200 => ::serial::Baud1200,
+        2400 => ::serial::Baud2400,
+        4800 => ::serial::Baud4800,
+        9600 => ::serial::Baud9600,
+        19_200 => ::serial::Baud19200,
+        38_400 => ::serial::Baud38400,
+        57_600 => ::serial::Baud57600,
+        115_200 => ::serial::Baud115200,
+        _ => ::serial::BaudOther(b),
+    })
+);
+
+named!(
+    char_size<::serial::CharSize>,
+    map!(
+        alt!(char!('5') | char!('6') | char!('7') | char!('8')),
+        |b| match b {
+            '5' => ::serial::Bits5,
+            '6' => ::serial::Bits6,
+            '7' => ::serial::Bits7,
+            '8' => ::serial::Bits8,
+            _ => panic!("Invalid parser"),
+        }
     )
 );
 
-named!(baudrate <::serial::BaudRate>,
-       map!(num_usize, |b| {
-           match b {
-                110 => ::serial::Baud110,
-                300 => ::serial::Baud300,
-                600 => ::serial::Baud600,
-                1200 => ::serial::Baud1200,
-                2400 => ::serial::Baud2400,
-                4800 => ::serial::Baud4800,
-                9600 => ::serial::Baud9600,
-                19_200 => ::serial::Baud19200,
-                38_400 => ::serial::Baud38400,
-                57_600 => ::serial::Baud57600,
-                115_200 => ::serial::Baud115200,
-                _ => ::serial::BaudOther(b),
-           }
-       })
+named!(
+    parity<::serial::Parity>,
+    map!(alt!(char!('N') | char!('O') | char!('E')), |b| match b {
+        'N' => ::serial::ParityNone,
+        'O' => ::serial::ParityOdd,
+        'E' => ::serial::ParityEven,
+        _ => panic!("Invalid parser"),
+    })
 );
 
-named!(char_size <::serial::CharSize>,
-   map!(
-       alt!(char!('5') | char!('6') | char!('7') | char!('8')),
-           |b| {
-           match b {
-               '5' => ::serial::Bits5,
-               '6' => ::serial::Bits6,
-               '7' => ::serial::Bits7,
-               '8' => ::serial::Bits8,
-               _ => panic!("Invalid parser"),
-           }
-       })
+named!(
+    stop_bits<::serial::StopBits>,
+    map!(alt!(char!('1') | char!('2')), |b| match b {
+        '1' => ::serial::Stop1,
+        '2' => ::serial::Stop2,
+        _ => panic!("Invalid parser"),
+    })
 );
 
-named!(parity <::serial::Parity>,
-   map!(
-       alt!(char!('N') | char!('O') | char!('E')),
-           |b| {
-           match b {
-               'N' => ::serial::ParityNone,
-               'O' => ::serial::ParityOdd,
-               'E' => ::serial::ParityEven,
-               _ => panic!("Invalid parser"),
-           }
-        })
-);
-
-named!(stop_bits <::serial::StopBits>,
-   map!(
-       alt!(char!('1') | char!('2')),
-           |b| {
-           match b {
-               '1' => ::serial::Stop1,
-               '2' => ::serial::Stop2,
-               _ => panic!("Invalid parser"),
-           }
-        })
-);
-
-named!(serial <(String, ::serial::PortSettings)>,
-       do_parse!(
-           tag!("serial://") >>
-           port: map_res!(take_until!("@"), from_utf8) >>
-           char!('@') >>
-           baudrate: baudrate >>
-           opt!(complete!(char!(','))) >>
-           char_size: opt!(complete!(char_size)) >>
-           parity: opt!(complete!(parity)) >>
-           stop_bits: opt!(complete!(stop_bits)) >>
-           (
-               (port.to_owned(),
+named!(
+    serial<(String, ::serial::PortSettings)>,
+    do_parse!(
+        tag!("serial://") >> port: map_res!(take_until!("@"), from_utf8) >> char!('@')
+            >> baudrate: baudrate >> opt!(complete!(char!(',')))
+            >> char_size: opt!(complete!(char_size)) >> parity: opt!(complete!(parity))
+            >> stop_bits: opt!(complete!(stop_bits))
+            >> ((
+                port.to_owned(),
                 ::serial::PortSettings {
                     baud_rate: baudrate,
                     char_size: char_size.unwrap_or(::serial::Bits8),
                     parity: parity.unwrap_or(::serial::ParityNone),
                     stop_bits: stop_bits.unwrap_or(::serial::Stop1),
-                    flow_control: ::serial::FlowNone
-                })
-           )
-       )
+                    flow_control: ::serial::FlowNone,
+                }
+            ))
+    )
 );
-
 
 #[test]
 fn parse_serial_baudrate() {
@@ -266,8 +248,14 @@ fn parse_serial_baudrate() {
     assert_eq!(baudrate("19200".as_bytes()).unwrap().1, ::serial::Baud19200);
     assert_eq!(baudrate("38400".as_bytes()).unwrap().1, ::serial::Baud38400);
     assert_eq!(baudrate("57600".as_bytes()).unwrap().1, ::serial::Baud57600);
-    assert_eq!(baudrate("115200".as_bytes()).unwrap().1, ::serial::Baud115200);
-    assert_eq!(baudrate("921600".as_bytes()).unwrap().1, ::serial::BaudOther(921600));
+    assert_eq!(
+        baudrate("115200".as_bytes()).unwrap().1,
+        ::serial::Baud115200
+    );
+    assert_eq!(
+        baudrate("921600".as_bytes()).unwrap().1,
+        ::serial::BaudOther(921600)
+    );
 }
 
 #[test]

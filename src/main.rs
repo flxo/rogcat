@@ -9,30 +9,30 @@ extern crate bytes;
 #[macro_use]
 extern crate clap;
 extern crate config;
-extern crate csv;
 extern crate crc;
+extern crate csv;
 #[macro_use]
 extern crate failure;
-extern crate handlebars;
 extern crate futures;
+extern crate handlebars;
 extern crate indicatif;
 #[macro_use]
-extern crate nom;
-#[macro_use]
 extern crate lazy_static;
+#[macro_use]
+extern crate nom;
 #[cfg(test)]
 extern crate rand;
 extern crate regex;
 extern crate serde;
-extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
+extern crate serde_json;
 extern crate serial;
 #[cfg(test)]
 extern crate tempdir;
-extern crate time;
 extern crate term_painter;
 extern crate term_size;
+extern crate time;
 extern crate tokio_core;
 #[macro_use]
 extern crate tokio_io;
@@ -127,14 +127,13 @@ where
 
 fn input(core: &mut Core, args: &ArgMatches) -> Result<RStream, Error> {
     if args.is_present("input") {
-        let input = args.value_of("input").ok_or(format_err!("Invalid input value"))?;
+        let input = args.value_of("input")
+            .ok_or(format_err!("Invalid input value"))?;
         match Url::parse(input) {
-            Ok(url) => {
-                match url.scheme() {
-                    "serial" => serial_reader(args, core),
-                    _ => file_reader(args, core),
-                }
-            }
+            Ok(url) => match url.scheme() {
+                "serial" => serial_reader(args, core),
+                _ => file_reader(args, core),
+            },
             _ => file_reader(args, core),
         }
     } else {
@@ -145,7 +144,9 @@ fn input(core: &mut Core, args: &ArgMatches) -> Result<RStream, Error> {
                 } else if let Ok(url) = Url::parse(c) {
                     match url.scheme() {
                         "tcp" => {
-                            let addr = url.to_socket_addrs()?.next().ok_or(format_err!("Failed to parse addr"))?;
+                            let addr = url.to_socket_addrs()?
+                                .next()
+                                .ok_or(format_err!("Failed to parse addr"))?;
                             tcp_reader(&addr, core)
                         }
                         "serial" => serial_reader(args, core),

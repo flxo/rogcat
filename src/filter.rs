@@ -47,9 +47,11 @@ impl<'a> Filter {
         for r in &i {
             if r.starts_with('!') {
                 let r = &r[1..];
-                negative.push(Regex::new(r).map_err(|_| format_err!("Invalid regex string: \"{}\"", r))?)
+                negative.push(Regex::new(r)
+                    .map_err(|_| format_err!("Invalid regex string: \"{}\"", r))?)
             } else {
-                positive.push(Regex::new(r).map_err(|_| format_err!("Invalid regex string: \"{}\"", r))?)
+                positive.push(Regex::new(r)
+                    .map_err(|_| format_err!("Invalid regex string: \"{}\"", r))?)
             }
         }
         Ok((positive, negative))
@@ -61,15 +63,14 @@ impl<'a> Filter {
                 return false;
             }
 
-            if !self.message.is_empty() &&
-                !self.message.iter().any(|m| m.is_match(&record.message))
+            if !self.message.is_empty() && !self.message.iter().any(|m| m.is_match(&record.message))
             {
                 return false;
             }
 
-            if self.message_negative.iter().any(
-                |m| m.is_match(&record.message),
-            )
+            if self.message_negative
+                .iter()
+                .any(|m| m.is_match(&record.message))
             {
                 return false;
             }

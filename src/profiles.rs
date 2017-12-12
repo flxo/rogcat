@@ -108,7 +108,8 @@ impl Profiles {
                 .map_err(|e| format_err!("Failed to open {:?}: {:?}", file, e))?
                 .read_to_string(&mut config)?;
 
-            let mut config_file: ConfigurationFile = from_str(&config).map_err(|e| format_err!("Failed to parse \"{}\": {:?}", file.display(), e))?;
+            let mut config_file: ConfigurationFile = from_str(&config)
+                .map_err(|e| format_err!("Failed to parse \"{}\": {:?}", file.display(), e))?;
 
             let profiles: HashMap<String, Profile> = config_file
                 .profile
@@ -147,7 +148,10 @@ impl Profiles {
 
             loops -= 1;
             if loops == 0 {
-                return Err(format_err!("Reached recursion limit while resolving profile \"{}\" extends", n));
+                return Err(format_err!(
+                    "Reached recursion limit while resolving profile \"{}\" extends",
+                    n
+                ));
             }
         }
         Ok(())
@@ -182,8 +186,7 @@ impl Profiles {
                 "W hitespace".into(),
                 ProfileFile {
                     comment: Some(
-                        "Profile names can contain whitespaces. Quote on command line..."
-                            .into(),
+                        "Profile names can contain whitespaces. Quote on command line...".into(),
                     ),
                     ..Default::default()
                 },
@@ -248,9 +251,7 @@ impl Profiles {
             );
 
             to_string(&example)
-                .map_err(|e| {
-                    format_err!("Internal example serialization error: {}", e)
-                })
+                .map_err(|e| format_err!("Internal example serialization error: {}", e))
                 .map(|s| {
                     println!("Example profiles:");
                     println!("");
@@ -269,7 +270,10 @@ impl Profiles {
                 if f.exists() {
                     return Ok(f);
                 } else {
-                    return Err(format_err!("Cannot find \"{}\". Use --profiles_path to specify the path manually!", f.display()));
+                    return Err(format_err!(
+                        "Cannot find \"{}\". Use --profiles_path to specify the path manually!",
+                        f.display()
+                    ));
                 }
             }
         }
@@ -277,7 +281,11 @@ impl Profiles {
             if f.exists() {
                 return Ok(f);
             } else {
-                Err(format_err!("Cannot find \"{}\" set in ROGCAT_PROFILES!", f.display())) }
+                Err(format_err!(
+                    "Cannot find \"{}\" set in ROGCAT_PROFILES!",
+                    f.display()
+                ))
+            }
         } else {
             Ok(::config_dir()?.join("profiles.xml"))
         }

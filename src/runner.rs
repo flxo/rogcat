@@ -66,7 +66,11 @@ pub struct Runner {
     skip: bool,
 }
 
-fn run(cmd: &str, handle: &Handle, skip_until: &Option<String>) -> Result<(Child, OutStream), Error> {
+fn run(
+    cmd: &str,
+    handle: &Handle,
+    skip_until: &Option<String>,
+) -> Result<(Child, OutStream), Error> {
     let cmd = cmd.split_whitespace()
         .map(|s| s.to_owned())
         .collect::<Vec<String>>();
@@ -77,8 +81,14 @@ fn run(cmd: &str, handle: &Handle, skip_until: &Option<String>) -> Result<(Child
         .stderr(Stdio::piped())
         .spawn_async(handle)?;
 
-    let stdout = child.stdout().take().ok_or(format_err!("Failed get stdout"))?;
-    let stderr = child.stderr().take().ok_or(format_err!("Failed get stderr"))?;
+    let stdout = child
+        .stdout()
+        .take()
+        .ok_or(format_err!("Failed get stdout"))?;
+    let stderr = child
+        .stderr()
+        .take()
+        .ok_or(format_err!("Failed get stderr"))?;
     let stdout_reader = BufReader::new(stdout);
     let stderr_reader = BufReader::new(stderr);
     let output = lossy_lines(stdout_reader).select(lossy_lines(stderr_reader));

@@ -35,9 +35,8 @@ fn run_rogcat_with_config_and_input_file(args: &SVec, payload: &SVec) -> Result<
     let config = tempfile_with_content(&lines)?.display().to_string();
     let mut a = svec!("-P", config);
     a.extend(args.clone());
-    let output = run_rogcat_with_input_file(&a, payload).expect(
-        "Failed to run rogcat with config and input file",
-    );
+    let output = run_rogcat_with_input_file(&a, payload)
+        .expect("Failed to run rogcat with config and input file");
     assert!(output.0);
     Ok(output.1)
 }
@@ -46,9 +45,8 @@ fn run_rogcat_with_config_and_input_file(args: &SVec, payload: &SVec) -> Result<
 fn cannot_find_config() {
     let file = tempfile().unwrap().display().to_string();
     let args = svec!("-C", file);
-    let output = run_rogcat_with_input_file(&args, &vec![]).expect(
-        "Failed to run rogcat with config and input file",
-    );
+    let output = run_rogcat_with_input_file(&args, &vec![])
+        .expect("Failed to run rogcat with config and input file");
     assert!(!output.0);
 }
 
@@ -60,9 +58,8 @@ fn malformed_config() {
         .display()
         .to_string();
     let args = svec!("-C", config);
-    let output = run_rogcat_with_input_file(&args, &vec![]).expect(
-        "Failed to run rogcat with config and input file",
-    );
+    let output = run_rogcat_with_input_file(&args, &vec![])
+        .expect("Failed to run rogcat with config and input file");
     assert!(!output.0);
 }
 
@@ -78,8 +75,8 @@ fn list_profiles() {
     let output = run_rogcat_with_config_and_input_file(&svec!("profiles", "-l"), &vec![]).unwrap();
     assert_eq!(output.len(), 7);
 
-    let output = run_rogcat_with_config_and_input_file(&svec!("profiles", "--list"), &vec![])
-        .unwrap();
+    let output =
+        run_rogcat_with_config_and_input_file(&svec!("profiles", "--list"), &vec![]).unwrap();
     assert_eq!(output.len(), 7);
 }
 
@@ -94,8 +91,8 @@ fn filter_message_a() {
 fn filter_message_a_b() {
     let input = svec!("A", "B", "C");
 
-    let output = run_rogcat_with_config_and_input_file(&svec!("-p", "A", "-m", "B"), &input)
-        .unwrap();
+    let output =
+        run_rogcat_with_config_and_input_file(&svec!("-p", "A", "-m", "B"), &input).unwrap();
     assert_eq!(output.len(), 2);
 }
 
@@ -106,8 +103,8 @@ fn extends_message_a_b_c() {
     let output = run_rogcat_with_config_and_input_file(&svec!("-p", "AB"), &input).unwrap();
     assert_eq!(output.len(), 2);
 
-    let output = run_rogcat_with_config_and_input_file(&svec!("-p", "AB", "-m", "C"), &input)
-        .unwrap();
+    let output =
+        run_rogcat_with_config_and_input_file(&svec!("-p", "AB", "-m", "C"), &input).unwrap();
     assert_eq!(output.len(), 3);
 
     let output = run_rogcat_with_config_and_input_file(&svec!("-p", "ABC"), &input).unwrap();

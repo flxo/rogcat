@@ -6,7 +6,7 @@
 
 use clap::ArgMatches;
 use failure::Error;
-use futures::{Sink, StartSend, Async, AsyncSink, Poll};
+use futures::{Async, AsyncSink, Poll, Sink, StartSend};
 use profiles::*;
 use regex::Regex;
 use std::cmp::max;
@@ -55,21 +55,23 @@ impl<'a> Terminal {
             .and_then(|f| Format::from_str(f).ok())
             .unwrap_or(Format::Human);
         if format == Format::Html {
-            return Err(format_err!("HTML format is unsupported when writing to files"));
+            return Err(format_err!(
+                "HTML format is unsupported when writing to files"
+            ));
         }
 
-        let color = !args.is_present("monochrome") &&
-            !config_get("terminal_monochrome").unwrap_or(false);
-        let hide_timestamp = args.is_present("hide_timestamp") ||
-            config_get("terminal_hide_timestamp").unwrap_or(false);
+        let color =
+            !args.is_present("monochrome") && !config_get("terminal_monochrome").unwrap_or(false);
+        let hide_timestamp = args.is_present("hide_timestamp")
+            || config_get("terminal_hide_timestamp").unwrap_or(false);
         let no_dimm = args.is_present("no_dimm") || config_get("terminal_no_dimm").unwrap_or(false);
-        let shorten_tag = args.is_present("shorten_tags") ||
-            config_get("terminal_shorten_tags").unwrap_or(false);
-        let show_date = args.is_present("show_date") ||
-            config_get("terminal_show_date").unwrap_or(false);
+        let shorten_tag =
+            args.is_present("shorten_tags") || config_get("terminal_shorten_tags").unwrap_or(false);
+        let show_date =
+            args.is_present("show_date") || config_get("terminal_show_date").unwrap_or(false);
         let tag_width = config_get("terminal_tag_width");
-        let time_diff = args.is_present("show_time_diff") ||
-            config_get("terminal_show_time_diff").unwrap_or(false);
+        let time_diff = args.is_present("show_time_diff")
+            || config_get("terminal_show_time_diff").unwrap_or(false);
         let time_diff_width = config_get("terminal_time_diff_width").unwrap_or(8);
 
         Ok(Terminal {
@@ -167,14 +169,12 @@ impl<'a> Terminal {
         };
 
         let terminal_width = terminal_width();
-        let tag_width = self.tag_width.unwrap_or_else(|| {
-            match terminal_width {
-                Some(n) if n <= 80 => 15,
-                Some(n) if n <= 90 => 20,
-                Some(n) if n <= 100 => 25,
-                Some(n) if n <= 110 => 30,
-                _ => 35,
-            }
+        let tag_width = self.tag_width.unwrap_or_else(|| match terminal_width {
+            Some(n) if n <= 80 => 15,
+            Some(n) if n <= 90 => 20,
+            Some(n) if n <= 100 => 25,
+            Some(n) if n <= 110 => 30,
+            _ => 35,
         });
 
         let tag = {
@@ -248,43 +248,45 @@ impl<'a> Terminal {
             Plain.fg(dimm_color)
         };
 
-        let print_msg = |chunk: &str, sign: &str| if color {
-            println!(
-                "{:<timestamp_width$} {:>diff_width$} {:>tag_width$} ({}{}) {} {} {}",
-                timestamp_style.paint(&timestamp),
-                dimm_color.paint(&diff),
-                tag_style.paint(&tag),
-                pid_style.paint(&pid),
-                tid_style.paint(&tid),
-                level_style.paint(&level),
-                level_color.paint(sign),
-                msg_style.paint(&chunk),
-                timestamp_width = timestamp_width,
-                diff_width = diff_width,
-                tag_width = tag_width
-            );
-        } else {
-            println!(
-                "{:<timestamp_width$} {:>diff_width$} {:>tag_width$} ({}{}) {} {} {}",
-                timestamp,
-                diff,
-                tag,
-                pid,
-                tid,
-                level,
-                sign,
-                chunk,
-                timestamp_width = timestamp_width,
-                diff_width = diff_width,
-                tag_width = tag_width
-            );
+        let print_msg = |chunk: &str, sign: &str| {
+            if color {
+                println!(
+                    "{:<timestamp_width$} {:>diff_width$} {:>tag_width$} ({}{}) {} {} {}",
+                    timestamp_style.paint(&timestamp),
+                    dimm_color.paint(&diff),
+                    tag_style.paint(&tag),
+                    pid_style.paint(&pid),
+                    tid_style.paint(&tid),
+                    level_style.paint(&level),
+                    level_color.paint(sign),
+                    msg_style.paint(&chunk),
+                    timestamp_width = timestamp_width,
+                    diff_width = diff_width,
+                    tag_width = tag_width
+                );
+            } else {
+                println!(
+                    "{:<timestamp_width$} {:>diff_width$} {:>tag_width$} ({}{}) {} {} {}",
+                    timestamp,
+                    diff,
+                    tag,
+                    pid,
+                    tid,
+                    level,
+                    sign,
+                    chunk,
+                    timestamp_width = timestamp_width,
+                    diff_width = diff_width,
+                    tag_width = tag_width
+                );
+            }
         };
 
         if let Some(width) = terminal_width {
-            let preamble_width = timestamp_width + 1 + self.diff_width + 1 + tag_width + 1 + 1 +
-                self.process_width +
-                if self.thread_width == 0 { 0 } else { 1 } +
-                self.thread_width + 1 + 1 + 3 + 3;
+            let preamble_width =
+                timestamp_width + 1 + self.diff_width + 1 + tag_width + 1 + 1 + self.process_width
+                    + if self.thread_width == 0 { 0 } else { 1 } + self.thread_width
+                    + 1 + 1 + 3 + 3;
             // Windows terminal width reported is too big
             #[cfg(target_os = "windows")]
             let preamble_width = preamble_width + 1;

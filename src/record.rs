@@ -12,7 +12,7 @@ use serde::Serialize;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use std::ops::Deref;
-use time::{Tm, strptime, strftime};
+use time::{strftime, strptime, Tm};
 
 type StdResult<T, E> = ::std::result::Result<T, E>;
 
@@ -56,20 +56,7 @@ impl Display for Format {
 }
 
 const LEVEL_VALUES: &'static [&'static str] = &[
-    "trace",
-    "debug",
-    "info",
-    "warn",
-    "error",
-    "fatal",
-    "assert",
-    "T",
-    "D",
-    "I",
-    "W",
-    "E",
-    "F",
-    "A",
+    "trace", "debug", "info", "warn", "error", "fatal", "assert", "T", "D", "I", "W", "E", "F", "A"
 ];
 
 #[derive(Clone, Debug, Deserialize, PartialOrd, PartialEq, Serialize)]
@@ -179,7 +166,10 @@ impl<'de> Deserialize<'de> for Timestamp {
                 strptime(str_data, "%m-%d %H:%M:%S.%f")
                     .map(Timestamp::new)
                     .map_err(|_| {
-                        ::serde::de::Error::invalid_value(::serde::de::Unexpected::Str(str_data), &self)
+                        ::serde::de::Error::invalid_value(
+                            ::serde::de::Unexpected::Str(str_data),
+                            &self,
+                        )
                     })
             }
 
@@ -210,17 +200,14 @@ impl Record {
                 let mut wtr = WriterBuilder::new().has_headers(false).from_writer(vec![]);
                 wtr.serialize(self)?;
                 wtr.flush()?;
-                Ok(
-                    String::from_utf8(wtr.into_inner().unwrap())?
-                        .trim_right_matches('\n')
-                        .to_owned(),
-                )
+                Ok(String::from_utf8(wtr.into_inner().unwrap())?
+                    .trim_right_matches('\n')
+                    .to_owned())
             }
             Format::Html => unimplemented!(),
             Format::Human => unimplemented!(),
-            Format::Json => {
-                ::serde_json::to_string(self).map_err(|e| format_err!("Json serialization error: {}", e))
-            }
+            Format::Json => ::serde_json::to_string(self)
+                .map_err(|e| format_err!("Json serialization error: {}", e)),
             Format::Raw => Ok(self.raw.clone()),
         }
     }

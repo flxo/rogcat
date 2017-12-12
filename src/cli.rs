@@ -194,5 +194,8 @@ pub fn subcommand_completions(args: &ArgMatches) -> Result<i32, Error> {
     args.value_of("shell")
         .ok_or(format_err!("Missing required argument shell"))
         .map(|s| s.parse::<Shell>())
-        .map(|s| { cli().gen_completions_to(crate_name!(), s.unwrap(), &mut stdout()); 0 })
+        .map(|s| {
+            cli().gen_completions_to(crate_name!(), s.unwrap(), &mut stdout());
+            0
+        })
 }

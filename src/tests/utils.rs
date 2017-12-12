@@ -59,9 +59,7 @@ pub fn find_rogcat_binary() -> PathBuf {
     let this_dir = exe.parent().unwrap();
     let dirs = &[&this_dir, &this_dir.parent().unwrap()];
     dirs.iter()
-        .map(|d| {
-            d.join("rogcat").with_extension(env::consts::EXE_EXTENSION)
-        })
+        .map(|d| d.join("rogcat").with_extension(env::consts::EXE_EXTENSION))
         .filter_map(|d| fs::metadata(&d).ok().map(|_| d))
         .next()
         .expect(&format!(

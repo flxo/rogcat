@@ -20,7 +20,10 @@ pub fn devices(core: &mut Core) -> Result<i32, Error> {
         .arg("devices")
         .stdout(Stdio::piped())
         .spawn_async(&core.handle())?;
-    let stdout = child.stdout().take().ok_or(format_err!("Failed to read stdout of adb"))?;
+    let stdout = child
+        .stdout()
+        .take()
+        .ok_or(format_err!("Failed to read stdout of adb"))?;
     let reader = BufReader::new(stdout);
     let lines = lines(reader);
     let result = lines.skip(1).for_each(|l| {
