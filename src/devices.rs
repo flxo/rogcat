@@ -9,8 +9,6 @@ use futures::Stream;
 use std::io::BufReader;
 use std::process::{Command, Stdio};
 use super::adb;
-use term_painter::{Color, ToStyle};
-use terminal::*;
 use tokio_core::reactor::Core;
 use tokio_io::io::lines;
 use tokio_process::CommandExt;
@@ -31,14 +29,7 @@ pub fn devices(core: &mut Core) -> Result<i32, Error> {
             let mut s = l.split_whitespace();
             let id: &str = s.next().unwrap_or("unknown");
             let name: &str = s.next().unwrap_or("unknown");
-            println!(
-                "{} {}",
-                DIMM_COLOR.paint(id),
-                match name {
-                    "unauthorized" => Color::Red.paint(name),
-                    _ => Color::Green.paint(name),
-                }
-            )
+            println!("{} {}", id, name);
         }
         Ok(())
     });

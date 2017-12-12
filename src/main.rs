@@ -30,7 +30,7 @@ extern crate serde_json;
 extern crate serial;
 #[cfg(test)]
 extern crate tempdir;
-extern crate term_painter;
+extern crate term;
 extern crate term_size;
 extern crate time;
 extern crate tokio_core;
