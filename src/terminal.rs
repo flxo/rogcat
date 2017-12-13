@@ -267,7 +267,7 @@ impl<'a> Terminal {
                 write!(term, " ")?;
                 paint(&mut term, &format!("{} {}", sign, chunk), level_color, None)?;
                 write!(term, "\n")?;
-                term.reset().map_err(|e| format_err!("{}", e))
+                term.reset().map_err(|e| format_err!("{}", e))?;
             } else {
                 writeln!(
                     term,
@@ -283,8 +283,9 @@ impl<'a> Terminal {
                     timestamp_width = timestamp_width,
                     diff_width = diff_width,
                     tag_width = tag_width
-                ).map_err(|e| format_err!("{}", e))
+                ).map_err(|e| format_err!("{}", e))?;
             }
+            term.flush().map_err(|e| format_err!("{}", e))
         };
 
         if let Some(width) = terminal_width {
