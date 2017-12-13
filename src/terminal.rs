@@ -340,7 +340,9 @@ impl<'a> Terminal {
 
 impl Drop for Terminal {
     fn drop(&mut self) {
-        self.term.reset().ok();
+        if self.color {
+            self.term.reset().ok();
+        }
     }
 }
 
