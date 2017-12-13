@@ -71,6 +71,7 @@ pub fn find_rogcat_binary() -> PathBuf {
 pub fn run_rogcat(args: &SVec, input: Option<SVec>) -> Result<(bool, SVec), Error> {
     let rogcat = find_rogcat_binary();
     let mut process = Command::new(format!("{}", rogcat.display()))
+        .arg("--monochrome")
         .args(args)
         .stdin(Stdio::piped())
         .stderr(Stdio::piped())
