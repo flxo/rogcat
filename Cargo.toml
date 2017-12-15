@@ -11,6 +11,7 @@ repository = "https://github.com/flxo/rogcat"
 version = "0.2.15-pre"
 [dependencies]
 appdirs = "0.2.0"
+atty = "0.2.3"
 bytes = "0.4.5"
 clap = "2.27.1"
 config = "0.7.0"

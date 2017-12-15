@@ -5,6 +5,7 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 extern crate appdirs;
+extern crate atty;
 extern crate bytes;
 #[macro_use]
 extern crate clap;

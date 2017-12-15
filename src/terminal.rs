@@ -4,6 +4,7 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
+use atty::Stream;
 use clap::ArgMatches;
 use config_get;
 use failure::Error;
@@ -15,8 +16,8 @@ use std::cmp::max;
 use std::collections::HashMap;
 use std::io::Write;
 use std::str::FromStr;
-use term::{stdout, Attr, StdoutTerminal};
 use term::color::*;
+use term::{stdout, Attr, StdoutTerminal};
 use time::Tm;
 use utils::terminal_width;
 
@@ -61,7 +62,9 @@ impl<'a> Terminal {
         }
 
         let term = stdout().ok_or(format_err!("Failed to lock terminal"))?;
-        let color = term.supports_color() && !args.is_present("monochrome") && !config_get("terminal_monochrome").unwrap_or(false);
+        let color = term.supports_color() && ::atty::is(Stream::Stdout)
+            && !args.is_present("monochrome")
+            && !config_get("terminal_monochrome").unwrap_or(false);
         let hide_timestamp = args.is_present("hide_timestamp")
             || config_get("terminal_hide_timestamp").unwrap_or(false);
         let no_dimm = args.is_present("no_dimm") || config_get("terminal_no_dimm").unwrap_or(false);
