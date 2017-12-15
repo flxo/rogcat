@@ -83,15 +83,10 @@ impl<'a> Terminal {
 
         let term = stdout().ok_or(format_err!("Failed to lock terminal"))?;
         let color = {
-            let opt = if args.is_present("color") {
-                value_t!(args, "color", String).unwrap()
-            } else {
-                match config_get("terminal_color") {
-                    Some(s) => s,
-                    None => "auto".to_owned(),
-                }
-            };
-            match opt.as_str() {
+            match args.value_of("color")
+                .unwrap_or_else(|| config_get("terminal_color")
+                .unwrap_or_else(|| "auto"))
+            {
                 "always" => true,
                 "never" => false,
                 "auto" | _ => ::atty::is(Stream::Stdout) && term.supports_color(),
