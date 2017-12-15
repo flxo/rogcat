@@ -29,8 +29,8 @@ impl<'a> Filter {
             .unwrap_or_else(|| vec![]);
         message_filter.extend(profile.message().clone());
 
-        let (tag, tag_negative) = Self::init_filter(tag_filter.clone())?;
-        let (message, message_negative) = Self::init_filter(message_filter)?;
+        let (tag, tag_negative) = Self::init_filter(&tag_filter)?;
+        let (message, message_negative) = Self::init_filter(&message_filter)?;
 
         Ok(Filter {
             level: Level::from(args.value_of("level").unwrap_or("")),
@@ -41,10 +41,10 @@ impl<'a> Filter {
         })
     }
 
-    fn init_filter(i: Vec<String>) -> Result<(Vec<Regex>, Vec<Regex>), Error> {
+    fn init_filter(i: &[String]) -> Result<(Vec<Regex>, Vec<Regex>), Error> {
         let mut positive = vec![];
         let mut negative = vec![];
-        for r in &i {
+        for r in i {
             if r.starts_with('!') {
                 let r = &r[1..];
                 negative
@@ -92,10 +92,10 @@ impl<'a> Filter {
 
 #[test]
 fn filter_args() {
-    assert!(Filter::init_filter(vec![]).is_ok());
-    assert!(Filter::init_filter(vec!["".to_owned()]).is_ok());
-    assert!(Filter::init_filter(vec!["a".to_owned()]).is_ok());
-    assert!(Filter::init_filter(vec![".*".to_owned()]).is_ok());
-    assert!(Filter::init_filter(vec![".*".to_owned(), ".*".to_owned()]).is_ok());
-    assert!(Filter::init_filter(vec!["(".to_owned()]).is_err());
+    assert!(Filter::init_filter(&vec![]).is_ok());
+    assert!(Filter::init_filter(&vec!["".to_owned()]).is_ok());
+    assert!(Filter::init_filter(&vec!["a".to_owned()]).is_ok());
+    assert!(Filter::init_filter(&vec![".*".to_owned()]).is_ok());
+    assert!(Filter::init_filter(&vec![".*".to_owned(), ".*".to_owned()]).is_ok());
+    assert!(Filter::init_filter(&vec!["(".to_owned()]).is_err());
 }

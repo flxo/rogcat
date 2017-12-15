@@ -4,6 +4,9 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
+#![cfg_attr(feature = "clippy", feature(plugin))]
+#![cfg_attr(feature = "clippy", plugin(clippy))]
+
 extern crate appdirs;
 extern crate atty;
 extern crate bytes;
@@ -47,7 +50,7 @@ extern crate zip;
 use cli::cli;
 use clap::ArgMatches;
 use config::Config;
-use failure::Error;
+use failure::{err_msg, Error};
 use filewriter::FileWriter;
 use filter::Filter;
 use futures::future::ok;
@@ -129,7 +132,7 @@ where
 fn input(core: &mut Core, args: &ArgMatches) -> Result<RStream, Error> {
     if args.is_present("input") {
         let input = args.value_of("input")
-            .ok_or(format_err!("Invalid input value"))?;
+            .ok_or_else(|| err_msg("Invalid input value"))?;
         match Url::parse(input) {
             Ok(url) => match url.scheme() {
                 "serial" => serial_reader(args, core),
@@ -147,7 +150,7 @@ fn input(core: &mut Core, args: &ArgMatches) -> Result<RStream, Error> {
                         "tcp" => {
                             let addr = url.to_socket_addrs()?
                                 .next()
-                                .ok_or(format_err!("Failed to parse addr"))?;
+                                .ok_or_else(|| err_msg("Failed to parse addr"))?;
                             tcp_reader(&addr, core)
                         }
                         "serial" => serial_reader(args, core),
@@ -196,7 +199,9 @@ fn run() -> Result<i32, Error> {
             .args(buffer.split(' '))
             .spawn_async(&core.handle())?;
         let output = core.run(child)?;
-        exit(output.code().ok_or(format_err!("Failed to get exit code"))?);
+        exit(output
+            .code()
+            .ok_or_else(|| err_msg("Failed to get exit code"))?);
     }
 
     let input = input(&mut core, &args)?;

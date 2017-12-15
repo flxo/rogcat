@@ -5,7 +5,7 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use clap::ArgMatches;
-use failure::Error;
+use failure::{err_msg, Error};
 use std::collections::HashMap;
 use std::env::var;
 use std::fs::File;
@@ -253,12 +253,12 @@ impl Profiles {
                 .map_err(|e| format_err!("Internal example serialization error: {}", e))
                 .map(|s| {
                     println!("Example profiles:");
-                    println!("");
+                    println!();
                     println!("{}", s);
                     0
                 })
         } else {
-            Err(format_err!("Missing option for profiles subcommand!"))
+            Err(err_msg("Missing option for profiles subcommand!"))
         }
     }
 

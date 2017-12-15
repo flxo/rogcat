@@ -5,7 +5,7 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use csv::ReaderBuilder;
-use failure::Error;
+use failure::{err_msg, Error};
 use nom::{digit, hex_digit, rest, space, IResult};
 use record::{Level, Record, Timestamp};
 use serde_json::from_str;
@@ -152,8 +152,10 @@ named!(
     )
 );
 
+type Parse = fn(&str) -> Result<Record, Error>;
+
 pub struct Parser {
-    last: Option<fn(&str) -> Result<Record, Error>>,
+    last: Option<Parse>,
 }
 
 impl Parser {
@@ -168,7 +170,7 @@ impl Parser {
                 Ok(v)
             }
             IResult::Error(e) => Err(format_err!("{}", e)),
-            IResult::Incomplete(_) => Err(format_err!("Not enough data")),
+            IResult::Incomplete(_) => Err(err_msg("Not enough data")),
         }
     }
 
@@ -179,7 +181,7 @@ impl Parser {
                 Ok(v)
             }
             IResult::Error(e) => Err(format_err!("{}", e)),
-            IResult::Incomplete(_) => Err(format_err!("Not enough data")),
+            IResult::Incomplete(_) => Err(err_msg("Not enough data")),
         }
     }
 
@@ -189,10 +191,10 @@ impl Parser {
         let mut rdr = ReaderBuilder::new()
             .has_headers(false)
             .from_reader(line.as_bytes());
-        for result in rdr.deserialize() {
+        if let Some(result) = rdr.deserialize().next() {
             return result.map_err(|e| e.into());
         }
-        Err(format_err!("Failed to parse csv"))
+        Err(err_msg("Failed to parse csv"))
     }
 
     fn parse_json(line: &str) -> Result<Record, Error> {
@@ -219,7 +221,7 @@ impl Parser {
                     ..Default::default()
                 })
             } else if line.is_empty() {
-                Err(format_err!("Unparseable"))
+                Err(err_msg("Unparseable"))
             } else if let IResult::Done(_, (prop, value)) = property(line.as_bytes()) {
                 Ok(Record {
                     message: value,
@@ -238,11 +240,11 @@ impl Parser {
                         ..Default::default()
                     }),
                     IResult::Error(e) => Err(format_err!("{}", e)),
-                    IResult::Incomplete(_) => Err(format_err!("Not enough data")),
+                    IResult::Incomplete(_) => Err(err_msg("Not enough data")),
                 }
             }
         } else {
-            Err(format_err!("Unparseable"))
+            Err(err_msg("Unparseable"))
         }
     }
 
@@ -263,9 +265,9 @@ impl Parser {
             ];
 
             let mut parse = |record: &Record| -> Record {
-                for &p in parser.iter() {
+                for p in &parser {
                     if let Ok(r) = p(&record.raw) {
-                        self.last = Some(p);
+                        self.last = Some(*p);
                         return r;
                     }
                 }

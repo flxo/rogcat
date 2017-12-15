@@ -7,7 +7,7 @@
 use RStream;
 use adb;
 use clap::ArgMatches;
-use failure::Error;
+use failure::{err_msg, Error};
 use futures::future::ok;
 use futures::{Async, Poll, Stream};
 use record::Record;
@@ -85,11 +85,11 @@ fn run(
     let stdout = child
         .stdout()
         .take()
-        .ok_or(format_err!("Failed get stdout"))?;
+        .ok_or_else(|| err_msg("Failed get stdout"))?;
     let stderr = child
         .stderr()
         .take()
-        .ok_or(format_err!("Failed get stderr"))?;
+        .ok_or_else(|| err_msg("Failed get stderr"))?;
     let stdout_reader = BufReader::new(stdout);
     let stderr_reader = BufReader::new(stderr);
     let output = lossy_lines(stdout_reader).select(lossy_lines(stderr_reader));

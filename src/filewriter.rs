@@ -6,7 +6,7 @@
 
 use clap::ArgMatches;
 use crc::{Hasher32, crc32};
-use failure::Error;
+use failure::{err_msg, Error};
 use futures::{Async, AsyncSink, Poll, Sink, StartSend};
 use handlebars::{to_json, Handlebars, Helper, JsonRender, RenderContext, RenderError};
 use indicatif::{ProgressBar, ProgressStyle};
@@ -134,7 +134,7 @@ impl Html {
         let h = digest.sum32();
         let r = h & 0xFF;
         let g = (h & 0xFF00) >> 8;
-        let b = (h & 0xFF0000) >> 16;
+        let b = (h & 0xFF_0000) >> 16;
         format!("#{:02x}{:02x}{:02x}", r, g, b)
     }
 
@@ -247,7 +247,7 @@ impl<'a> FileWriter {
     pub fn new(args: &ArgMatches<'a>) -> Result<Self, Error> {
         let filename = args.value_of("output")
             .and_then(|f| Some(PathBuf::from(f)))
-            .ok_or(format_err!("Invalid output filename!"))?;
+            .ok_or_else(|| err_msg("Invalid output filename!"))?;
 
         let records_per_file = args.value_of("records_per_file").and_then(|l| {
             Regex::new(r"^(\d+)([kMG])$")
@@ -272,9 +272,7 @@ impl<'a> FileWriter {
             .and_then(|f| Format::from_str(f).ok())
             .unwrap_or(Format::Raw);
         if format == Format::Human {
-            return Err(format_err!(
-                "Human format is unsupported when writing to files"
-            ));
+            return Err(err_msg("Human format is unsupported when writing to files"));
         }
 
         let overwrite = args.is_present("overwrite");
@@ -360,9 +358,9 @@ impl<'a> FileWriter {
                     name = PathBuf::from(format!(
                         "{}-{:03}",
                         name.file_stem()
-                            .ok_or(format_err!("Invalid path"))?
+                            .ok_or_else(|| err_msg("Invalid path"))?
                             .to_str()
-                            .ok_or(format_err!("Invalid path"))?,
+                            .ok_or_else(|| err_msg("Invalid path"))?,
                         index
                     ));
                     if let Some(extension) = self.filename.extension() {
@@ -403,9 +401,9 @@ impl<'a> FileWriter {
                         .unwrap_or_else(|| "".to_owned());
                     let filename = self.filename
                         .file_name()
-                        .ok_or(format_err!("Invalid path"))?
+                        .ok_or_else(|| err_msg("Invalid path"))?
                         .to_str()
-                        .ok_or(format_err!("Invalid path"))?;
+                        .ok_or_else(|| err_msg("Invalid path"))?;
                     let candidate = PathBuf::from(format!("{}{}_{}", now, enumeration, filename));
                     let candidate = dir.join(candidate);
                     if !overwrite && candidate.exists() {

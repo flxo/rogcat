@@ -5,7 +5,7 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use adb;
-use failure::Error;
+use failure::{err_msg, Error};
 use futures::Stream;
 use std::io::BufReader;
 use std::process::{Command, Stdio};
@@ -21,7 +21,7 @@ pub fn devices(core: &mut Core) -> Result<i32, Error> {
     let stdout = child
         .stdout()
         .take()
-        .ok_or(format_err!("Failed to read stdout of adb"))?;
+        .ok_or_else(|| err_msg("Failed to read stdout of adb"))?;
     let reader = BufReader::new(stdout);
     let lines = lines(reader);
     let result = lines.skip(1).for_each(|l| {

@@ -7,7 +7,7 @@
 use atty::Stream;
 use clap::ArgMatches;
 use config_get;
-use failure::Error;
+use failure::{err_msg, Error};
 use futures::{Async, AsyncSink, Poll, Sink, StartSend};
 use profiles::*;
 use record::{Format, Level, Record};
@@ -76,16 +76,13 @@ impl<'a> Terminal {
             .and_then(|f| Format::from_str(f).ok())
             .unwrap_or(Format::Human);
         if format == Format::Html {
-            return Err(format_err!(
-                "HTML format is unsupported when writing to files"
-            ));
+            return Err(err_msg("HTML format is unsupported when writing to files"));
         }
 
-        let term = stdout().ok_or(format_err!("Failed to lock terminal"))?;
+        let term = stdout().ok_or_else(|| err_msg("Failed to lock terminal"))?;
         let color = {
             match args.value_of("color")
-                .unwrap_or_else(|| config_get("terminal_color")
-                .unwrap_or_else(|| "auto"))
+                .unwrap_or_else(|| config_get("terminal_color").unwrap_or_else(|| "auto"))
             {
                 "always" => true,
                 "never" => false,
@@ -340,11 +337,7 @@ impl<'a> Terminal {
 
                     let chunk: String = m.chars().take(chunk_width).collect();
                     m = m.chars().skip(chunk_width).collect();
-                    if self.color {
-                        print_msg(&chunk, sign)?;
-                    } else {
-                        print_msg(&chunk, sign)?;
-                    }
+                    print_msg(&chunk, sign)?;
                 }
             } else {
                 print_msg(&record.message, " ")?;

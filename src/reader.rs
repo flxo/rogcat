@@ -6,7 +6,7 @@
 
 use bytes::BytesMut;
 use clap::ArgMatches;
-use failure::Error;
+use failure::{err_msg, Error};
 use futures::sync::mpsc;
 use futures::{stream, Future, Sink, Stream};
 use nom::{digit, IResult};
@@ -69,7 +69,7 @@ fn records<T: Read + Send + Sized + 'static>(reader: T, core: &Core) -> Result<R
 pub fn file_reader<'a>(args: &ArgMatches<'a>, core: &Core) -> Result<RStream, Error> {
     let files = args.values_of("input")
         .map(|f| f.map(PathBuf::from).collect::<Vec<PathBuf>>())
-        .ok_or(format_err!("Failed to parse input files"))?;
+        .ok_or_else(|| err_msg("Failed to parse input files"))?;
 
     let mut streams = Vec::new();
     for f in &files {
@@ -104,11 +104,11 @@ pub fn stdin_reader(core: &Core) -> Result<RStream, Error> {
 
 pub fn serial_reader<'a>(args: &ArgMatches<'a>, core: &Core) -> Result<RStream, Error> {
     let i = args.value_of("input")
-        .ok_or(format_err!("Invalid input value"))?;
+        .ok_or_else(|| err_msg("Invalid input value"))?;
     let p = match serial(i.as_bytes()) {
         IResult::Done(_, v) => v,
-        IResult::Error(_) => return Err(format_err!("Failed to parse serial port settings")),
-        IResult::Incomplete(_) => return Err(format_err!("Serial port settings are incomplete")),
+        IResult::Error(_) => return Err(err_msg("Failed to parse serial port settings")),
+        IResult::Incomplete(_) => return Err(err_msg("Serial port settings are incomplete")),
     };
     let mut port = ::serial::open(&p.0)?;
     port.configure(&p.1)?;

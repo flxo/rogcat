@@ -5,7 +5,7 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use clap::ArgMatches;
-use failure::Error;
+use failure::{err_msg, Error};
 use futures::future::*;
 use futures::Stream;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -27,7 +27,7 @@ struct ZipFile {
 }
 
 impl ZipFile {
-    fn new(filename: String) -> Result<Self, Error> {
+    fn new(filename: &str) -> Result<Self, Error> {
         let file = File::create(&format!("{}.zip", filename))?;
         let options = FileOptions::default()
             .compression_method(CompressionMethod::Deflated)
@@ -36,7 +36,7 @@ impl ZipFile {
         let f = filename_path
             .file_name()
             .and_then(|f| f.to_str())
-            .ok_or(format_err!("Failed to get filename"))?;
+            .ok_or_else(|| err_msg("Failed to get filename"))?;
         let mut zip = ZipWriter::new(file);
         zip.start_file(f, options)?;
         Ok(ZipFile { zip: zip })
@@ -45,10 +45,7 @@ impl ZipFile {
 
 impl Write for ZipFile {
     fn write(&mut self, buf: &[u8]) -> ::std::io::Result<usize> {
-        self.zip
-            .write_all(buf)
-            .map_err(|e| e.into())
-            .map(|_| buf.len())
+        self.zip.write_all(buf).map(|_| buf.len())
     }
 
     fn flush(&mut self) -> ::std::io::Result<()> {
@@ -77,7 +74,7 @@ pub fn create(args: &ArgMatches, core: &mut Core) -> Result<i32, Error> {
     let filename = value_t!(args.value_of("file"), String).unwrap_or(report_filename()?);
     let filename_path = PathBuf::from(&filename);
     if !args.is_present("overwrite") && filename_path.exists() {
-        return Err(format_err!("File {} already exists", filename).into());
+        return Err(format_err!("File {} already exists", filename));
     }
 
     let mut child = Command::new(adb()?)
@@ -88,7 +85,7 @@ pub fn create(args: &ArgMatches, core: &mut Core) -> Result<i32, Error> {
     let stdout = child
         .stdout()
         .take()
-        .ok_or(format_err!("Failed get stdout"))?;
+        .ok_or_else(|| err_msg("Failed get stdout"))?;
     let stdout_reader = BufReader::new(stdout);
 
     let dir = filename_path.parent().unwrap_or_else(|| Path::new(""));
@@ -108,7 +105,7 @@ pub fn create(args: &ArgMatches, core: &mut Core) -> Result<i32, Error> {
     progress.set_message("Connecting");
 
     let mut write = if args.is_present("zip") {
-        Box::new(ZipFile::new(filename)?) as Box<Write>
+        Box::new(ZipFile::new(&filename)?) as Box<Write>
     } else {
         Box::new(File::create(&filename)?) as Box<Write>
     };
