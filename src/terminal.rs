@@ -62,9 +62,21 @@ impl<'a> Terminal {
         }
 
         let term = stdout().ok_or(format_err!("Failed to lock terminal"))?;
-        let color = term.supports_color() && ::atty::is(Stream::Stdout)
-            && !args.is_present("monochrome")
-            && !config_get("terminal_monochrome").unwrap_or(false);
+        let color = {
+            let opt = if args.is_present("color") {
+                value_t!(args, "color", String).unwrap()
+            } else {
+                match config_get("terminal_color") {
+                    Some(s) => s,
+                    None => "auto".to_owned(),
+                }
+            };
+            match opt.as_str() {
+                "always" => true,
+                "never" => false,
+                "auto" | _ => ::atty::is(Stream::Stdout) && term.supports_color(),
+            }
+        };
         let hide_timestamp = args.is_present("hide_timestamp")
             || config_get("terminal_hide_timestamp").unwrap_or(false);
         let no_dimm = args.is_present("no_dimm") || config_get("terminal_no_dimm").unwrap_or(false);

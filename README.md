@@ -182,7 +182,7 @@ terminal_show_time_diff = true
 terminal_show_date = false
 terminal_time_diff_width = 10
 terminal_hide_timestamp = true
-terminal_monochrome = false
+terminal_color = never
 terminal_no_dimm = true
 ```
 
@@ -236,7 +236,7 @@ To check your setup, run `rogcat profiles --list` and select a profile for a run
 ## Usage
 
 ```
-rogcat 0.2.13-pre
+rogcat 0.2.15-pre
 Felix Obenhuber <felix@obenhuber.de>
 A 'adb logcat' wrapper and log processor. Your config directory is "/Users/felix/Library/Application Support/rogcat".
 
@@ -248,27 +248,40 @@ FLAGS:
     -d, --dump              Dump the log and then exit (don't block)
         --help              Prints help information
         --hide-timestamp    Hide timestamp in terminal output
-        --monochrome        Monochrome terminal output
         --no-dimm           Use white as dimm color
         --overwrite         Overwrite output file if present
     -r, --restart           Restart command on exit
         --shorten-tags      Shorten tags by removing vovels if too long for human terminal format
         --show-date         Show month and day in terminal output
         --show-time-diff    Show the time difference between the occurence of equal tags in terminal output
-    -s, --skip              Skip records on a command restart until the last received last record is received again. Use with caution!
+    -s, --skip              Skip records on a command restart until the last received last record is received again. Use
+                            with caution!
     -V, --version           Prints version information
 
 OPTIONS:
-    -b, --buffer <buffer>...                     Select specific (logcat) log buffers. Defaults to main, events, kernel and crash (logcat default)
-    -a, --filename-format <filename_format>      Select a format for output file names. By passing 'single' the filename provided with the '-o' option is used (default).'enumerate' appends a file sequence
-                                                 number after the filename passed with '-o' option whenever a new file is created (see 'records-per-file' option). 'date' will prefix the output filename with
-                                                 the current local date when a new file is created [values: single, enumerate, date]
-    -f, --format <format>                        Output format. Defaults to human on stdout and raw on file output [values: csv, html, human, json, raw]
+    -b, --buffer <buffer>...
+            Select specific (logcat) log buffers. Defaults to main, events, kernel and crash (logcat default)
+
+        --color <color>                          Terminal coloring option [values: auto, always, never]
+    -a, --filename-format <filename_format>
+            Select a format for output file names. By passing 'single' the filename provided with the '-o' option is
+            used (default).'enumerate' appends a file sequence number after the filename passed with '-o' option
+            whenever a new file is created (see 'records-per-file' option). 'date' will prefix the output filename with
+            the current local date when a new file is created [values: single, enumerate, date]
+    -f, --format <format>
+            Output format. Defaults to human on stdout and raw on file output [values: csv, html, human, json, raw]
+
     -H, --head <head>                            Read n records and exit
-    -h, --highlight <highlight>...               Highlight messages that match this pattern in RE2. The prefix '!' inverts the match
-    -i, --input <input>...                       Read from file instead of command. Use 'serial://COM0@115200,8N1 or similiar for reading a serial port
-    -l, --level <level>                          Minimum level [values: trace, debug, info, warn, error, fatal, assert, T, D, I, W, E, F, A]
-    -m, --message <message>...                   Tag filters in RE2. The prefix '!' inverts the match
+    -h, --highlight <highlight>...
+            Highlight messages that match this pattern in RE2. The prefix '!' inverts the match
+
+    -i, --input <input>...
+            Read from file instead of command. Use 'serial://COM0@115200,8N1 or similiar for reading a serial port
+
+    -l, --level <level>
+            Minimum level [values: trace, debug, info, warn, error, fatal, assert, T, D, I, W, E, F, A]
+
+    -m, --message <message>...                   Message filters in RE2. The prefix '!' inverts the match
     -o, --output <output>                        Write output to file
     -p, --profile <profile>                      Select profile
     -P, --profiles-path <profiles_path>          Manually specify profile file (overrules ROGCAT_PROFILES)
@@ -277,7 +290,8 @@ OPTIONS:
     -T, --tail <tail>                            Dump only the most recent <COUNT> lines (implies --dump)
 
 ARGS:
-    <COMMAND>    Optional command to run and capture stdout from. Pass "-" to d capture stdin'. If omitted, rogcat will run "adb logcat -b all" and restarts this commmand if 'adb' terminates
+    <COMMAND>    Optional command to run and capture stdout from. Pass "-" to d capture stdin'. If omitted, rogcat
+                 will run "adb logcat -b all" and restarts this commmand if 'adb' terminates
 
 SUBCOMMANDS:
     bugreport      Capture bugreport. This is only works for Android versions < 7.
