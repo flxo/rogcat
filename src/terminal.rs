@@ -26,6 +26,26 @@ pub const DIMM_COLOR: u16 = 243;
 #[cfg(target_os = "windows")]
 pub const DIMM_COLOR: u16 = WHITE;
 
+#[cfg(target_os = "windows")]
+fn hashed_color(i: &str) -> u16 {
+    i.bytes().fold(42u16, |c, x| (c ^ u16::from(x))) % 15 + 1
+}
+
+#[cfg(not(target_os = "windows"))]
+fn hashed_color(i: &str) -> u16 {
+    // Some colors are hard to read on (at least) dark terminals
+    // and others seem just ugly to me...
+    match i.bytes().fold(42u16, |c, x| (c ^ u16::from(x))) {
+        c @ 0...1 => c + 2,
+        c @ 16...21 => c + 6,
+        c @ 52...55 | c @ 126...129 => c + 4,
+        c @ 163...165 | c @ 200...201 => c + 3,
+        c @ 207 => c + 1,
+        c @ 232...240 => c + 9,
+        c => c,
+    }
+}
+
 pub struct Terminal {
     beginning_of: Regex,
     color: bool,
@@ -229,9 +249,6 @@ impl<'a> Terminal {
             || self.highlight.iter().any(|r| r.is_match(&record.message));
         let diff_width = self.diff_width;
         let timestamp_width = self.date_format.1;
-
-        let hashed_color =
-            |i: &str| -> Color { i.bytes().fold(42u16, |c, x| (c ^ u16::from(x)) % 15) + 1 };
 
         let paint = |term: &mut Box<::term::StdoutTerminal>,
                      t: &str,
