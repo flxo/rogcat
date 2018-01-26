@@ -31,7 +31,7 @@ pub fn tempdir() -> Result<PathBuf, Error> {
 
 pub fn tempfile() -> Result<PathBuf, Error> {
     let mut path = tempdir()?;
-    let filename: String = thread_rng().gen_iter::<char>().take(8).collect();
+    let filename: String = thread_rng().gen_ascii_chars().take(8).collect();
     path.push(filename);
     Ok(path)
 }
@@ -123,7 +123,7 @@ fn create_tempfile_with_content() {
 }
 
 #[test]
-fn comapre_file_content() {
+fn compare_file_content() {
     let content = svec!("A", "B", "C");
     let tempfile = tempfile_with_content(&content).expect("Failed to create tempfile with content");
     assert!(check_file_content(&tempfile, &content).unwrap());
