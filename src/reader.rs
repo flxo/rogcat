@@ -27,36 +27,40 @@ use tokio_core::net::TcpStream;
 use tokio_core::reactor::Core;
 use tokio_io::AsyncRead;
 use tokio_io::codec::{Decoder, Encoder};
-use utils::trim_cr_nl;
 
 fn records<T: Read + Send + Sized + 'static>(reader: T, core: &Core) -> Result<RStream, Error> {
     let (tx, rx) = mpsc::channel(1);
     let mut reader = BufReader::new(reader);
     let remote = core.remote();
 
-    thread::spawn(move || loop {
-        let mut tx = tx.clone();
+    thread::spawn(move || {
         let mut buffer = Vec::new();
-        match reader.read_until(b'\n', &mut buffer) {
-            Ok(len) => {
-                if len > 0 {
-                    let raw = String::from_utf8_lossy(&buffer);
-                    let record = Record {
-                        raw: trim_cr_nl(&raw),
-                        ..Default::default()
-                    };
-                    let f = tx.send(Some(record)).map(|_| ()).map_err(|_| ());
-                    remote.spawn(|_| f);
-                } else {
-                    let f = tx.clone().send(None).map(|_| ()).map_err(|_| ());
-                    remote.spawn(|_| f);
+        loop {
+            let mut tx = tx.clone();
+            buffer.clear();
+            match reader.read_until(b'\n', &mut buffer) {
+                Ok(len) => {
+                    if len > 0 {
+                        while buffer.ends_with(&[b'\r']) || buffer.ends_with(&[b'\n']) {
+                            buffer.pop();
+                        }
+                        let record = Record {
+                            raw: String::from_utf8_lossy(&buffer).into(),
+                            ..Default::default()
+                        };
+                        let f = tx.send(Some(record)).map(|_| ()).map_err(|_| ());
+                        remote.spawn(|_| f);
+                    } else {
+                        let f = tx.clone().send(None).map(|_| ()).map_err(|_| ());
+                        remote.spawn(|_| f);
+                        tx.close().ok();
+                        break;
+                    }
+                }
+                Err(_) => {
                     tx.close().ok();
                     break;
                 }
-            }
-            Err(_) => {
-                tx.close().ok();
-                break;
             }
         }
     });

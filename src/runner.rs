@@ -13,12 +13,10 @@ use futures::{Async, Poll, Stream};
 use record::Record;
 use record::{Format, Level};
 use std::io::{self, BufRead, BufReader};
-use std::mem;
 use std::process::{Command, Stdio};
 use tokio_core::reactor::Handle;
 use tokio_io::AsyncRead;
 use tokio_process::{Child, CommandExt};
-use utils::trim_cr_nl;
 
 struct LossyLines<A> {
     io: A,
@@ -43,15 +41,18 @@ where
     type Error = io::Error;
 
     fn poll(&mut self) -> Poll<Option<String>, io::Error> {
-        self.buffer.clear();
         let n = try_nb!(self.io.read_until(b'\n', &mut self.buffer));
         if n == 0 && self.buffer.is_empty() {
-            return Ok(None.into());
+            Ok(None.into())
+        } else {
+            // Strip all \r\n occurences because on Windows "adb logcat" ends lines with "\r\r\n"
+            while self.buffer.ends_with(&[b'\r']) || self.buffer.ends_with(&[b'\n']) {
+                self.buffer.pop();
+            }
+            let line = String::from_utf8_lossy(&self.buffer).into();
+            self.buffer.clear();
+            Ok(Some(line).into())
         }
-        self.buffer.pop();
-        let line = String::from_utf8_lossy(&self.buffer);
-        let mut trimmed_line = trim_cr_nl(&line);
-        Ok(Some(mem::replace(&mut trimmed_line, String::new())).into())
     }
 }
 
