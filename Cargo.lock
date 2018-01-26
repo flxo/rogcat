@@ -634,7 +634,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "rogcat"
-version = "0.2.15"
+version = "0.2.16-pre"
 dependencies = [
  "appdirs 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "atty 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
