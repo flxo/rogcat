@@ -12,49 +12,11 @@ use futures::future::ok;
 use futures::{Async, Poll, Stream};
 use record::Record;
 use record::{Format, Level};
-use std::io::{self, BufRead, BufReader};
+use std::io::BufReader;
 use std::process::{Command, Stdio};
 use tokio_core::reactor::Handle;
-use tokio_io::AsyncRead;
 use tokio_process::{Child, CommandExt};
-
-struct LossyLines<A> {
-    io: A,
-    buffer: Vec<u8>,
-}
-
-fn lossy_lines<A>(a: A) -> LossyLines<A>
-where
-    A: AsyncRead + BufRead,
-{
-    LossyLines {
-        io: a,
-        buffer: Vec::new(),
-    }
-}
-
-impl<A> Stream for LossyLines<A>
-where
-    A: AsyncRead + BufRead,
-{
-    type Item = String;
-    type Error = io::Error;
-
-    fn poll(&mut self) -> Poll<Option<String>, io::Error> {
-        let n = try_nb!(self.io.read_until(b'\n', &mut self.buffer));
-        if n == 0 && self.buffer.is_empty() {
-            Ok(None.into())
-        } else {
-            // Strip all \r\n occurences because on Windows "adb logcat" ends lines with "\r\r\n"
-            while self.buffer.ends_with(&[b'\r']) || self.buffer.ends_with(&[b'\n']) {
-                self.buffer.pop();
-            }
-            let line = String::from_utf8_lossy(&self.buffer).into();
-            self.buffer.clear();
-            Ok(Some(line).into())
-        }
-    }
-}
+use utils::lossy_lines;
 
 type OutStream = Box<Stream<Item = String, Error = ::std::io::Error>>;
 

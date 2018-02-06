@@ -4,21 +4,21 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
+use adb;
 use clap::ArgMatches;
 use failure::{err_msg, Error};
-use futures::future::*;
-use futures::Stream;
+use futures::{Future, Stream};
+use futures::future::ok;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::fs::{DirBuilder, File};
 use std::io::BufReader;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use adb;
 use time::{now, strftime};
 use tokio_core::reactor::Core;
-use tokio_io::io::lines;
 use tokio_process::CommandExt;
+use utils::lossy_lines;
 use zip::write::FileOptions;
 use zip::{CompressionMethod, ZipWriter};
 
@@ -112,7 +112,7 @@ pub fn create(args: &ArgMatches, core: &mut Core) -> Result<i32, Error> {
 
     progress.set_message("Pulling bugreport line");
 
-    let output = lines(stdout_reader)
+    let output = lossy_lines(stdout_reader)
         .for_each(|l| {
             write.write_all(l.as_bytes()).expect("Failed to write");
             write.write_all(b"\n").expect("Failed to write");
