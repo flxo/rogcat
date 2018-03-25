@@ -1,23 +1,32 @@
 [package]
 authors = ["Felix Obenhuber <felix@obenhuber.de>"]
-categories = ["command-line-utilities", "development-tools"]
+categories = [
+    "command-line-utilities",
+    "development-tools",
+]
 description = "A adb logcat wrapper and log processor"
 homepage = "https://github.com/flxo/rogcat"
-keywords = ["android", "adb", "debugging", "log", "logcat"]
+keywords = [
+    "android",
+    "adb",
+    "debugging",
+    "log",
+    "logcat",
+]
 license = "WTFPL"
 name = "rogcat"
 readme = "README.md"
 repository = "https://github.com/flxo/rogcat"
 version = "0.2.16-pre"
+
 [dependencies]
-appdirs = "0.2.0"
 atty = "0.2.3"
 bytes = "0.4.5"
 clap = "2.27.1"
-clippy = {version = "0.0.175", optional = true}
 config = "0.7.0"
 crc = "1.5.0"
 csv = "1.0.0-beta.3"
+directories = "0.8.4"
 failure = "0.1.1"
 futures = "0.1.17"
 handlebars = "0.29.1"
@@ -42,5 +51,10 @@ toml = "0.4.5"
 url = "1.6.0"
 which = "1.0.3"
 zip = "0.2.6"
+
+[dependencies.clippy]
+optional = true
+version = "0.0.175"
+
 [features]
 default = []

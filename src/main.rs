@@ -7,7 +7,6 @@
 #![cfg_attr(feature = "clippy", feature(plugin))]
 #![cfg_attr(feature = "clippy", plugin(clippy))]
 
-extern crate appdirs;
 extern crate atty;
 extern crate bytes;
 #[macro_use]
@@ -15,6 +14,7 @@ extern crate clap;
 extern crate config;
 extern crate crc;
 extern crate csv;
+extern crate directories;
 #[macro_use]
 extern crate failure;
 extern crate futures;
@@ -115,9 +115,8 @@ fn adb() -> Result<PathBuf, Error> {
 }
 
 /// Detect configuration directory
-fn config_dir() -> Result<PathBuf, Error> {
-    appdirs::user_config_dir(Some("rogcat"), None, false)
-        .map_err(|e| format_err!("Failed to detect config dir: {:?}", e))
+fn config_dir() -> PathBuf {
+    directories::BaseDirs::new().config_dir().join("rogcat")
 }
 
 /// Read a value from the configuration file
@@ -167,7 +166,7 @@ fn input(core: &mut Core, args: &ArgMatches) -> Result<RStream, Error> {
 
 fn run() -> Result<i32, Error> {
     let args = cli().get_matches();
-    let config_file = config_dir()?.join("config.toml");
+    let config_file = config_dir().join("config.toml");
     CONFIG
         .write()
         .map_err(|e| format_err!("Failed to get config lock: {}", e))?

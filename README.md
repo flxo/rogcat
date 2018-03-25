@@ -152,9 +152,9 @@ or grab one of the [binary releases](https://github.com/flxo/rogcat/releases) on
 When `rogcat` runs without any command supplied it defaults to running `adb logcat -b all`. The following options
 can be overwritten in the `rogcat` config file `config.toml`. The location of the config file is platform specific:
 
-* MacOS: `$HOME/Library/Application Support/rogcat/config.toml`
+* MacOS: `$HOME/Library/Preferences/rogcat/config.toml`
 * Linux: `$HOME/.config/rogcat/config.toml`
-* Windows: `%HOME%/AppData/Local/rogcat/config.toml`
+* Windows: `%HOME%/AppData/Roaming/rogcat/config.toml`
 
 ### Restart
 
@@ -192,9 +192,9 @@ Optionally `rogcat` reads a (`toml` formated) configuration file if present. Thi
 ('-p') and settings. The possible options in the configuration file are a subset of the command line options. The configuration
 file is read from the location set in the environment variable `ROGCAT_PROFILES` or a fixed pathes depending on your OS:
 
-* MacOS: `$HOME/Library/Application Support/rogcat/profiles.toml`
+* MacOS: `$HOME/Library/Preferences/rogcat/profiles.toml`
 * Linux: `$HOME/.config/rogcat/profiles.toml`
-* Windows: `%HOME%/AppData/Local/rogcat/profiles.toml`
+* Windows: `%HOME%/AppData/Roaming/rogcat/profiles.toml`
 
 The environment variable overrules the default path. See `rogcat profiles --help` or `rogcat profiles --examples`.
 

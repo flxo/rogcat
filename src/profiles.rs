@@ -286,7 +286,7 @@ impl Profiles {
                 ))
             }
         } else {
-            Ok(::config_dir()?.join("profiles.toml"))
+            Ok(::config_dir().join("profiles.toml"))
         }
     }
 }
