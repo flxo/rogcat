@@ -166,7 +166,7 @@ impl Html {
         let mut output_file = File::create(&self.filename)?;
         hb.register_helper("color", Box::new(Self::color_helper));
         hb.register_template_string("t1", TEMPLATE)?;
-        hb.renderw("t1", &data, &mut output_file)
+        hb.render_to_write("t1", &data, &mut output_file)
             .map_err(|e| format_err!("Rednering error: {}", e))
             .map(|_| ())
     }
