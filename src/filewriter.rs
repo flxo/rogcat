@@ -182,11 +182,11 @@ impl Writer for Html {
     }
 
     fn write(&mut self, record: &Record, index: usize) -> Result<(), Error> {
-        let r = HtmlRecord {
-            index: index,
+        self.records.push(HtmlRecord {
+            index,
             record: record.clone(),
-        };
-        Ok(self.records.push(r))
+        });
+        Ok(())
     }
 }
 
@@ -208,7 +208,7 @@ impl Writer for Textfile {
             format_err!("Failed to create output file {}: {}", filename.display(), e)
         })?;
         let textfile = Textfile {
-            file: file,
+            file,
             format: format.clone(),
         };
         Ok(Box::new(textfile))
@@ -317,11 +317,11 @@ impl<'a> FileWriter {
         Ok(FileWriter {
             current_filename: filename.clone(),
             file_size: 0,
-            filename: filename,
-            filename_format: filename_format,
-            format: format,
+            filename,
+            filename_format,
+            format,
             index: 0,
-            progress: progress,
+            progress,
             writer: None,
         })
     }

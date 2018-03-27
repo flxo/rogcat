@@ -34,10 +34,10 @@ impl<'a> Filter {
 
         Ok(Filter {
             level: Level::from(args.value_of("level").unwrap_or("")),
-            message: message,
-            message_negative: message_negative,
-            tag: tag,
-            tag_negative: tag_negative,
+            message,
+            message_negative,
+            tag,
+            tag_negative,
         })
     }
 

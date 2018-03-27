@@ -39,7 +39,7 @@ impl ZipFile {
             .ok_or_else(|| err_msg("Failed to get filename"))?;
         let mut zip = ZipWriter::new(file);
         zip.start_file(f, options)?;
-        Ok(ZipFile { zip: zip })
+        Ok(ZipFile { zip })
     }
 }
 

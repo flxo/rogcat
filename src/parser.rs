@@ -76,7 +76,7 @@ named!(
             >> level: level >> space >> tag: map_res!(take_until!(":"), from_utf8)
             >> char!(':') >> message: opt!(map_res!(rest, from_utf8)) >> (Record {
             timestamp: Some(Timestamp::new(timestamp)),
-            level: level,
+            level,
             tag: tag.trim().to_owned(),
             process: process.trim().to_owned(),
             thread: thread.trim().to_owned(),
@@ -101,7 +101,7 @@ named!(
             (
                 Record {
                     timestamp: None,
-                    level: level,
+                    level,
                     tag: tag.trim().to_owned(),
                     process: process.trim().to_owned(),
                     message: message.unwrap_or("").trim().to_owned(),
@@ -123,7 +123,7 @@ named!(
             (
                 Record {
                     timestamp: Some(Timestamp::new(timestamp)),
-                    level: level,
+                    level,
                     tag: tag.trim().to_owned(),
                     process: process.trim().to_owned(),
                     message: message.unwrap_or("").trim().to_owned(),
@@ -234,9 +234,9 @@ impl Parser {
                 match bugreport_section(line.as_bytes()) {
                     IResult::Done(_, (tag, message)) => Ok(Record {
                         level: Level::Info,
-                        message: message,
+                        message,
                         raw: line.to_owned(),
-                        tag: tag,
+                        tag,
                         ..Default::default()
                     }),
                     IResult::Error(e) => Err(format_err!("{}", e)),
@@ -248,40 +248,31 @@ impl Parser {
         }
     }
 
-    pub fn process(&mut self, record: Option<Record>) -> Result<Option<Record>, Error> {
-        if let Some(record) = record {
-            if let Some(p) = self.last {
-                if let Ok(record) = p(&record.raw) {
-                    return Ok(Some(record));
-                }
-            }
-
-            let parser = [
-                Self::parse_default,
-                Self::parse_mindroid,
-                Self::parse_csv,
-                Self::parse_json,
-                Self::parse_bugreport,
-            ];
-
-            let mut parse = |record: &Record| -> Record {
-                for p in &parser {
-                    if let Ok(r) = p(&record.raw) {
-                        self.last = Some(*p);
+    pub fn process(&mut self, record: Option<Record>) -> Option<Record> {
+        record.map(|mut record| {
+            macro_rules! try_parse {
+                ($p:expr) => {
+                    if let Ok(r) = $p(&record.raw) {
+                        self.last = Some($p);
                         return r;
                     }
-                }
-                Record {
-                    message: record.raw.clone(),
-                    raw: record.raw.clone(),
-                    ..Default::default()
-                }
-            };
+                };
+            }
 
-            Ok(Some(parse(&record)))
-        } else {
-            Ok(record)
-        }
+            if let Some(p) = self.last {
+                try_parse!(p);
+            }
+            try_parse!(Self::parse_default);
+            try_parse!(Self::parse_mindroid);
+            try_parse!(Self::parse_csv);
+            try_parse!(Self::parse_json);
+            try_parse!(Self::parse_bugreport);
+
+            // Seems that we cannot parse this record
+            // Treat the raw input as message
+            record.message = record.raw.clone();
+            record
+        })
     }
 }
 
