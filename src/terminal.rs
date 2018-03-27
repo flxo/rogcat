@@ -22,20 +22,20 @@ use time::Tm;
 use utils::terminal_width;
 
 #[cfg(not(target_os = "windows"))]
-pub const DIMM_COLOR: u16 = 243;
+pub const DIMM_COLOR: Color = 243;
 #[cfg(target_os = "windows")]
-pub const DIMM_COLOR: u16 = WHITE;
+pub const DIMM_COLOR: Color = WHITE;
 
 #[cfg(target_os = "windows")]
-fn hashed_color(i: &str) -> u16 {
-    i.bytes().fold(42u16, |c, x| (c ^ u16::from(x))) % 15 + 1
+fn hashed_color(i: &str) -> Color {
+    i.bytes().fold(42u16, |c, x| (c ^ Color::from(x))) % 15 + 1
 }
 
 #[cfg(not(target_os = "windows"))]
-fn hashed_color(i: &str) -> u16 {
+fn hashed_color(i: &str) -> Color {
     // Some colors are hard to read on (at least) dark terminals
     // and others seem just ugly to me...
-    match i.bytes().fold(42u16, |c, x| (c ^ u16::from(x))) {
+    match i.bytes().fold(42u32, |c, x| (c ^ Color::from(x))) {
         c @ 0...1 => c + 2,
         c @ 16...21 => c + 6,
         c @ 52...55 | c @ 126...129 => c + 4,
@@ -226,7 +226,7 @@ impl<'a> Terminal {
             format!(" {:>width$}", record.thread, width = self.thread_width)
         };
 
-        let dimm_color = if self.no_dimm { WHITE } else { 243u16 };
+        let dimm_color = if self.no_dimm { WHITE } else { 243u32 };
 
         let level = format!(" {} ", record.level);
         let level_color = match record.level {
