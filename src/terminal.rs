@@ -28,7 +28,7 @@ pub const DIMM_COLOR: Color = WHITE;
 
 #[cfg(target_os = "windows")]
 fn hashed_color(i: &str) -> Color {
-    i.bytes().fold(42u16, |c, x| (c ^ Color::from(x))) % 15 + 1
+    i.bytes().fold(42u32, |c, x| (c ^ Color::from(x))) % 15 + 1
 }
 
 #[cfg(not(target_os = "windows"))]
