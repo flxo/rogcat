@@ -157,7 +157,7 @@ impl<'a> Terminal {
             let diff = if self.time_diff {
                 if let Some(t) = self.tag_timestamps.get(&record.tag) {
                     let diff = ((ts - *t).num_milliseconds()).abs();
-                    let diff = format!("{}.{:.03}", diff / 1000, diff % 1000);
+                    let diff = format!("{}.{:03}", diff / 1000, diff % 1000);
                     if diff.chars().count() <= self.diff_width {
                         diff
                     } else {
@@ -278,6 +278,17 @@ impl<'a> Terminal {
                 write!(term, " ")?;
                 paint(
                     &mut term,
+                    &format!(
+                        "{:>diff_width$}",
+                        diff,
+                        diff_width = diff_width,
+                    ),
+                    timestamp_color,
+                    None,
+                )?;
+                write!(term, " ")?;
+                paint(
+                    &mut term,
                     &format!("{:<tag_width$}", tag, tag_width = tag_width),
                     hashed_color(&tag),
                     None,
@@ -315,7 +326,7 @@ impl<'a> Terminal {
             let preamble_width =
                 timestamp_width + 1 + self.diff_width + 1 + tag_width + 1 + 1 + self.process_width
                     + if self.thread_width == 0 { 0 } else { 1 } + self.thread_width
-                    + 1 + 1 + 3 + 3;
+                    + 1 + 1 + 3 + 3 + 1;
             // Windows terminal width reported is too big
             #[cfg(target_os = "windows")]
             let preamble_width = preamble_width + 1;
