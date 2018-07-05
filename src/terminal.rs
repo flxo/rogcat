@@ -295,7 +295,6 @@ impl<'a> Terminal {
                 )?;
                 paint(&mut term, " (", DIMM_COLOR, None)?;
                 paint(&mut term, &format!("{}", pid), hashed_color(&pid), None)?;
-                write!(term, " ")?;
                 paint(&mut term, &format!("{}", tid), hashed_color(&tid), None)?;
                 paint(&mut term, ") ", DIMM_COLOR, None)?;
                 paint(&mut term, &format!("{}", level), BLACK, Some(level_color))?;
