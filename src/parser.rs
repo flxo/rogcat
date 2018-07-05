@@ -347,7 +347,7 @@ fn parse_printable() {
 
 #[test]
 fn parse_mindroid() {
-    let t = "D/ServiceManager(123): Service MediaPlayer has been created in process main";
+    let t = "D/ServiceManager(0x123): Service MediaPlayer has been created in process main";
     let r = Parser::parse_mindroid(t).unwrap();
     assert_eq!(r.level, Level::Debug);
     assert_eq!(r.tag, "ServiceManager");
@@ -358,11 +358,11 @@ fn parse_mindroid() {
         "Service MediaPlayer has been created in process main"
     );
 
-    let t = "D/ServiceManager(abc): Service MediaPlayer has been created in process main";
+    let t = "D/ServiceManager(0xabc): Service MediaPlayer has been created in process main";
     let r = Parser::parse_mindroid(t).unwrap();
     assert_eq!(r.process, "abc");
 
-    let t = "2017-03-25 19:11:19.052  3b7fe700  D SomeThing: Parsing IPV6 address \
+    let t = "2017-03-25 19:11:19.052  0x3b7fe700  D SomeThing: Parsing IPV6 address \
              fd53:7cb8:383:4:0:0:0:68";
     let r = Parser::parse_mindroid(t).unwrap();
     assert_eq!(r.level, Level::Debug);
@@ -371,7 +371,7 @@ fn parse_mindroid() {
     assert_eq!(r.thread, "");
     assert_eq!(r.message, "Parsing IPV6 address fd53:7cb8:383:4:0:0:0:68");
 
-    let t = "2017-03-25 19:11:19.052  3b7fe700  D SomeThing:";
+    let t = "2017-03-25 19:11:19.052  0x3b7fe700  D SomeThing:";
     let r = Parser::parse_mindroid(t).unwrap();
     assert_eq!(r.message, "");
 }
