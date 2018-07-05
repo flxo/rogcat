@@ -94,7 +94,7 @@ named!(
             level: level >>
             char!('/') >>
             tag: map_res!(take_until!("("), from_utf8) >>
-            char!('(') >>
+            tag!("(0x") >>
             process: map_res!(hex_digit, from_utf8) >>
             tag!("):") >>
             message: opt!(map_res!(rest, from_utf8)) >>
@@ -113,6 +113,7 @@ named!(
         do_parse!(
             timestamp: timestamp >>
             many0!(space) >>
+            tag!("0x") >>
             process: map_res!(hex_digit, from_utf8) >>
             many1!(space) >>
             level: level >>
