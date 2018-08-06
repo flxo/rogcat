@@ -820,7 +820,7 @@ dependencies = [
 
 [[package]]
 name = "rogcat"
-version = "0.2.16"
+version = "0.2.17-pre"
 dependencies = [
  "atty 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "bytes 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",

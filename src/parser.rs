@@ -202,6 +202,30 @@ impl Parser {
         from_str(line).map_err(|e| format_err!("Failed to deserialize json: {}", e))
     }
 
+    fn parse_gtest(line: &str) -> Result<Record, Error> {
+        if line.len() >= 12 {
+            let mut chars = line.chars();
+            if let Some('[') = chars.next() {
+                if let Some(']') = chars.skip(10).next() {
+                    Ok(Record {
+                        timestamp: None,
+                        level: Level::Info,
+                        tag: "Test".to_owned(),
+                        process: line[1..11].trim().trim_matches('-').trim_matches('=').to_owned(),
+                        message: line[12..].trim().to_owned(),
+                        ..Default::default()
+                    })
+                } else {
+                    Err(err_msg("Failed to parse gtest"))
+                }
+            } else {
+                Err(err_msg("Failed to parse gtest"))
+            }
+        } else {
+            Err(err_msg("Failed to parse gtest"))
+        }
+    }
+
     fn parse_bugreport(line: &str) -> Result<Record, Error> {
         if line.starts_with('=') || line.starts_with('-')
             || (line.starts_with('[') && line.ends_with(']'))
@@ -267,6 +291,7 @@ impl Parser {
             try_parse!(Self::parse_mindroid);
             try_parse!(Self::parse_csv);
             try_parse!(Self::parse_json);
+            try_parse!(Self::parse_gtest);
             try_parse!(Self::parse_bugreport);
 
             // Seems that we cannot parse this record
