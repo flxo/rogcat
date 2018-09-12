@@ -94,7 +94,8 @@ named!(
             level: level >>
             char!('/') >>
             tag: map_res!(take_until!("("), from_utf8) >>
-            tag!("(0x") >>
+            tag!("(") >>
+            opt!(tag!("0x")) >>
             process: map_res!(hex_digit, from_utf8) >>
             tag!("):") >>
             message: opt!(map_res!(rest, from_utf8)) >>
@@ -113,7 +114,7 @@ named!(
         do_parse!(
             timestamp: timestamp >>
             many0!(space) >>
-            tag!("0x") >>
+            opt!(tag!("0x")) >>
             process: map_res!(hex_digit, from_utf8) >>
             many1!(space) >>
             level: level >>
@@ -372,6 +373,14 @@ fn parse_printable() {
 
 #[test]
 fn parse_mindroid() {
+    let t = "D/ServiceManager(000000000000000C): foo bar";
+    let r = Parser::parse_mindroid(t).unwrap();
+    assert_eq!(r.level, Level::Debug);
+    assert_eq!(r.tag, "ServiceManager");
+    assert_eq!(r.process, "000000000000000C");
+    assert_eq!(r.thread, "");
+    assert_eq!(r.message, "foo bar");
+
     let t = "D/ServiceManager(0x123): Service MediaPlayer has been created in process main";
     let r = Parser::parse_mindroid(t).unwrap();
     assert_eq!(r.level, Level::Debug);
