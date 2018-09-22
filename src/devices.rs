@@ -17,7 +17,7 @@ pub fn devices(core: &mut Core) -> Result<i32, Error> {
     let mut child = Command::new(adb()?)
         .arg("devices")
         .stdout(Stdio::piped())
-        .spawn_async(&core.handle())?;
+        .spawn_async()?;
     let stdout = child
         .stdout()
         .take()

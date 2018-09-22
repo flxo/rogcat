@@ -81,7 +81,7 @@ pub fn create(args: &ArgMatches, core: &mut Core) -> Result<i32, Error> {
         .arg("bugreport")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .spawn_async(&core.handle())?;
+        .spawn_async()?;
     let stdout = child
         .stdout()
         .take()

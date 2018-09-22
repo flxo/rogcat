@@ -113,7 +113,10 @@ fn adb() -> Result<PathBuf, Error> {
 
 /// Detect configuration directory
 fn config_dir() -> PathBuf {
-    directories::BaseDirs::new().config_dir().join("rogcat")
+    directories::BaseDirs::new()
+        .unwrap()
+        .config_dir()
+        .join("rogcat")
 }
 
 /// Read a value from the configuration file
@@ -152,13 +155,13 @@ fn input(core: &mut Core, args: &ArgMatches) -> Result<RStream, Error> {
                             tcp_reader(&addr, core)
                         }
                         "serial" => serial_reader(args, core),
-                        _ => runner(args, core.handle()),
+                        _ => runner(args),
                     }
                 } else {
-                    runner(args, core.handle())
+                    runner(args)
                 }
             }
-            None => runner(args, core.handle()),
+            None => runner(args),
         }
     }
 }
@@ -196,7 +199,7 @@ fn run() -> Result<i32, Error> {
             .arg("-c")
             .arg("-b")
             .args(buffer.split(' '))
-            .spawn_async(&core.handle())?;
+            .spawn_async()?;
         let output = core.run(child)?;
         exit(
             output
@@ -206,7 +209,7 @@ fn run() -> Result<i32, Error> {
     }
 
     let input = input(&mut core, &args)?;
-    let ctrl_c = tokio_signal::ctrl_c(&core.handle())
+    let ctrl_c = tokio_signal::ctrl_c()
         .flatten_stream()
         .map(|_| None)
         .map_err(|e| e.into());

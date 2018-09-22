@@ -47,7 +47,7 @@ impl Sink for Logger {
                 .arg(format!("\"{}\"", &self.tag))
                 .arg(&r.raw)
                 .stdout(Stdio::piped())
-                .output_async(&self.handle)
+                .output_async()
                 .map(|_| ())
                 .map_err(|_| ());
             self.handle.spawn(child);
@@ -88,7 +88,7 @@ pub fn run(args: &ArgMatches, core: &mut Core) -> Result<i32, Error> {
                 .arg(&tag)
                 .arg(format!("\"{}\"", message))
                 .stdout(Stdio::piped())
-                .output_async(&core.handle())
+                .output_async()
                 .map(|_| ())
                 .map_err(|_| ());
             core.run(child)

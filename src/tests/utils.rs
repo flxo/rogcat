@@ -5,7 +5,8 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use failure::Error;
-use rand::*;
+use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng};
 use std::env;
 use std::fs;
 use std::fs::File;
@@ -31,7 +32,7 @@ pub fn tempdir() -> Result<PathBuf, Error> {
 
 pub fn tempfile() -> Result<PathBuf, Error> {
     let mut path = tempdir()?;
-    let filename: String = thread_rng().gen_ascii_chars().take(8).collect();
+    let filename: String = thread_rng().sample_iter(&Alphanumeric).take(8).collect();
     path.push(filename);
     Ok(path)
 }

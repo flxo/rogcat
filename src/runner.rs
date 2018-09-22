@@ -13,7 +13,6 @@ use record::Record;
 use record::{Format, Level};
 use std::io::BufReader;
 use std::process::{Command, Stdio};
-use tokio_core::reactor::Handle;
 use tokio_process::{Child, CommandExt};
 use utils::lossy_lines;
 use RStream;
@@ -23,18 +22,13 @@ type OutStream = Box<Stream<Item = String, Error = ::std::io::Error>>;
 pub struct Runner {
     child: Child,
     cmd: String,
-    handle: Handle,
     skip_until: Option<String>,
     output: OutStream,
     restart: bool,
     skip: bool,
 }
 
-fn run(
-    cmd: &str,
-    handle: &Handle,
-    skip_until: &Option<String>,
-) -> Result<(Child, OutStream), Error> {
+fn run(cmd: &str, skip_until: &Option<String>) -> Result<(Child, OutStream), Error> {
     let cmd = cmd
         .split_whitespace()
         .map(|s| s.to_owned())
@@ -44,7 +38,7 @@ fn run(
         .args(&cmd[1..])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .spawn_async(handle)?;
+        .spawn_async()?;
 
     let stdout = child
         .stdout()
@@ -67,7 +61,7 @@ fn run(
     Ok((child, output))
 }
 
-pub fn runner<'a>(args: &ArgMatches<'a>, handle: Handle) -> Result<RStream, Error> {
+pub fn runner<'a>(args: &ArgMatches<'a>) -> Result<RStream, Error> {
     let (cmd, restart) = if let Ok(cmd) = value_t!(args, "COMMAND", String) {
         (cmd, args.is_present("restart"))
     } else {
@@ -100,12 +94,11 @@ pub fn runner<'a>(args: &ArgMatches<'a>, handle: Handle) -> Result<RStream, Erro
         let cmd = format!("{} logcat -b {} {}", adb, buffer, logcat_args.join(" "));
         (cmd, restart)
     };
-    let (child, output) = run(&cmd, &handle, &None)?;
+    let (child, output) = run(&cmd, &None)?;
 
     Ok(Box::new(Runner {
         child,
         cmd: cmd.trim().to_owned(),
-        handle,
         skip_until: None,
         output,
         restart,
@@ -132,7 +125,7 @@ impl Stream for Runner {
                         });
                         return Ok(Async::Ready(Some(r)));
                     } else if self.restart {
-                        let (child, output) = run(&self.cmd, &self.handle, &self.skip_until)?;
+                        let (child, output) = run(&self.cmd, &self.skip_until)?;
                         self.output = output;
                         self.child = child;
                         if let Some(ref s) = self.skip_until {

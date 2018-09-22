@@ -8,7 +8,10 @@ use clap::ArgMatches;
 use crc::{crc32, Hasher32};
 use failure::{err_msg, Error};
 use futures::{Async, AsyncSink, Poll, Sink, StartSend};
-use handlebars::{to_json, Handlebars, Helper, JsonRender, RenderContext, RenderError};
+use handlebars::{
+    to_json, Context, Handlebars, Helper, HelperResult, JsonRender, Output, RenderContext,
+    RenderError,
+};
 use indicatif::{ProgressBar, ProgressStyle};
 use record::{Format, Record};
 use regex::Regex;
@@ -137,12 +140,13 @@ impl Html {
         let b = (h & 0xFF_0000) >> 16;
         format!("#{:02x}{:02x}{:02x}", r, g, b)
     }
-
     fn color_helper(
         h: &Helper,
         _: &Handlebars,
-        rc: &mut RenderContext,
-    ) -> ::std::result::Result<(), RenderError> {
+        _: &Context,
+        _: &mut RenderContext,
+        out: &mut Output,
+    ) -> HelperResult {
         let param = h
             .param(0)
             .ok_or_else(|| RenderError::new("Param 0 is required for format helper."))?;
@@ -156,7 +160,7 @@ impl Html {
                 value
             )
         };
-        rc.writer.write_all(rendered.into_bytes().as_ref())?;
+        out.write(&rendered)?;
         Ok(())
     }
 

@@ -25,7 +25,6 @@ use std::u64;
 use tokio_core::net::TcpStream;
 use tokio_core::reactor::Core;
 use tokio_io::codec::{Decoder, Encoder};
-use tokio_io::AsyncRead;
 use RStream;
 
 fn records<T: Read + Send + Sized + 'static>(reader: T, core: &Core) -> Result<RStream, Error> {
@@ -160,8 +159,8 @@ pub fn tcp_reader(addr: &SocketAddr, core: &mut Core) -> Result<RStream, Error> 
     let handle = core.handle();
     let s = core
         .run(TcpStream::connect(addr, &handle))
+        .map(|s| Decoder::framed(LossyLineCodec {}, s))
         .map_err(|e| format_err!("Failed to connect: {}", e))?
-        .framed(LossyLineCodec)
         .map(Some)
         .map_err(|e| e.into());
     Ok(Box::new(s))
