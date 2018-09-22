@@ -10,8 +10,8 @@ use serde::de::{Deserialize, Deserializer, Visitor};
 use serde::ser::Serializer;
 use serde::Serialize;
 use std::fmt::{Display, Formatter};
-use std::str::FromStr;
 use std::ops::Deref;
+use std::str::FromStr;
 use time::{strftime, strptime, Tm};
 
 type StdResult<T, E> = ::std::result::Result<T, E>;
@@ -56,7 +56,8 @@ impl Display for Format {
 }
 
 const LEVEL_VALUES: &[&str] = &[
-    "trace", "debug", "info", "warn", "error", "fatal", "assert", "T", "D", "I", "W", "E", "F", "A"
+    "trace", "debug", "info", "warn", "error", "fatal", "assert", "T", "D", "I", "W", "E", "F",
+    "A",
 ];
 
 #[derive(Clone, Debug, Deserialize, PartialOrd, PartialEq, Serialize)]

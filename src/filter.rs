@@ -20,11 +20,13 @@ pub struct Filter {
 
 impl<'a> Filter {
     pub fn new(args: &ArgMatches<'a>, profile: &Profile) -> Result<Self, Error> {
-        let mut tag_filter = args.values_of("tag")
+        let mut tag_filter = args
+            .values_of("tag")
             .map(|m| m.map(|f| f.to_owned()).collect::<Vec<String>>())
             .unwrap_or_else(|| vec![]);
         tag_filter.extend(profile.tag().clone());
-        let mut message_filter = args.values_of("message")
+        let mut message_filter = args
+            .values_of("message")
             .map(|m| m.map(|f| f.to_owned()).collect::<Vec<String>>())
             .unwrap_or_else(|| vec![]);
         message_filter.extend(profile.message().clone());
@@ -68,7 +70,8 @@ impl<'a> Filter {
                 return false;
             }
 
-            if self.message_negative
+            if self
+                .message_negative
                 .iter()
                 .any(|m| m.is_match(&record.message))
             {

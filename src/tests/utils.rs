@@ -7,10 +7,10 @@
 use failure::Error;
 use rand::*;
 use std::env;
-use std::fs::File;
 use std::fs;
-use std::io::BufReader;
+use std::fs::File;
 use std::io::prelude::*;
+use std::io::BufReader;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use tempdir::TempDir;

@@ -17,16 +17,16 @@ use std::io::stdin;
 use std::io::{BufRead, BufReader, Read};
 use std::net::SocketAddr;
 use std::path::PathBuf;
-use std::str::from_utf8;
 use std::str;
-use std::u64;
+use std::str::from_utf8;
 use std::thread;
 use std::time::Duration;
-use RStream;
+use std::u64;
 use tokio_core::net::TcpStream;
 use tokio_core::reactor::Core;
-use tokio_io::AsyncRead;
 use tokio_io::codec::{Decoder, Encoder};
+use tokio_io::AsyncRead;
+use RStream;
 
 fn records<T: Read + Send + Sized + 'static>(reader: T, core: &Core) -> Result<RStream, Error> {
     let (tx, rx) = mpsc::channel(1);
@@ -65,13 +65,14 @@ fn records<T: Read + Send + Sized + 'static>(reader: T, core: &Core) -> Result<R
         }
     });
 
-    Ok(Box::new(rx.map_err(|e| {
-        format_err!("Channel error: {:?}", e)
-    })))
+    Ok(Box::new(
+        rx.map_err(|e| format_err!("Channel error: {:?}", e)),
+    ))
 }
 
 pub fn file_reader<'a>(args: &ArgMatches<'a>, core: &Core) -> Result<RStream, Error> {
-    let files = args.values_of("input")
+    let files = args
+        .values_of("input")
         .map(|f| f.map(PathBuf::from).collect::<Vec<PathBuf>>())
         .ok_or_else(|| err_msg("Failed to parse input files"))?;
 
@@ -81,7 +82,8 @@ pub fn file_reader<'a>(args: &ArgMatches<'a>, core: &Core) -> Result<RStream, Er
             return Err(format_err!("Cannot open {}", f.display()));
         }
 
-        let file = File::open(f).map_err(|e| format_err!("Failed to open {}: {}", f.display(), e))?;
+        let file =
+            File::open(f).map_err(|e| format_err!("Failed to open {}: {}", f.display(), e))?;
 
         streams.push(records(file, core)?);
     }
@@ -107,7 +109,8 @@ pub fn stdin_reader(core: &Core) -> Result<RStream, Error> {
 }
 
 pub fn serial_reader<'a>(args: &ArgMatches<'a>, core: &Core) -> Result<RStream, Error> {
-    let i = args.value_of("input")
+    let i = args
+        .value_of("input")
         .ok_or_else(|| err_msg("Invalid input value"))?;
     let p = match serial(i.as_bytes()) {
         IResult::Done(_, v) => v,
@@ -155,7 +158,8 @@ impl Encoder for LossyLineCodec {
 
 pub fn tcp_reader(addr: &SocketAddr, core: &mut Core) -> Result<RStream, Error> {
     let handle = core.handle();
-    let s = core.run(TcpStream::connect(addr, &handle))
+    let s = core
+        .run(TcpStream::connect(addr, &handle))
         .map_err(|e| format_err!("Failed to connect: {}", e))?
         .framed(LossyLineCodec)
         .map(Some)
@@ -222,9 +226,13 @@ named!(
 named!(
     serial<(String, ::serial::PortSettings)>,
     do_parse!(
-        tag!("serial://") >> port: map_res!(take_until!("@"), from_utf8) >> char!('@')
-            >> baudrate: baudrate >> opt!(complete!(char!(',')))
-            >> char_size: opt!(complete!(char_size)) >> parity: opt!(complete!(parity))
+        tag!("serial://")
+            >> port: map_res!(take_until!("@"), from_utf8)
+            >> char!('@')
+            >> baudrate: baudrate
+            >> opt!(complete!(char!(',')))
+            >> char_size: opt!(complete!(char_size))
+            >> parity: opt!(complete!(parity))
             >> stop_bits: opt!(complete!(stop_bits))
             >> ((
                 port.to_owned(),

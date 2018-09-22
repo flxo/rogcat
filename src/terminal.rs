@@ -17,7 +17,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::str::FromStr;
 use term::color::*;
-use term::{stdout, Attr, StdoutTerminal};
+use term::{stdout, Attr};
 use time::Tm;
 use utils::terminal_width;
 
@@ -58,7 +58,6 @@ pub struct Terminal {
     shorten_tag: bool,
     tag_timestamps: HashMap<String, Tm>,
     tag_width: Option<usize>,
-    term: Box<StdoutTerminal>,
     thread_width: usize,
     time_diff: bool,
     vovels: Regex,
@@ -72,7 +71,8 @@ impl<'a> Terminal {
         }
         let highlight = hl.iter().flat_map(|h| Regex::new(h)).collect();
 
-        let format = args.value_of("format")
+        let format = args
+            .value_of("format")
             .and_then(|f| Format::from_str(f).ok())
             .unwrap_or(Format::Human);
         if format == Format::Html {
@@ -81,7 +81,8 @@ impl<'a> Terminal {
 
         let term = stdout().ok_or_else(|| err_msg("Failed to lock terminal"))?;
         let color = {
-            match args.value_of("color")
+            match args
+                .value_of("color")
                 .unwrap_or_else(|| config_get("terminal_color").unwrap_or_else(|| "auto"))
             {
                 "always" => true,
@@ -123,7 +124,6 @@ impl<'a> Terminal {
             shorten_tag,
             tag_timestamps: HashMap::new(),
             tag_width,
-            term,
             thread_width: 0,
             time_diff,
             vovels: Regex::new(r"a|e|i|o|u").unwrap(),
@@ -237,20 +237,23 @@ impl<'a> Terminal {
         };
 
         let color = self.color;
-        let highlight = self.highlight.iter().any(|r| r.is_match(&record.tag))
-            || self.highlight.iter().any(|r| r.is_match(&record.message));
+        let highlight = !self.highlight.is_empty()
+            && (self.highlight.iter().any(|r| r.is_match(&record.tag))
+                || self.highlight.iter().any(|r| r.is_match(&record.message)));
         let diff_width = self.diff_width;
         let timestamp_width = self.date_format.1;
 
-        let paint = |term: &mut Box<::term::StdoutTerminal>,
-                     t: &str,
-                     fg: Color,
-                     bg: Option<Color>|
-         -> Result<(), Error> {
+        let print = |t: &str, fg: Option<Color>, bg: Option<Color>| -> Result<(), Error> {
+            let mut term = stdout().ok_or_else(|| err_msg("Failed to lock terminal"))?;
+            if highlight {
+                term.attr(Attr::Bold)?;
+            }
             if let Some(bg) = bg {
                 term.bg(bg).map_err(|e| format_err!("{}", e))?;
             }
-            term.fg(fg).map_err(|e| format_err!("{}", e))?;
+            if let Some(fg) = fg {
+                term.fg(fg).map_err(|e| format_err!("{}", e))?;
+            }
             write!(term, "{}", t)?;
             if bg.is_some() {
                 term.reset()?;
@@ -258,53 +261,38 @@ impl<'a> Terminal {
             Ok(())
         };
 
-        let mut term = &mut self.term;
-        let mut print_msg = |chunk: &str, sign: &str| -> Result<(), Error> {
+        let print_msg = |chunk: &str, sign: &str| -> Result<(), Error> {
             if color {
-                if highlight {
-                    term.attr(Attr::Bold)?;
-                }
                 let timestamp_color = if highlight { YELLOW } else { DIMM_COLOR };
-                paint(
-                    &mut term,
+                print(
                     &format!(
-                        "{:<timestamp_width$}",
+                        "{:<timestamp_width$} ",
                         timestamp,
                         timestamp_width = timestamp_width
                     ),
-                    timestamp_color,
+                    Some(timestamp_color),
                     None,
                 )?;
-                write!(term, " ")?;
-                paint(
-                    &mut term,
-                    &format!(
-                        "{:>diff_width$}",
-                        diff,
-                        diff_width = diff_width,
-                    ),
-                    timestamp_color,
+                print(
+                    &format!("{:>diff_width$} ", diff, diff_width = diff_width,),
+                    Some(timestamp_color),
                     None,
                 )?;
-                write!(term, " ")?;
-                paint(
-                    &mut term,
+                print(
                     &format!("{:<tag_width$}", tag, tag_width = tag_width),
-                    hashed_color(&tag),
+                    Some(hashed_color(&tag)),
                     None,
                 )?;
-                paint(&mut term, " (", DIMM_COLOR, None)?;
-                paint(&mut term, &format!("{}", pid), hashed_color(&pid), None)?;
-                paint(&mut term, &format!("{}", tid), hashed_color(&tid), None)?;
-                paint(&mut term, ") ", DIMM_COLOR, None)?;
-                paint(&mut term, &format!("{}", level), BLACK, Some(level_color))?;
-                write!(term, " ")?;
-                paint(&mut term, &format!("{} {}", sign, chunk), level_color, None)?;
-                write!(term, "\n")?;
-                term.reset().map_err(|e| format_err!("{}", e))
+                print(" (", Some(DIMM_COLOR), None)?;
+                print(&pid, Some(hashed_color(&pid)), None)?;
+                print(&tid, Some(hashed_color(&tid)), None)?;
+                print(") ", Some(DIMM_COLOR), None)?;
+                print(&level.to_string(), Some(BLACK), Some(level_color))?;
+                print(" ", None, None)?;
+                print(&format!("{} {}", sign, chunk), Some(level_color), None)?;
+                print("\n", None, None)
             } else {
-                writeln!(
-                    term,
+                println!(
                     "{:<timestamp_width$} {:>diff_width$} {:>tag_width$} ({}{}) {} {} {}",
                     timestamp,
                     diff,
@@ -317,15 +305,27 @@ impl<'a> Terminal {
                     timestamp_width = timestamp_width,
                     diff_width = diff_width,
                     tag_width = tag_width
-                ).map_err(|e| format_err!("{}", e))
+                );
+                Ok(())
             }
         };
 
         if let Some(width) = terminal_width {
-            let preamble_width =
-                timestamp_width + 1 + self.diff_width + 1 + tag_width + 1 + 1 + self.process_width
-                    + if self.thread_width == 0 { 0 } else { 1 } + self.thread_width
-                    + 1 + 1 + 3 + 3 + 1;
+            let preamble_width = timestamp_width
+                + 1
+                + self.diff_width
+                + 1
+                + tag_width
+                + 1
+                + 1
+                + self.process_width
+                + if self.thread_width == 0 { 0 } else { 1 }
+                + self.thread_width
+                + 1
+                + 1
+                + 3
+                + 3
+                + 1;
             // Windows terminal width reported is too big
             #[cfg(target_os = "windows")]
             let preamble_width = preamble_width + 1;
@@ -365,15 +365,6 @@ impl<'a> Terminal {
         }
 
         Ok(())
-    }
-}
-
-impl Drop for Terminal {
-    fn drop(&mut self) {
-        if self.color {
-            self.term.reset().ok();
-        }
-        self.term.flush().ok();
     }
 }
 

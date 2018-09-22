@@ -54,9 +54,5 @@ zip = "0.3.0"
 rand = "0.4.0"
 tempdir = "0.3.5"
 
-[dependencies.clippy]
-optional = true
-version = "0.0.190"
-
 [features]
 default = []

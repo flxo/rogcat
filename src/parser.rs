@@ -37,52 +37,70 @@ named!(
 named!(
     timestamp<Tm>,
     do_parse!(
-        year:
-            opt!(do_parse!(
-                y: flat_map!(peek!(take!(4)), num_i32) >> take!(4) >> char!('-') >> (y)
-            )) >> month: num_i32 >> char!('-') >> day: num_i32 >> space >> hour: num_i32
-            >> colon >> minute: num_i32 >> colon >> second: num_i32 >> dot
+        year: opt!(do_parse!(
+            y: flat_map!(peek!(take!(4)), num_i32) >> take!(4) >> char!('-') >> (y)
+        )) >> month: num_i32
+            >> char!('-')
+            >> day: num_i32
+            >> space
+            >> hour: num_i32
+            >> colon
+            >> minute: num_i32
+            >> colon
+            >> second: num_i32
+            >> dot
             >> millisecond: num_i32
             >> utcoff:
                 opt!(complete!(do_parse!(
-                    space >> sign: map!(alt!(char!('-') | char!('+')), |c| if c == '-' {
-                        -1
-                    } else {
-                        1
-                    }) >> utc_off_hours: flat_map!(take!(2), num_i32)
+                    space
+                        >> sign: map!(alt!(char!('-') | char!('+')), |c| if c == '-' {
+                            -1
+                        } else {
+                            1
+                        })
+                        >> utc_off_hours: flat_map!(take!(2), num_i32)
                         >> utc_off_minutes: flat_map!(take!(2), num_i32)
                         >> (sign * (utc_off_hours * 60 * 60 + utc_off_minutes * 60))
-                ))) >> (Tm {
-            tm_sec: second,
-            tm_min: minute,
-            tm_hour: hour,
-            tm_mday: day,
-            tm_mon: month - 1,
-            tm_year: year.unwrap_or(0),
-            tm_wday: 0,
-            tm_yday: 0,
-            tm_isdst: 0,
-            tm_utcoff: utcoff.unwrap_or(0),
-            tm_nsec: millisecond * 1_000_000,
-        })
+                )))
+            >> (Tm {
+                tm_sec: second,
+                tm_min: minute,
+                tm_hour: hour,
+                tm_mday: day,
+                tm_mon: month - 1,
+                tm_year: year.unwrap_or(0),
+                tm_wday: 0,
+                tm_yday: 0,
+                tm_isdst: 0,
+                tm_utcoff: utcoff.unwrap_or(0),
+                tm_nsec: millisecond * 1_000_000,
+            })
     )
 );
 
 named!(
     printable<Record>,
     do_parse!(
-        timestamp: timestamp >> many1!(space) >> process: map_res!(hex_digit, from_utf8)
-            >> many1!(space) >> thread: map_res!(hex_digit, from_utf8) >> many1!(space)
-            >> level: level >> space >> tag: map_res!(take_until!(":"), from_utf8)
-            >> char!(':') >> message: opt!(map_res!(rest, from_utf8)) >> (Record {
-            timestamp: Some(Timestamp::new(timestamp)),
-            level,
-            tag: tag.trim().to_owned(),
-            process: process.trim().to_owned(),
-            thread: thread.trim().to_owned(),
-            message: message.unwrap_or("").trim().to_owned(),
-            ..Default::default()
-        })
+        timestamp: timestamp
+            >> many1!(space)
+            >> process: map_res!(hex_digit, from_utf8)
+            >> many1!(space)
+            >> thread: map_res!(hex_digit, from_utf8)
+            >> many1!(space)
+            >> level: level
+            >> space
+            >> tag: map_res!(take_until!(":"), from_utf8)
+            >> char!(':')
+            >> message: opt!(map_res!(rest, from_utf8))
+            >> (Record {
+                timestamp: Some(Timestamp::new(timestamp)),
+                level,
+                tag: tag.trim().to_owned(),
+                process: process.trim().to_owned(),
+                thread: thread.trim().to_owned(),
+                message: message.unwrap_or("").trim().to_owned(),
+                ..Default::default()
+            })
     )
 );
 
@@ -139,8 +157,10 @@ named!(
 named!(
     bugreport_section<(String, String)>,
     do_parse!(
-        tag: map_res!(take_until!("("), from_utf8) >> char!('(')
-            >> msg: map_res!(take_until!(")"), from_utf8) >> char!(')')
+        tag: map_res!(take_until!("("), from_utf8)
+            >> char!('(')
+            >> msg: map_res!(take_until!(")"), from_utf8)
+            >> char!(')')
             >> ((tag.to_owned(), msg.to_owned()))
     )
 );
@@ -148,8 +168,11 @@ named!(
 named!(
     property<(String, String)>,
     do_parse!(
-        char!('[') >> prop: map_res!(take_until!("]"), from_utf8) >> tag!("]: [")
-            >> value: map_res!(take_until!("]"), from_utf8) >> char!(']')
+        char!('[')
+            >> prop: map_res!(take_until!("]"), from_utf8)
+            >> tag!("]: [")
+            >> value: map_res!(take_until!("]"), from_utf8)
+            >> char!(']')
             >> ((prop.to_owned(), value.to_owned()))
     )
 );
@@ -207,12 +230,16 @@ impl Parser {
         if line.len() >= 12 {
             let mut chars = line.chars();
             if let Some('[') = chars.next() {
-                if let Some(']') = chars.skip(10).next() {
+                if let Some(']') = chars.nth(11) {
                     Ok(Record {
                         timestamp: None,
                         level: Level::Info,
                         tag: "Test".to_owned(),
-                        process: line[1..11].trim().trim_matches('-').trim_matches('=').to_owned(),
+                        process: line[1..11]
+                            .trim()
+                            .trim_matches('-')
+                            .trim_matches('=')
+                            .to_owned(),
                         message: line[12..].trim().to_owned(),
                         ..Default::default()
                     })
@@ -228,7 +255,8 @@ impl Parser {
     }
 
     fn parse_bugreport(line: &str) -> Result<Record, Error> {
-        if line.starts_with('=') || line.starts_with('-')
+        if line.starts_with('=')
+            || line.starts_with('-')
             || (line.starts_with('[') && line.ends_with(']'))
         {
             if line.chars().all(|c| c == '=') {

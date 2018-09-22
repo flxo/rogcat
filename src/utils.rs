@@ -16,7 +16,8 @@ pub fn terminal_width() -> Option<usize> {
         None => env::var("COLUMNS")
             .ok()
             .and_then(|e| e.parse::<usize>().ok()),
-    }}
+    }
+}
 
 pub struct LossyLines<A> {
     io: A,
@@ -26,7 +27,8 @@ pub struct LossyLines<A> {
 pub fn lossy_lines<A>(a: A) -> LossyLines<A>
 where
     A: AsyncRead + BufRead,
-{    LossyLines {
+{
+    LossyLines {
         io: a,
         buffer: Vec::new(),
     }

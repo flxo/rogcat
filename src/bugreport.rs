@@ -7,8 +7,8 @@
 use adb;
 use clap::ArgMatches;
 use failure::{err_msg, Error};
-use futures::{Future, Stream};
 use futures::future::ok;
+use futures::{Future, Stream};
 use indicatif::{ProgressBar, ProgressStyle};
 use std::fs::{DirBuilder, File};
 use std::io::BufReader;
@@ -118,8 +118,7 @@ pub fn create(args: &ArgMatches, core: &mut Core) -> Result<i32, Error> {
             write.write_all(b"\n").expect("Failed to write");
             progress.inc(1);
             ok(())
-        })
-        .then(|r| {
+        }).then(|r| {
             progress.set_style(ProgressStyle::default_bar().template("{msg:.dim.bold}"));
             progress.finish_with_message(&format!("Finished {}.", filename_path.display()));
             r

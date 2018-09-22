@@ -5,19 +5,19 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use clap::ArgMatches;
-use crc::{Hasher32, crc32};
+use crc::{crc32, Hasher32};
 use failure::{err_msg, Error};
 use futures::{Async, AsyncSink, Poll, Sink, StartSend};
 use handlebars::{to_json, Handlebars, Helper, JsonRender, RenderContext, RenderError};
 use indicatif::{ProgressBar, ProgressStyle};
+use record::{Format, Record};
 use regex::Regex;
 use serde_json::value::{Map, Value as Json};
 use std::fs::{DirBuilder, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 use std::str;
-use record::{Format, Record};
+use std::str::FromStr;
 use time::{now, strftime};
 
 /// Interface for a output file format
@@ -143,7 +143,8 @@ impl Html {
         _: &Handlebars,
         rc: &mut RenderContext,
     ) -> ::std::result::Result<(), RenderError> {
-        let param = h.param(0)
+        let param = h
+            .param(0)
             .ok_or_else(|| RenderError::new("Param 0 is required for format helper."))?;
         let value = param.value().render();
         let rendered = if value.is_empty() || value == "0" {
@@ -245,7 +246,8 @@ pub struct FileWriter {
 
 impl<'a> FileWriter {
     pub fn new(args: &ArgMatches<'a>) -> Result<Self, Error> {
-        let filename = args.value_of("output")
+        let filename = args
+            .value_of("output")
             .and_then(|f| Some(PathBuf::from(f)))
             .ok_or_else(|| err_msg("Invalid output filename!"))?;
 
@@ -258,17 +260,16 @@ impl<'a> FileWriter {
                         .map(|m| m.as_str())
                         .and_then(|size| u64::from_str(size).ok())
                         .map(|size| (size, caps.get(2).map(|m| m.as_str())))
-                })
-                .and_then(|(size, suffix)| match suffix {
+                }).and_then(|(size, suffix)| match suffix {
                     Some("k") => Some(1_000 * size),
                     Some("M") => Some(1_000_000 * size),
                     Some("G") => Some(1_000_000_000 * size),
                     _ => None,
-                })
-                .or_else(|| u64::from_str(l).ok())
+                }).or_else(|| u64::from_str(l).ok())
         });
 
-        let format = args.value_of("format")
+        let format = args
+            .value_of("format")
             .and_then(|f| Format::from_str(f).ok())
             .unwrap_or(Format::Raw);
         if format == Format::Human {
@@ -397,9 +398,11 @@ impl<'a> FileWriter {
                     }
 
                     let now = strftime("%F-%H_%M_%S", &now())?;
-                    let enumeration = e.map(|a| format!("-{:03}", a))
+                    let enumeration = e
+                        .map(|a| format!("-{:03}", a))
                         .unwrap_or_else(|| "".to_owned());
-                    let filename = self.filename
+                    let filename = self
+                        .filename
                         .file_name()
                         .ok_or_else(|| err_msg("Invalid path"))?
                         .to_str()

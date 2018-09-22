@@ -4,9 +4,6 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
-#![cfg_attr(feature = "clippy", feature(plugin))]
-#![cfg_attr(feature = "clippy", plugin(clippy))]
-
 extern crate atty;
 extern crate bytes;
 #[macro_use]
@@ -47,8 +44,8 @@ extern crate url;
 extern crate which;
 extern crate zip;
 
-use cli::cli;
 use clap::ArgMatches;
+use cli::cli;
 use config::Config;
 use failure::{err_msg, Error};
 use filewriter::FileWriter;
@@ -84,9 +81,9 @@ mod reader;
 mod record;
 mod runner;
 mod terminal;
-mod utils;
 #[cfg(test)]
 mod tests;
+mod utils;
 
 lazy_static! {
     static ref CONFIG: RwLock<Config> = RwLock::new(Config::default());
@@ -102,7 +99,7 @@ fn main() {
         Err(e) => {
             let stderr = &mut stderr();
             let errmsg = "Error writing to stderr";
-            writeln!(stderr, "{}", e).expect(errmsg);
+            writeln!(stderr, "{}", e).unwrap_or_else(|_| panic!(errmsg));
             exit(1)
         }
         Ok(r) => exit(r),
@@ -130,7 +127,8 @@ where
 
 fn input(core: &mut Core, args: &ArgMatches) -> Result<RStream, Error> {
     if args.is_present("input") {
-        let input = args.value_of("input")
+        let input = args
+            .value_of("input")
             .ok_or_else(|| err_msg("Invalid input value"))?;
         match Url::parse(input) {
             Ok(url) => match url.scheme() {
@@ -147,7 +145,8 @@ fn input(core: &mut Core, args: &ArgMatches) -> Result<RStream, Error> {
                 } else if let Ok(url) = Url::parse(c) {
                     match url.scheme() {
                         "tcp" => {
-                            let addr = url.to_socket_addrs()?
+                            let addr = url
+                                .to_socket_addrs()?
                                 .next()
                                 .ok_or_else(|| err_msg("Failed to parse addr"))?;
                             tcp_reader(&addr, core)
@@ -186,7 +185,8 @@ fn run() -> Result<i32, Error> {
     }
 
     if args.is_present("clear") {
-        let buffer = args.values_of("buffer")
+        let buffer = args
+            .values_of("buffer")
             .map(|m| m.map(|f| f.to_owned()).collect::<Vec<String>>())
             .or_else(|| ::config_get("buffer"))
             .unwrap_or_else(|| DEFAULT_BUFFER.iter().map(|&s| s.to_owned()).collect())
@@ -198,9 +198,11 @@ fn run() -> Result<i32, Error> {
             .args(buffer.split(' '))
             .spawn_async(&core.handle())?;
         let output = core.run(child)?;
-        exit(output
-            .code()
-            .ok_or_else(|| err_msg("Failed to get exit code"))?);
+        exit(
+            output
+                .code()
+                .ok_or_else(|| err_msg("Failed to get exit code"))?,
+        );
     }
 
     let input = input(&mut core, &args)?;
@@ -229,15 +231,14 @@ fn run() -> Result<i32, Error> {
         .filter(|m| filter.filter(m))
         .take_while(|_| {
             ok(match head {
-                Some(0)  => false,
+                Some(0) => false,
                 Some(n) => {
                     head = Some(n - 1);
                     true
                 }
                 None => true,
             })
-        })
-        .forward(output);
+        }).forward(output);
 
     core.run(result).map(|_| 0)
 }

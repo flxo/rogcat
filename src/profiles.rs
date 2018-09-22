@@ -7,12 +7,12 @@
 use clap::ArgMatches;
 use failure::{err_msg, Error};
 use std::collections::HashMap;
+use std::convert::Into;
 use std::env::var;
 use std::fs::File;
 use std::io::prelude::*;
 use std::ops::AddAssign;
 use std::path::PathBuf;
-use std::convert::Into;
 use toml::{from_str, to_string};
 
 const EXTEND_LIMIT: u32 = 1000;
@@ -140,8 +140,9 @@ impl Profiles {
             let extends = p.extends.clone();
             p.extends.clear();
             for e in &extends {
-                let f = a.get(e)
-                    .ok_or_else(|| format_err!("Unknown extend profile name {} used in {}", e, n))?;
+                let f = a.get(e).ok_or_else(|| {
+                    format_err!("Unknown extend profile name {} used in {}", e, n)
+                })?;
                 *p += f.clone();
             }
 

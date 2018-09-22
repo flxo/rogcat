@@ -4,7 +4,6 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
-use RStream;
 use adb;
 use clap::ArgMatches;
 use failure::{err_msg, Error};
@@ -17,6 +16,7 @@ use std::process::{Command, Stdio};
 use tokio_core::reactor::Handle;
 use tokio_process::{Child, CommandExt};
 use utils::lossy_lines;
+use RStream;
 
 type OutStream = Box<Stream<Item = String, Error = ::std::io::Error>>;
 
@@ -35,7 +35,8 @@ fn run(
     handle: &Handle,
     skip_until: &Option<String>,
 ) -> Result<(Child, OutStream), Error> {
-    let cmd = cmd.split_whitespace()
+    let cmd = cmd
+        .split_whitespace()
         .map(|s| s.to_owned())
         .collect::<Vec<String>>();
 
@@ -89,7 +90,8 @@ pub fn runner<'a>(args: &ArgMatches<'a>, handle: Handle) -> Result<RStream, Erro
             restart = false;
         }
 
-        let buffer = args.values_of("buffer")
+        let buffer = args
+            .values_of("buffer")
             .map(|m| m.map(|f| f.to_owned()).collect::<Vec<String>>())
             .or_else(|| ::config_get("buffer"))
             .unwrap_or_else(|| ::DEFAULT_BUFFER.iter().map(|&s| s.to_owned()).collect())

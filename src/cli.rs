@@ -10,8 +10,12 @@ use record::Level;
 use std::io::stdout;
 
 lazy_static! {
-    static ref ABOUT: String = { format!("A 'adb logcat' wrapper and log processor. Your config directory is \"{}\".",
-                                         ::config_dir().display()) };
+    static ref ABOUT: String = {
+        format!(
+            "A 'adb logcat' wrapper and log processor. Your config directory is \"{}\".",
+            ::config_dir().display()
+        )
+    };
 }
 
 pub fn cli() -> App<'static, 'static> {
