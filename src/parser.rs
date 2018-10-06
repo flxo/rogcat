@@ -6,23 +6,14 @@
 
 use csv::ReaderBuilder;
 use failure::{err_msg, Error};
-use nom::{digit, hex_digit, rest, space, IResult};
+use nom::types::CompleteStr;
+use nom::{hex_digit, rest, space};
 use record::{Level, Record, Timestamp};
 use serde_json::from_str;
-use std::str::from_utf8;
 use time::Tm;
 
-named!(colon<char>, char!(':'));
-
-named!(dot<char>, char!('.'));
-
 named!(
-    num_i32<i32>,
-    map_res!(map_res!(digit, from_utf8), str::parse::<i32>)
-);
-
-named!(
-    level<Level>,
+    level<CompleteStr, Level>,
     alt!(
             char!('V') => { |_| Level::Verbose }
           | char!('D') => { |_| Level::Debug }
@@ -34,22 +25,23 @@ named!(
       )
 );
 
+// 2017-03-25 19:11:19.052
 named!(
-    timestamp<Tm>,
+    timestamp<CompleteStr, Tm>,
     do_parse!(
         year: opt!(do_parse!(
-            y: flat_map!(peek!(take!(4)), num_i32) >> take!(4) >> char!('-') >> (y)
-        )) >> month: num_i32
+            y: flat_map!(peek!(take!(4)), parse_to!(i32)) >> take!(4) >> char!('-') >> (y)
+        )) >> month: flat_map!(take!(2), parse_to!(i32))
             >> char!('-')
-            >> day: num_i32
+            >> day: flat_map!(take!(2), parse_to!(i32))
             >> space
-            >> hour: num_i32
-            >> colon
-            >> minute: num_i32
-            >> colon
-            >> second: num_i32
-            >> dot
-            >> millisecond: num_i32
+            >> hour: flat_map!(take!(2), parse_to!(i32))
+            >> char!(':')
+            >> minute: flat_map!(take!(2), parse_to!(i32))
+            >> char!(':')
+            >> second: flat_map!(take!(2), parse_to!(i32))
+            >> char!('.')
+            >> millisecond: flat_map!(take!(3), parse_to!(i32))
             >> utcoff:
                 opt!(complete!(do_parse!(
                     space
@@ -58,8 +50,8 @@ named!(
                         } else {
                             1
                         })
-                        >> utc_off_hours: flat_map!(take!(2), num_i32)
-                        >> utc_off_minutes: flat_map!(take!(2), num_i32)
+                        >> utc_off_hours: flat_map!(take!(2), parse_to!(i32))
+                        >> utc_off_minutes: flat_map!(take!(2), parse_to!(i32))
                         >> (sign * (utc_off_hours * 60 * 60 + utc_off_minutes * 60))
                 )))
             >> (Tm {
@@ -79,51 +71,51 @@ named!(
 );
 
 named!(
-    printable<Record>,
+    printable<CompleteStr, Record>,
     do_parse!(
         timestamp: timestamp
             >> many1!(space)
-            >> process: map_res!(hex_digit, from_utf8)
+            >> process: hex_digit
             >> many1!(space)
-            >> thread: map_res!(hex_digit, from_utf8)
+            >> thread: hex_digit
             >> many1!(space)
             >> level: level
             >> space
-            >> tag: map_res!(take_until!(":"), from_utf8)
+            >> tag: take_until!(":")
             >> char!(':')
-            >> message: opt!(map_res!(rest, from_utf8))
+            >> message: opt!(rest)
             >> (Record {
                 timestamp: Some(Timestamp::new(timestamp)),
                 level,
                 tag: tag.trim().to_owned(),
                 process: process.trim().to_owned(),
                 thread: thread.trim().to_owned(),
-                message: message.unwrap_or("").trim().to_owned(),
+                message: message.unwrap_or(CompleteStr("")).trim().to_owned(),
                 ..Default::default()
             })
     )
 );
 
 named!(
-    mindroid<Record>,
+    mindroid<CompleteStr, Record>,
     alt!(
         // Short format without timestamp
         do_parse!(
             level: level >>
             char!('/') >>
-            tag: map_res!(take_until!("("), from_utf8) >>
+            tag: take_until!("(") >>
             tag!("(") >>
             opt!(tag!("0x")) >>
-            process: map_res!(hex_digit, from_utf8) >>
+            process: hex_digit >>
             tag!("):") >>
-            message: opt!(map_res!(rest, from_utf8)) >>
+            message: opt!(rest) >>
             (
                 Record {
                     timestamp: None,
                     level,
                     tag: tag.trim().to_owned(),
                     process: process.trim().to_owned(),
-                    message: message.unwrap_or("").trim().to_owned(),
+                    message: message.unwrap_or(CompleteStr("")).trim().to_owned(),
                     ..Default::default()
                 }
             )
@@ -133,20 +125,20 @@ named!(
             timestamp: timestamp >>
             many0!(space) >>
             opt!(tag!("0x")) >>
-            process: map_res!(hex_digit, from_utf8) >>
+            process: hex_digit >>
             many1!(space) >>
             level: level >>
             space >>
-            tag: map_res!(take_until!(":"), from_utf8) >>
+            tag: take_until!(":") >>
             tag!(":") >>
-            message: opt!(map_res!(rest, from_utf8)) >>
+            message: opt!(rest) >>
             (
                 Record {
                     timestamp: Some(Timestamp::new(timestamp)),
                     level,
                     tag: tag.trim().to_owned(),
                     process: process.trim().to_owned(),
-                    message: message.unwrap_or("").trim().to_owned(),
+                    message: message.unwrap_or(CompleteStr("")).trim().to_string(),
                     ..Default::default()
                 }
             )
@@ -155,25 +147,25 @@ named!(
 );
 
 named!(
-    bugreport_section<(String, String)>,
+    bugreport_section<CompleteStr, (String, String)>,
     do_parse!(
-        tag: map_res!(take_until!("("), from_utf8)
+        tag: take_until!("(")
             >> char!('(')
-            >> msg: map_res!(take_until!(")"), from_utf8)
+            >> msg: take_until!(")")
             >> char!(')')
-            >> ((tag.to_owned(), msg.to_owned()))
+            >> ((tag.to_string(), msg.to_string()))
     )
 );
 
 named!(
-    property<(String, String)>,
+    property<CompleteStr, (String, String)>,
     do_parse!(
         char!('[')
-            >> prop: map_res!(take_until!("]"), from_utf8)
+            >> prop: take_until!("]")
             >> tag!("]: [")
-            >> value: map_res!(take_until!("]"), from_utf8)
+            >> value: take_until!("]")
             >> char!(']')
-            >> ((prop.to_owned(), value.to_owned()))
+            >> ((prop.to_string(), value.to_string()))
     )
 );
 
@@ -189,25 +181,19 @@ impl Parser {
     }
 
     fn parse_default(line: &str) -> Result<Record, Error> {
-        match printable(line.as_bytes()) {
-            IResult::Done(_, mut v) => {
-                v.raw = line.to_owned();
-                Ok(v)
-            }
-            IResult::Error(e) => Err(format_err!("{}", e)),
-            IResult::Incomplete(_) => Err(err_msg("Not enough data")),
-        }
+        printable(CompleteStr(line))
+            .map(|(_, mut v)| {
+                v.raw = line.into();
+                v
+            }).map_err(|e| format_err!("{}", e))
     }
 
     fn parse_mindroid(line: &str) -> Result<Record, Error> {
-        match mindroid(line.as_bytes()) {
-            IResult::Done(_, mut v) => {
-                v.raw = line.to_owned();
-                Ok(v)
-            }
-            IResult::Error(e) => Err(format_err!("{}", e)),
-            IResult::Incomplete(_) => Err(err_msg("Not enough data")),
-        }
+        mindroid(CompleteStr(line))
+            .map(|(_, mut v)| {
+                v.raw = line.into();
+                v
+            }).map_err(|e| format_err!("{}", e))
     }
 
     fn parse_csv(line: &str) -> Result<Record, Error> {
@@ -276,25 +262,24 @@ impl Parser {
                 })
             } else if line.is_empty() {
                 Err(err_msg("Unparseable"))
-            } else if let IResult::Done(_, (prop, value)) = property(line.as_bytes()) {
+            } else if let Ok((_, (tag, value))) = property(CompleteStr(line)) {
                 Ok(Record {
                     message: value,
-                    tag: prop,
+                    tag,
                     raw: line.to_owned(),
                     ..Default::default()
                 })
             } else {
                 let line = line.trim_matches('=').trim_matches('-').trim();
-                match bugreport_section(line.as_bytes()) {
-                    IResult::Done(_, (tag, message)) => Ok(Record {
+                match bugreport_section(CompleteStr(line)) {
+                    Ok((_, (tag, message))) => Ok(Record {
                         level: Level::Info,
                         message,
                         raw: line.to_owned(),
                         tag,
                         ..Default::default()
                     }),
-                    IResult::Error(e) => Err(format_err!("{}", e)),
-                    IResult::Incomplete(_) => Err(err_msg("Not enough data")),
+                    Err(e) => Err(format_err!("{}", e)),
                 }
             }
         } else {
@@ -333,24 +318,27 @@ impl Parser {
 
 #[test]
 fn parse_level() {
-    assert_eq!(level("V".as_bytes()).unwrap().1, Level::Verbose);
-    assert_eq!(level("D".as_bytes()).unwrap().1, Level::Debug);
-    assert_eq!(level("I".as_bytes()).unwrap().1, Level::Info);
-    assert_eq!(level("W".as_bytes()).unwrap().1, Level::Warn);
-    assert_eq!(level("E".as_bytes()).unwrap().1, Level::Error);
-    assert_eq!(level("F".as_bytes()).unwrap().1, Level::Fatal);
-    assert_eq!(level("A".as_bytes()).unwrap().1, Level::Assert);
-}
-
-#[test]
-fn parse_i32() {
-    assert_eq!(num_i32("123".as_bytes()).unwrap().1, 123);
-    assert_eq!(num_i32("0".as_bytes()).unwrap().1, 0);
+    assert_eq!(level(CompleteStr("V")).unwrap().1, Level::Verbose);
+    assert_eq!(level(CompleteStr("D")).unwrap().1, Level::Debug);
+    assert_eq!(level(CompleteStr("I")).unwrap().1, Level::Info);
+    assert_eq!(level(CompleteStr("W")).unwrap().1, Level::Warn);
+    assert_eq!(level(CompleteStr("E")).unwrap().1, Level::Error);
+    assert_eq!(level(CompleteStr("F")).unwrap().1, Level::Fatal);
+    assert_eq!(level(CompleteStr("A")).unwrap().1, Level::Assert);
 }
 
 #[test]
 fn parse_unparseable() {
     assert!(Parser::parse_default("").is_err());
+}
+
+#[test]
+fn parse_timestamp() {
+    let t = "03-25 19:11:19.052";
+    timestamp(CompleteStr(t)).unwrap();
+
+    let t = "2017-03-25 19:11:19.052";
+    timestamp(CompleteStr(t)).unwrap();
 }
 
 #[test]
@@ -463,7 +451,7 @@ fn parse_csv() {
 fn parse_property() {
     let t = "[ro.build.tags]: [release-keys]";
     assert_eq!(
-        property(t.as_bytes()).unwrap().1,
+        property(CompleteStr(t)).unwrap().1,
         ("ro.build.tags".to_owned(), "release-keys".to_owned())
     );
 }
