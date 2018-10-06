@@ -17,7 +17,7 @@ license = "WTFPL"
 name = "rogcat"
 readme = "README.md"
 repository = "https://github.com/flxo/rogcat"
-version = "0.2.17-pre"
+version = "0.2.17"
 
 [dependencies]
 atty = "0.2.11"
