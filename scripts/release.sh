@@ -1,3 +1,3 @@
 #!/bin/sh
 
-cargo release -l patch --tag-prefix v
+cargo release --tag-prefix v patch 
