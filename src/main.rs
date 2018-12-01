@@ -98,7 +98,7 @@ fn run() -> Result<i32, Error> {
             })
             .forward(sink)
             .map(|_| ())
-            .map_err(|_| ()),
+            .map_err(|e| eprintln!("{}", e)),
     );
 
     Ok(0)
