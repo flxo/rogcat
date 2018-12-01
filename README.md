@@ -236,15 +236,14 @@ To check your setup, run `rogcat profiles --list` and select a profile for a run
 ## Usage
 
 ```
-rogcat 0.2.15-pre
+rogcat 0.3.0-alpha.0
 Felix Obenhuber <felix@obenhuber.de>
-A 'adb logcat' wrapper and log processor. Your config directory is "/Users/felix/Library/Application Support/rogcat".
+A 'adb logcat' wrapper and log processor. Your config directory is "/Users/felix/Library/Preferences/rogcat".
 
 USAGE:
     rogcat [FLAGS] [OPTIONS] [COMMAND] [SUBCOMMAND]
 
 FLAGS:
-    -c, --clear             Clear (flush) the entire log and exit
     -d, --dump              Dump the log and then exit (don't block)
         --help              Prints help information
         --hide-timestamp    Hide timestamp in terminal output
@@ -260,17 +259,17 @@ FLAGS:
 
 OPTIONS:
     -b, --buffer <buffer>...
-            Select specific (logcat) log buffers. Defaults to main, events, kernel and crash (logcat default)
+            Select specific logd buffers. Defaults to main, events, kernel and crash
 
-        --color <color>                          Terminal coloring option [values: auto, always, never]
+        --color <color>                          Terminal coloring option [possible values: auto, always, never]
     -a, --filename-format <filename_format>
             Select a format for output file names. By passing 'single' the filename provided with the '-o' option is
             used (default).'enumerate' appends a file sequence number after the filename passed with '-o' option
             whenever a new file is created (see 'records-per-file' option). 'date' will prefix the output filename with
-            the current local date when a new file is created [values: single, enumerate, date]
+            the current local date when a new file is created [possible values: single, enumerate, date]
     -f, --format <format>
-            Output format. Defaults to human on stdout and raw on file output [values: csv, html, human, json, raw]
-
+            Output format. Defaults to human on stdout and raw on file output [possible values: csv, html, human, json,
+            raw]
     -H, --head <head>                            Read n records and exit
     -h, --highlight <highlight>...
             Highlight messages that match this pattern in RE2. The prefix '!' inverts the match
@@ -279,7 +278,7 @@ OPTIONS:
             Read from file instead of command. Use 'serial://COM0@115200,8N1 or similiar for reading a serial port
 
     -l, --level <level>
-            Minimum level [values: trace, debug, info, warn, error, fatal, assert, T, D, I, W, E, F, A]
+            Minimum level [possible values: trace, debug, info, warn, error, fatal, assert, T, D, I, W, E, F, A]
 
     -m, --message <message>...                   Message filters in RE2. The prefix '!' inverts the match
     -o, --output <output>                        Write output to file
@@ -295,17 +294,13 @@ ARGS:
 
 SUBCOMMANDS:
     bugreport      Capture bugreport. This is only works for Android versions < 7.
+    clear          Clear logd buffers
     completions    Generates completion scripts
-    devices        Show list of available devices
+    devices        List available devices
     help           Prints this message or the help of the given subcommand(s)
     log            Add log message(s) log buffer
-    profiles       Show and manage profiles
 ```
-
-## Bugs
-
-There are plenty. Please report on GitHub. Patches are welcome!
 
 ## Licensing
 
-Rogcat is open source software and comes with no warranty. See ``COPYING`` for details.
+See `LICENSE` for details.
