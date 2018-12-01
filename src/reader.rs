@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+use crate::lossy_lines::{lossy_lines, LossyLinesCodec};
 use crate::utils::{adb, config_get};
 use crate::{LogStream, StreamData, DEFAULT_BUFFER};
 use clap::{value_t, ArgMatches};
@@ -27,15 +28,13 @@ use futures::Future;
 use futures::{Async, Stream};
 use std::io::BufReader;
 use std::net::ToSocketAddrs;
-use url::Url;
-
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
-use tokio::codec::{Decoder, FramedRead, LinesCodec};
+use tokio::codec::{Decoder, FramedRead};
 use tokio::fs::File;
-use tokio::io::lines;
 use tokio::net::TcpStream;
 use tokio_process::{Child, CommandExt};
+use url::Url;
 
 /// A spawned child process that implements LogStream
 struct Process {
@@ -57,7 +56,7 @@ pub fn file<'a>(args: &ArgMatches<'a>) -> Result<Box<LogStream>, Error> {
     let f = iter_ok::<_, Error>(files)
         .map(|f| {
             File::open(f.clone())
-                .map(|s| Decoder::framed(LinesCodec::new(), s))
+                .map(|s| Decoder::framed(LossyLinesCodec::new(), s))
                 .flatten_stream()
                 .map(StreamData::Line)
                 .map_err(move |e| format_err!("Failed to open {}: {}", f.display(), e))
@@ -69,7 +68,7 @@ pub fn file<'a>(args: &ArgMatches<'a>) -> Result<Box<LogStream>, Error> {
 
 /// Open stdin and provide a stream of lines
 pub fn stdin() -> Box<LogStream> {
-    let s = FramedRead::new(tokio::io::stdin(), LinesCodec::new())
+    let s = FramedRead::new(tokio::io::stdin(), LossyLinesCodec::new())
         .map_err(|e| e.into())
         .map(StreamData::Line);
     Box::new(s)
@@ -87,7 +86,7 @@ pub fn tcp(addr: &Url) -> Result<Box<LogStream>, Error> {
         .next()
         .ok_or_else(|| err_msg("Failed to parse addr"))?;
     let s = TcpStream::connect(&addr)
-        .map(|s| Decoder::framed(LinesCodec::new(), s))
+        .map(|s| Decoder::framed(LossyLinesCodec::new(), s))
         .flatten_stream()
         .map_err(|e| format_err!("Failed to connect: {}", e))
         .map(StreamData::Line);
@@ -154,7 +153,9 @@ impl Process {
 
         let stdout = BufReader::new(child.stdout().take().unwrap());
         self.child = Some(child);
-        let mut stream = lines(stdout).map_err(|e| e.into()).map(StreamData::Line);
+        let mut stream = lossy_lines(stdout)
+            .map_err(|e| e.into())
+            .map(StreamData::Line);
         let poll = stream.poll();
         self.stream = Some(Box::new(stream));
         poll

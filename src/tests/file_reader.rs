@@ -18,36 +18,36 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-// use crate::tests::utils::*;
-// use std::fs::File;
-// use std::io::prelude::*;
+use crate::tests::utils::*;
+use std::fs::File;
+use std::io::prelude::*;
 
-// #[test]
-// fn invalid_string() {
-//     let path = tempfile().unwrap();
-//     File::create(path.clone())
-//         .unwrap()
-//         .write_all(b"some invalid bytes come here: \xF0\x90\x80\nhaha")
-//         .unwrap();
-//     let args = svec!("-i", format!("{}", path.display()));
-//     let output = run_rogcat(&args, None).unwrap();
-//     assert!(output.0);
-//     assert_eq!(output.1.len(), 2);
-// }
+#[test]
+fn invalid_string() {
+    let path = tempfile().unwrap();
+    File::create(path.clone())
+        .unwrap()
+        .write_all(b"some invalid bytes come here: \xF0\x90\x80\nhaha")
+        .unwrap();
+    let args = svec!("-i", format!("{}", path.display()));
+    let output = run_rogcat(&args, None).unwrap();
+    assert!(output.0);
+    assert_eq!(output.1.len(), 2);
+}
 
-// #[test]
-// fn multiple_files() {
-//     let content = svec!("A", "B", "C");
-//     let a = tempfile_with_content(&content)
-//         .unwrap()
-//         .display()
-//         .to_string();
-//     let b = tempfile_with_content(&content)
-//         .unwrap()
-//         .display()
-//         .to_string();
-//     let args = svec!("-i", a, "-i", b);
-//     let output = run_rogcat(&args, None).unwrap();
-//     assert!(output.0);
-//     assert_eq!(output.1.len(), 6);
-// }
+#[test]
+fn multiple_files() {
+    let content = svec!("A", "B", "C");
+    let a = tempfile_with_content(&content)
+        .unwrap()
+        .display()
+        .to_string();
+    let b = tempfile_with_content(&content)
+        .unwrap()
+        .display()
+        .to_string();
+    let args = svec!("-i", a, "-i", b);
+    let output = run_rogcat(&args, None).unwrap();
+    assert!(output.0);
+    assert_eq!(output.1.len(), 6);
+}

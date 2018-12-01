@@ -29,6 +29,7 @@ use url::Url;
 mod cli;
 mod filewriter;
 mod filter;
+mod lossy_lines;
 mod parser;
 mod profiles;
 mod reader;
