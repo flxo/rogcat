@@ -78,40 +78,57 @@ pub fn tcp(addr: &Url) -> Result<Box<LogStream>, Error> {
 }
 
 /// Start a process and stream it stdout
-pub fn process<'a>(args: &ArgMatches<'a>) -> Result<Box<LogStream>, Error> {
-    let (cmd, _restart) = if let Ok(cmd) = value_t!(args, "COMMAND", String) {
-        (cmd, args.is_present("restart"))
-    } else {
-        let adb = format!("{}", adb()?.display());
-        let mut logcat_args = vec![];
+pub fn logcat<'a>(args: &ArgMatches<'a>) -> Result<Box<LogStream>, Error> {
+    let adb = format!("{}", adb()?.display());
+    let mut logcat_args = vec![];
 
-        let mut restart = args.is_present("restart");
-        if !restart {
-            restart = config_get::<bool>("restart").unwrap_or(true);
-        }
+    let mut restart = args.is_present("restart");
+    if !restart {
+        restart = config_get::<bool>("restart").unwrap_or(true);
+    }
 
-        if args.is_present("tail") {
-            let count = value_t!(args, "tail", u32).unwrap_or_else(|e| e.exit());
-            logcat_args.push(format!("-t {}", count));
-            restart = false;
-        };
-
-        if args.is_present("dump") {
-            logcat_args.push("-d".to_owned());
-            restart = false;
-        }
-
-        let buffer = args
-            .values_of("buffer")
-            .map(|m| m.map(|f| f.to_owned()).collect::<Vec<String>>())
-            .or_else(|| config_get("buffer"))
-            .unwrap_or_else(|| DEFAULT_BUFFER.iter().map(|&s| s.to_owned()).collect())
-            .join(" -b ");
-
-        let cmd = format!("{} logcat -b {} {}", adb, buffer, logcat_args.join(" "));
-        (cmd, restart)
+    if args.is_present("tail") {
+        let count = value_t!(args, "tail", u32).unwrap_or_else(|e| e.exit());
+        logcat_args.push(format!("-t {}", count));
+        restart = false;
     };
 
+    if args.is_present("dump") {
+        logcat_args.push("-d".to_owned());
+        restart = false;
+    }
+
+    let buffer = args
+        .values_of("buffer")
+        .map(|m| m.map(|f| f.to_owned()).collect::<Vec<String>>())
+        .or_else(|| config_get("buffer"))
+        .unwrap_or_else(|| DEFAULT_BUFFER.iter().map(|&s| s.to_owned()).collect())
+        .join(" -b ");
+    let cmd = format!("{} logcat -b {} {}", adb, buffer, logcat_args.join(" "));
+    let cmd = cmd.split_whitespace().collect::<Vec<&str>>();
+
+    let mut child = Command::new(cmd[0])
+        .args(&cmd[1..])
+        .stdout(Stdio::piped())
+        .spawn_async()?;
+
+    let stdout = BufReader::new(child.stdout().take().unwrap());
+    let stream = lines(stdout).map_err(|e| e.into()).map(StreamData::Line);
+
+    if restart {
+        // TODO
+    }
+
+    Ok(Box::new(Process {
+        _child: child,
+        inner: Box::new(stream),
+    }))
+}
+
+/// Start a process and stream it stdout
+pub fn process<'a>(args: &ArgMatches<'a>) -> Result<Box<LogStream>, Error> {
+    let _restart = args.is_present("restart");
+    let cmd = value_t!(args, "COMMAND", String)?;
     let cmd = cmd.split_whitespace().collect::<Vec<&str>>();
     let mut child = Command::new(cmd[0])
         .args(&cmd[1..])

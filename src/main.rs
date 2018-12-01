@@ -69,7 +69,7 @@ fn run() -> Result<i32, Error> {
                         reader::process(&args)?
                     }
                 }
-                None => reader::process(&args)?,
+                None => reader::logcat(&args)?,
             }
         }
     };
