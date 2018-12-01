@@ -2,6 +2,11 @@ dist: trusty
 language: rust
 services: docker
 sudo: required
+addons:
+  apt:
+    packages:
+      - build-essential
+      - libudev-dev
 
 env:
   global:
