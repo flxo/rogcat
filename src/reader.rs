@@ -6,11 +6,8 @@
 
 use crate::utils::{adb, config_get};
 use crate::{LogStream, StreamData, DEFAULT_BUFFER};
-use clap::value_t;
-use clap::ArgMatches;
-use failure::err_msg;
-use failure::format_err;
-use failure::Error;
+use clap::{value_t, ArgMatches};
+use failure::{err_msg, format_err, Error};
 use futures::stream::iter_ok;
 use futures::Future;
 use futures::{Async, Stream};
@@ -26,18 +23,13 @@ use tokio::io::lines;
 use tokio::net::TcpStream;
 use tokio_process::{Child, CommandExt};
 
+/// A spawned child process that implements LogStream
 struct Process {
-    _child: Child,
-    inner: Box<LogStream>,
-}
-
-impl Stream for Process {
-    type Item = StreamData;
-    type Error = Error;
-
-    fn poll(&mut self) -> Result<Async<Option<Self::Item>>, Self::Error> {
-        self.inner.poll()
-    }
+    cmd: Vec<String>,
+    /// Respawn cmd upone termination
+    respawn: bool,
+    child: Option<Child>,
+    stream: Option<Box<LogStream>>,
 }
 
 /// Open a file and provide a stream of lines
@@ -91,67 +83,82 @@ pub fn tcp(addr: &Url) -> Result<Box<LogStream>, Error> {
 
 /// Start a process and stream it stdout
 pub fn logcat<'a>(args: &ArgMatches<'a>) -> Result<Box<LogStream>, Error> {
-    let adb = format!("{}", adb()?.display());
-    let mut logcat_args = vec![];
-
-    let mut restart = args.is_present("restart");
-    if !restart {
-        restart = config_get::<bool>("restart").unwrap_or(true);
-    }
+    let mut cmd = vec![adb()?.display().to_string()];
+    cmd.push("logcat".into());
+    let mut respawn = args.is_present("restart") | config_get::<bool>("restart").unwrap_or(true);
 
     if args.is_present("tail") {
         let count = value_t!(args, "tail", u32).unwrap_or_else(|e| e.exit());
-        logcat_args.push(format!("-t {}", count));
-        restart = false;
+        cmd.push("-t".into());
+        cmd.push(count.to_string());
+        respawn = false;
     };
 
     if args.is_present("dump") {
-        logcat_args.push("-d".to_owned());
-        restart = false;
+        cmd.push("-d".into());
+        respawn = false;
     }
 
-    let buffer = args
+    for buffer in args
         .values_of("buffer")
         .map(|m| m.map(|f| f.to_owned()).collect::<Vec<String>>())
         .or_else(|| config_get("buffer"))
         .unwrap_or_else(|| DEFAULT_BUFFER.iter().map(|&s| s.to_owned()).collect())
-        .join(" -b ");
-    let cmd = format!("{} logcat -b {} {}", adb, buffer, logcat_args.join(" "));
-    let cmd = cmd.split_whitespace().collect::<Vec<&str>>();
-
-    let mut child = Command::new(cmd[0])
-        .args(&cmd[1..])
-        .stdout(Stdio::piped())
-        .spawn_async()?;
-
-    let stdout = BufReader::new(child.stdout().take().unwrap());
-    let stream = lines(stdout).map_err(|e| e.into()).map(StreamData::Line);
-
-    if restart {
-        // TODO
+    {
+        cmd.push("-b".into());
+        cmd.push(buffer);
     }
 
-    Ok(Box::new(Process {
-        _child: child,
-        inner: Box::new(stream),
-    }))
+    Ok(Box::new(Process::with_cmd(cmd, respawn)))
 }
 
 /// Start a process and stream it stdout
 pub fn process<'a>(args: &ArgMatches<'a>) -> Result<Box<LogStream>, Error> {
-    let _restart = args.is_present("restart");
-    let cmd = value_t!(args, "COMMAND", String)?;
-    let cmd = cmd.split_whitespace().collect::<Vec<&str>>();
-    let mut child = Command::new(cmd[0])
-        .args(&cmd[1..])
-        .stdout(Stdio::piped())
-        .spawn_async()?;
+    let respawn = args.is_present("restart");
+    let cmd = value_t!(args, "COMMAND", String)?
+        .split_whitespace()
+        .map(|s| s.to_owned())
+        .collect();
+    Ok(Box::new(Process::with_cmd(cmd, respawn)))
+}
 
-    let stdout = BufReader::new(child.stdout().take().unwrap());
-    let stream = lines(stdout).map_err(|e| e.into()).map(StreamData::Line);
+impl Process {
+    fn with_cmd(cmd: Vec<String>, respawn: bool) -> Process {
+        Process {
+            cmd,
+            respawn,
+            child: None,
+            stream: None,
+        }
+    }
 
-    Ok(Box::new(Process {
-        _child: child,
-        inner: Box::new(stream),
-    }))
+    fn spawn(&mut self) -> Result<Async<Option<StreamData>>, Error> {
+        let mut child = Command::new(self.cmd[0].clone())
+            .args(&self.cmd[1..])
+            .stdout(Stdio::piped())
+            .spawn_async()?;
+
+        let stdout = BufReader::new(child.stdout().take().unwrap());
+        self.child = Some(child);
+        let mut stream = lines(stdout).map_err(|e| e.into()).map(StreamData::Line);
+        let poll = stream.poll();
+        self.stream = Some(Box::new(stream));
+        poll
+    }
+}
+
+impl Stream for Process {
+    type Item = StreamData;
+    type Error = Error;
+
+    fn poll(&mut self) -> Result<Async<Option<Self::Item>>, Self::Error> {
+        if let Some(ref mut inner) = self.stream {
+            match inner.poll() {
+                Ok(Async::Ready(None)) if self.respawn => self.spawn(),
+                poll => poll,
+            }
+        } else {
+            self.spawn()
+        }
+    }
 }
