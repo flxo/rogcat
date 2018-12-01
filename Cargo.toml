@@ -13,7 +13,7 @@ keywords = [
     "log",
     "logcat",
 ]
-license = "WTFPL"
+license = "MIT"
 name = "rogcat"
 readme = "README.md"
 repository = "https://github.com/flxo/rogcat"
