@@ -22,7 +22,7 @@ mod reader;
 mod record;
 mod subcommands;
 mod terminal;
-#[cfg(test)]
+#[cfg(all(test, not(target_os = "windows")))]
 mod tests;
 mod utils;
 
