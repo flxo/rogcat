@@ -50,11 +50,11 @@ pub fn file<'a>(args: &ArgMatches<'a>) -> Result<Box<LogStream>, Error> {
 
     let f = iter_ok::<_, Error>(files)
         .map(|f| {
-            File::open(f)
+            File::open(f.clone())
                 .map(|s| Decoder::framed(LinesCodec::new(), s))
                 .flatten_stream()
                 .map(StreamData::Line)
-                .map_err(|e| e.into())
+                .map_err(move |e| format_err!("Failed to open {}: {}", f.display(), e))
         })
         .flatten();
 
