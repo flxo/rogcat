@@ -11,6 +11,7 @@ use clap::ArgMatches;
 use failure::err_msg;
 use failure::format_err;
 use failure::Error;
+use futures::stream::iter_ok;
 use futures::Future;
 use futures::{Async, Stream};
 use std::io::BufReader;
@@ -40,13 +41,24 @@ impl Stream for Process {
 }
 
 /// Open a file and provide a stream of lines
-pub fn file(file: PathBuf) -> Box<LogStream> {
-    let s = File::open(file.clone())
-        .map(|s| Decoder::framed(LinesCodec::new(), s))
-        .flatten_stream()
-        .map_err(move |e| format_err!("Failed to read {}: {}", file.display(), e))
-        .map(StreamData::Line);
-    Box::new(s)
+pub fn file<'a>(args: &ArgMatches<'a>) -> Result<Box<LogStream>, Error> {
+    let files = args
+        .values_of("input")
+        .ok_or_else(|| err_msg("Missing input argument"))?
+        .map(PathBuf::from)
+        .collect::<Vec<PathBuf>>();
+
+    let f = iter_ok::<_, Error>(files)
+        .map(|f| {
+            File::open(f)
+                .map(|s| Decoder::framed(LinesCodec::new(), s))
+                .flatten_stream()
+                .map(StreamData::Line)
+                .map_err(|e| e.into())
+        })
+        .flatten();
+
+    Ok(Box::new(f))
 }
 
 /// Open stdin and provide a stream of lines

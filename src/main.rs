@@ -5,10 +5,9 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use crate::record::Record;
-use failure::{err_msg, Error};
+use failure::Error;
 use futures::{Future, Sink, Stream};
 use std::io::{stderr, Write};
-use std::path::PathBuf;
 use std::process::exit;
 use std::str::FromStr;
 use url::Url;
@@ -44,16 +43,7 @@ fn run() -> Result<i32, Error> {
 
     let source = {
         if args.is_present("input") {
-            let input = args
-                .value_of("input")
-                .ok_or_else(|| err_msg("Invalid input value"))?;
-            match Url::parse(input) {
-                Ok(url) => match url.scheme() {
-                    "serial" => reader::serial(&args),
-                    _ => reader::file(PathBuf::from(input)),
-                },
-                _ => reader::file(PathBuf::from(input)),
-            }
+            reader::file(&args)?
         } else {
             match args.value_of("COMMAND") {
                 Some(c) => {
