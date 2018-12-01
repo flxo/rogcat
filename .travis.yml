@@ -55,6 +55,7 @@ branches:
   only:
     - /^v\d+\.\d+\.\d+.*$/
     - master
+    - 0.3
 
 notifications:
   email:
