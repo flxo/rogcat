@@ -3,9 +3,9 @@ environment:
     PROJECT_NAME: rogcat
   matrix:
     - TARGET: i686-pc-windows-msvc
-      CHANNEL: stable
+      CHANNEL: beta
     - TARGET: x86_64-pc-windows-msvc
-      CHANNEL: stable
+      CHANNEL: beta
 
 # Install Rust and Cargo
 # (Based on from https://github.com/rust-lang/libc/blob/master/appveyor.yml)
