@@ -4,22 +4,24 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
-use clap::{App, AppSettings, Arg, ArgMatches, Shell, SubCommand};
-use failure::{err_msg, Error};
-use record::Level;
-use std::io::stdout;
+use crate::record::Level;
+use crate::utils;
+use clap::{crate_authors, crate_name, crate_version};
+use clap::{App, AppSettings, Arg, SubCommand};
+use lazy_static::lazy_static;
 
 lazy_static! {
-    static ref ABOUT: String = {
-        format!(
-            "A 'adb logcat' wrapper and log processor. Your config directory is \"{}\".",
-            ::config_dir().display()
-        )
-    };
+     static ref ABOUT: String = {
+          format!(
+               "A 'adb logcat' wrapper and log processor. Your config directory is \"{}\".",
+               utils::config_dir().display()
+          )
+     };
 }
 
+/// Build cli
 pub fn cli() -> App<'static, 'static> {
-    App::new(crate_name!())
+     App::new(crate_name!())
         .setting(AppSettings::ColoredHelp)
         .version(crate_version!())
         .author(crate_authors!())
@@ -30,7 +32,7 @@ pub fn cli() -> App<'static, 'static> {
              .multiple(true)
              .takes_value(true)
              .conflicts_with_all(&["input", "COMMAND"])
-             .help("Select specific (logcat) log buffers. Defaults to main, events, kernel and crash (logcat default)"))
+             .help("Select specific logd buffers. Defaults to main, events, kernel and crash"))
         .arg(Arg::with_name("clear")
              .short("c")
              .long("clear")
@@ -169,18 +171,16 @@ pub fn cli() -> App<'static, 'static> {
                         .required(true)
                         .possible_values(&["bash", "fish", "zsh"])
                         .help("The shell to generate the script for")))
+        .subcommand(SubCommand::with_name("clear")
+                .about("Clear logd buffers")
+                    .arg(Arg::with_name("buffer")
+                         .short("b")
+                         .long("buffer")
+                         .multiple(true)
+                         .takes_value(true)
+                         .help("Select specific log buffers to clear. Defaults to main, events, kernel and crash")))
         .subcommand(SubCommand::with_name("devices")
-                .about("Show list of available devices"))
-        .subcommand(SubCommand::with_name("profiles")
-                .about("Show and manage profiles")
-                .arg(Arg::with_name("list")
-                     .short("l")
-                     .long("list")
-                     .help("List profiles"))
-                .arg(Arg::with_name("examples")
-                     .short("e")
-                     .long("examples")
-                     .help("Show example profiles settings")))
+                .about("List available devices"))
         .subcommand(SubCommand::with_name("log")
                 .about("Add log message(s) log buffer")
                 .arg(Arg::with_name("tag")
@@ -194,15 +194,5 @@ pub fn cli() -> App<'static, 'static> {
                         .takes_value(true)
                         .possible_values(&[ "trace", "debug", "info", "warn", "error", "fatal", "assert", "T", "D", "I", "W", "E", "F", "A" ],)
                         .help("Log on level"))
-                .arg_from_usage("[MESSAGE] 'Log message. Pass \"-\" to capture from stdin'."))
-}
-
-pub fn subcommand_completions(args: &ArgMatches) -> Result<i32, Error> {
-    args.value_of("shell")
-        .ok_or_else(|| err_msg("Required shell argument is missing"))
-        .map(|s| s.parse::<Shell>())
-        .map(|s| {
-            cli().gen_completions_to(crate_name!(), s.unwrap(), &mut stdout());
-            0
-        })
+                .arg_from_usage("[MESSAGE] 'Log message. Pass \"-\" to read from stdin'."))
 }

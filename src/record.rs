@@ -5,10 +5,12 @@
 // published by Sam Hocevar. See the COPYING file for more details.
 
 use csv::WriterBuilder;
+use failure::format_err;
 use failure::Error;
 use serde::de::{Deserialize, Deserializer, Visitor};
 use serde::ser::Serializer;
 use serde::Serialize;
+use serde_derive::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 use std::ops::Deref;
 use std::str::FromStr;
@@ -210,6 +212,15 @@ impl Record {
             Format::Json => ::serde_json::to_string(self)
                 .map_err(|e| format_err!("Json serialization error: {}", e)),
             Format::Raw => Ok(self.raw.clone()),
+        }
+    }
+}
+
+impl From<String> for Record {
+    fn from(raw: String) -> Record {
+        Record {
+            raw,
+            ..Default::default()
         }
     }
 }

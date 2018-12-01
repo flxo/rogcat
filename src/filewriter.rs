@@ -4,201 +4,25 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
+use crate::record::{Format, Record};
+use crate::LogSink;
 use clap::ArgMatches;
-use crc::{crc32, Hasher32};
-use failure::{err_msg, Error};
+use failure::{err_msg, format_err, Error};
 use futures::{Async, AsyncSink, Poll, Sink, StartSend};
-use handlebars::{
-    to_json, Context, Handlebars, Helper, HelperResult, JsonRender, Output, RenderContext,
-    RenderError,
-};
 use indicatif::{ProgressBar, ProgressStyle};
-use record::{Format, Record};
 use regex::Regex;
-use serde_json::value::{Map, Value as Json};
 use std::fs::{DirBuilder, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::str;
 use std::str::FromStr;
 use time::{now, strftime};
 
-/// Interface for a output file format
-trait Writer {
-    fn new(filename: &PathBuf, format: &Format) -> Result<Box<Self>, Error>
-    where
-        Self: Sized;
-    fn write(&mut self, record: &Record, index: usize) -> Result<(), Error>;
-    fn flush(&mut self) -> Result<(), Error> {
-        Ok(())
-    }
-}
-
-const TEMPLATE: &str = r#"
-<!doctype HTML>
-<title>Rogcat</title>
-<link href='http://fonts.googleapis.com/css?family=Source+Code+Pro' rel='stylesheet' type='text/css'>
-<style>
-body {background: black; color: #BBBBBB; font-family: 'Source Code Pro', Monaco, monospace; font-size: 12px}
-.green, .I {color: #A8FF60}
-.white {color: #EEEEEE}
-.red, .E, .A, .F {color: #FF6C60}
-.yellow, .W {color: #FFFFB6}
-.black {color: #4F4F4F}
-.blue {color: #96CBFE}
-.cyan {color: #C6C5FE}
-.magenta {color: #FF73FD}
-tr.hover { background: #260041 }
-table {
-    border-spacing: 0;
-    width: 100%;
-}
-td {
-    vertical-align: top;
-    padding-bottom: 0;
-    padding-left: 2ex;
-    padding-right: 2ex;
-    white-space: nowrap;
-}
-tr:hover {
-    color: yellow;
-}
-td.level-D {
-    color: white;
-    background: #555;
-}
-td.level-I {
-    color: black;
-    background: #A8FF60;
-}
-td.level-W {
-    color: black;
-    background: #FFFFB6;
-}
-td.level-E {
-    color: black;
-    background: #FF6C60;
-}
-td.level-A {
-    color: black;
-    background: #FF6C60;
-}
-td.level-F {
-    color: black;
-    background: #FF6C60;
-}
-table tr td:first-child + td + td {
-    text-align: right
-}
-table tr td:first-child + td + td + td {
-}
-table tr td:first-child + td + td + td + td {
-    text-align: right
-}
-table tr td:first-child + td + td + td + td + td {
-}
-</style>
-
-<table>
-
-{{#each records as |t| ~}}
-    <tr>
-    <td>{{t.index}}</td>
-    <td>{{t.record.timestamp}}</td>
-    <td><a>{{color t.record.tag}}</a></td>
-    <td>{{color t.record.process}}</td>
-    <td>{{color t.record.thread}}</td>
-    <td class="level-{{t.record.level}}">{{t.record.level}}</td>
-    <td>{{t.record.message}}</td>
-    </tr>
-{{/each~}}
-
-</table>
-"#;
-
-#[derive(Serialize)]
-struct HtmlRecord {
-    index: usize,
-    record: Record,
-}
-
-/// Simple static html file
-#[derive(Default)]
-struct Html {
-    filename: PathBuf,
-    records: Vec<HtmlRecord>,
-}
-
-impl Html {
-    // TODO: ensure readability
-    fn hash_color(value: &str) -> String {
-        let mut digest = crc32::Digest::new(crc32::IEEE);
-        digest.write(value.as_bytes());
-        let h = digest.sum32();
-        let r = h & 0xFF;
-        let g = (h & 0xFF00) >> 8;
-        let b = (h & 0xFF_0000) >> 16;
-        format!("#{:02x}{:02x}{:02x}", r, g, b)
-    }
-    fn color_helper(
-        h: &Helper,
-        _: &Handlebars,
-        _: &Context,
-        _: &mut RenderContext,
-        out: &mut Output,
-    ) -> HelperResult {
-        let param = h
-            .param(0)
-            .ok_or_else(|| RenderError::new("Param 0 is required for format helper."))?;
-        let value = param.value().render();
-        let rendered = if value.is_empty() || value == "0" {
-            format!("<span style=\"color:grey\">{}</span>", value)
-        } else {
-            format!(
-                "<span style=\"color:{}\">{}</span>",
-                Self::hash_color(&value),
-                value
-            )
-        };
-        out.write(&rendered)?;
-        Ok(())
-    }
-
-    fn flush(&mut self) -> Result<(), Error> {
-        let mut hb = Handlebars::new();
-        let mut data: Map<String, Json> = Map::new();
-        data.insert("records".to_owned(), to_json(&self.records));
-        let mut output_file = File::create(&self.filename)?;
-        hb.register_helper("color", Box::new(Self::color_helper));
-        hb.register_template_string("t1", TEMPLATE)?;
-        hb.render_to_write("t1", &data, &mut output_file)
-            .map_err(|e| format_err!("Rednering error: {}", e))
-            .map(|_| ())
-    }
-}
-
-impl Writer for Html {
-    fn new(filename: &PathBuf, _: &Format) -> Result<Box<Self>, Error> {
-        let html = Html {
-            filename: filename.clone(),
-            records: Vec::new(),
-        };
-        Ok(Box::new(html))
-    }
-
-    fn write(&mut self, record: &Record, index: usize) -> Result<(), Error> {
-        self.records.push(HtmlRecord {
-            index,
-            record: record.clone(),
-        });
-        Ok(())
-    }
-}
-
-impl Drop for Html {
-    fn drop(&mut self) {
-        self.flush().ok();
-    }
+/// Filename format
+#[derive(Clone)]
+enum FilenameFormat {
+    Date(bool, u64),
+    Enumerate(bool, u64),
+    Single(bool),
 }
 
 /// Textfile with format
@@ -207,16 +31,54 @@ struct Textfile {
     format: Format,
 }
 
+struct FileWriter<T> {
+    current_filename: PathBuf,
+    file_size: u64,
+    filename: PathBuf,
+    filename_format: FilenameFormat,
+    index: usize,
+    format: Format,
+    progress: ProgressBar,
+    writer: Option<Box<T>>,
+}
+
+trait Writer {
+    fn with_file_format(filename: &Path, format: &Format) -> Result<Self, Error>
+    where
+        Self: Sized;
+    fn write(&mut self, record: &Record, index: usize) -> Result<(), Error>;
+    fn flush(&mut self) -> Result<(), Error> {
+        Ok(())
+    }
+}
+
+/// Crate a new log sink for given arguments
+pub fn with_args<'a>(args: &ArgMatches<'a>) -> Result<Box<LogSink>, Error> {
+    let format = args
+        .value_of("format")
+        .and_then(|f| Format::from_str(f).ok())
+        .unwrap_or(Format::Raw);
+
+    Ok(match format {
+        Format::Csv | Format::Json | Format::Raw => {
+            Box::new(FileWriter::<Textfile>::from_args(args, format)?) as Box<LogSink>
+        }
+        Format::Html => {
+            Box::new(FileWriter::<html::Html>::from_args(args, format)?) as Box<LogSink>
+        }
+        Format::Human => panic!("Unsupported format human in output file"),
+    })
+}
+
 impl Writer for Textfile {
-    fn new(filename: &PathBuf, format: &Format) -> Result<Box<Self>, Error> {
+    fn with_file_format(filename: &Path, format: &Format) -> Result<Textfile, Error> {
         let file = File::create(filename).map_err(|e| {
             format_err!("Failed to create output file {}: {}", filename.display(), e)
         })?;
-        let textfile = Textfile {
+        Ok(Textfile {
             file,
             format: format.clone(),
-        };
-        Ok(Box::new(textfile))
+        })
     }
 
     fn write(&mut self, record: &Record, _index: usize) -> Result<(), Error> {
@@ -230,26 +92,8 @@ impl Writer for Textfile {
     }
 }
 
-#[derive(Clone)]
-enum FilenameFormat {
-    Date(bool, u64),
-    Enumerate(bool, u64),
-    Single(bool),
-}
-
-pub struct FileWriter {
-    current_filename: PathBuf,
-    file_size: u64,
-    filename: PathBuf,
-    filename_format: FilenameFormat,
-    format: Format,
-    index: usize,
-    progress: ProgressBar,
-    writer: Option<Box<Writer>>,
-}
-
-impl<'a> FileWriter {
-    pub fn new(args: &ArgMatches<'a>) -> Result<Self, Error> {
+impl<'a, T: Writer> FileWriter<T> {
+    pub fn from_args(args: &ArgMatches<'a>, format: Format) -> Result<Self, Error> {
         let filename = args
             .value_of("output")
             .and_then(|f| Some(PathBuf::from(f)))
@@ -264,21 +108,15 @@ impl<'a> FileWriter {
                         .map(|m| m.as_str())
                         .and_then(|size| u64::from_str(size).ok())
                         .map(|size| (size, caps.get(2).map(|m| m.as_str())))
-                }).and_then(|(size, suffix)| match suffix {
+                })
+                .and_then(|(size, suffix)| match suffix {
                     Some("k") => Some(1_000 * size),
                     Some("M") => Some(1_000_000 * size),
                     Some("G") => Some(1_000_000_000 * size),
                     _ => None,
-                }).or_else(|| u64::from_str(l).ok())
+                })
+                .or_else(|| u64::from_str(l).ok())
         });
-
-        let format = args
-            .value_of("format")
-            .and_then(|f| Format::from_str(f).ok())
-            .unwrap_or(Format::Raw);
-        if format == Format::Human {
-            return Err(err_msg("Human format is unsupported when writing to files"));
-        }
 
         let overwrite = args.is_present("overwrite");
 
@@ -324,8 +162,8 @@ impl<'a> FileWriter {
             file_size: 0,
             filename,
             filename_format,
-            format,
             index: 0,
+            format,
             progress,
             writer: None,
         })
@@ -432,18 +270,12 @@ impl<'a> FileWriter {
             }
             None => {
                 self.current_filename = self.next_file()?;
-                let mut writer = match self.format {
-                    Format::Csv | Format::Json | Format::Raw => {
-                        Textfile::new(&self.current_filename, &self.format)? as Box<Writer>
-                    }
-                    Format::Html => Html::new(&self.current_filename, &self.format)? as Box<Writer>,
-                    Format::Human => panic!("Unsupported format human in output file"),
-                };
+                let mut writer = T::with_file_format(&self.current_filename, &self.format)?;
                 let message = format!("Writing {}", self.current_filename.display());
                 self.progress.set_message(&message);
                 writer.write(record, self.index)?;
                 self.index += 1;
-                self.writer = Some(writer);
+                self.writer = Some(Box::new(writer));
             }
         }
 
@@ -476,20 +308,196 @@ impl<'a> FileWriter {
     }
 }
 
-impl Sink for FileWriter {
-    type SinkItem = Option<Record>;
+impl<T: Writer> Sink for FileWriter<T> {
+    type SinkItem = Record;
     type SinkError = Error;
 
-    fn start_send(&mut self, item: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
-        if let Some(record) = item {
-            if let Err(e) = self.write(&record) {
-                return Err(e);
-            }
-        }
-        Ok(AsyncSink::Ready)
+    fn start_send(&mut self, record: Record) -> StartSend<Record, Error> {
+        self.write(&record).map(|_| AsyncSink::Ready)
     }
 
-    fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
+    fn poll_complete(&mut self) -> Poll<(), Error> {
         Ok(Async::Ready(()))
     }
+}
+
+mod html {
+    use super::Writer;
+    use crate::record::{Format, Record};
+    use crc::{crc32, Hasher32};
+    use failure::{format_err, Error};
+    use handlebars::{
+        to_json, Context, Handlebars, Helper, HelperResult, JsonRender, Output, RenderContext,
+        RenderError,
+    };
+    use serde_derive::Serialize;
+    use serde_json::value::{Map, Value as Json};
+    use std::fs::File;
+    use std::path::{Path, PathBuf};
+    use std::str;
+
+    #[derive(Serialize)]
+    struct HtmlRecord {
+        index: usize,
+        record: Record,
+    }
+
+    /// Simple static html file
+    pub struct Html {
+        filename: PathBuf,
+        records: Vec<HtmlRecord>,
+    }
+
+    impl Html {
+        // TODO: ensure readability
+        fn hash_color(value: &str) -> String {
+            let mut digest = crc32::Digest::new(crc32::IEEE);
+            digest.write(value.as_bytes());
+            let h = digest.sum32();
+            let r = h & 0xFF;
+            let g = (h & 0xFF00) >> 8;
+            let b = (h & 0xFF_0000) >> 16;
+            format!("#{:02x}{:02x}{:02x}", r, g, b)
+        }
+        fn color_helper(
+            h: &Helper,
+            _: &Handlebars,
+            _: &Context,
+            _: &mut RenderContext,
+            out: &mut Output,
+        ) -> HelperResult {
+            let param = h
+                .param(0)
+                .ok_or_else(|| RenderError::new("Param 0 is required for format helper."))?;
+            let value = param.value().render();
+            let rendered = if value.is_empty() || value == "0" {
+                format!("<span style=\"color:grey\">{}</span>", value)
+            } else {
+                format!(
+                    "<span style=\"color:{}\">{}</span>",
+                    Self::hash_color(&value),
+                    value
+                )
+            };
+            out.write(&rendered)?;
+            Ok(())
+        }
+
+        fn flush(&mut self) -> Result<(), Error> {
+            let mut hb = Handlebars::new();
+            let mut data: Map<String, Json> = Map::new();
+            data.insert("records".to_owned(), to_json(&self.records));
+            let mut output_file = File::create(&self.filename)?;
+            hb.register_helper("color", Box::new(Self::color_helper));
+            hb.register_template_string("t1", HTML_TEMPLATE)?;
+            hb.render_to_write("t1", &data, &mut output_file)
+                .map_err(|e| format_err!("Rednering error: {}", e))
+                .map(|_| ())
+        }
+    }
+
+    impl Writer for Html {
+        fn with_file_format(filename: &Path, _: &Format) -> Result<Html, Error> {
+            Ok(Html {
+                filename: filename.to_owned(),
+                records: Vec::new(),
+            })
+        }
+
+        fn write(&mut self, record: &Record, index: usize) -> Result<(), Error> {
+            self.records.push(HtmlRecord {
+                index,
+                record: record.clone(),
+            });
+            Ok(())
+        }
+    }
+
+    impl Drop for Html {
+        fn drop(&mut self) {
+            self.flush().ok();
+        }
+    }
+
+    const HTML_TEMPLATE: &str = r#"
+<!doctype HTML>
+<title>Rogcat</title>
+<link href='http://fonts.googleapis.com/css?family=Source+Code+Pro' rel='stylesheet' type='text/css'>
+<style>
+body {background: black; color: #BBBBBB; font-family: 'Source Code Pro', Monaco, monospace; font-size: 12px}
+.green, .I {color: #A8FF60}
+.white {color: #EEEEEE}
+.red, .E, .A, .F {color: #FF6C60}
+.yellow, .W {color: #FFFFB6}
+.black {color: #4F4F4F}
+.blue {color: #96CBFE}
+.cyan {color: #C6C5FE}
+.magenta {color: #FF73FD}
+tr.hover { background: #260041 }
+table {
+    border-spacing: 0;
+    width: 100%;
+}
+td {
+    vertical-align: top;
+    padding-bottom: 0;
+    padding-left: 2ex;
+    padding-right: 2ex;
+    white-space: nowrap;
+}
+tr:hover {
+    color: yellow;
+}
+td.level-D {
+    color: white;
+    background: #555;
+}
+td.level-I {
+    color: black;
+    background: #A8FF60;
+}
+td.level-W {
+    color: black;
+    background: #FFFFB6;
+}
+td.level-E {
+    color: black;
+    background: #FF6C60;
+}
+td.level-A {
+    color: black;
+    background: #FF6C60;
+}
+td.level-F {
+    color: black;
+    background: #FF6C60;
+}
+table tr td:first-child + td + td {
+    text-align: right
+}
+table tr td:first-child + td + td + td {
+}
+table tr td:first-child + td + td + td + td {
+    text-align: right
+}
+table tr td:first-child + td + td + td + td + td {
+}
+</style>
+
+<table>
+
+{{#each records as |t| ~}}
+    <tr>
+    <td>{{t.index}}</td>
+    <td>{{t.record.timestamp}}</td>
+    <td><a>{{color t.record.tag}}</a></td>
+    <td>{{color t.record.process}}</td>
+    <td>{{color t.record.thread}}</td>
+    <td class="level-{{t.record.level}}">{{t.record.level}}</td>
+    <td>{{t.record.message}}</td>
+    </tr>
+{{/each~}}
+
+</table>
+"#;
 }

@@ -4,8 +4,8 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
+use crate::tests::utils::*;
 use failure::Error;
-use tests::utils::*;
 
 const CONFIG: &str = "
 [profile.A]
@@ -61,23 +61,6 @@ fn malformed_config() {
     let output = run_rogcat_with_input_file(&args, &vec![])
         .expect("Failed to run rogcat with config and input file");
     assert!(!output.0);
-}
-
-#[test]
-fn list_profiles() {
-    let output = run_rogcat(&svec!("profiles", "--list"), None).unwrap();
-    assert!(output.0);
-    assert!(output.1.len() >= 1); // check for >1 if default location settings are found
-
-    let output = run_rogcat(&svec!("profiles", "-l"), None).unwrap();
-    assert!(output.1.len() >= 1); // check for >1 if default location settings are found
-
-    let output = run_rogcat_with_config_and_input_file(&svec!("profiles", "-l"), &vec![]).unwrap();
-    assert_eq!(output.len(), 7);
-
-    let output =
-        run_rogcat_with_config_and_input_file(&svec!("profiles", "--list"), &vec![]).unwrap();
-    assert_eq!(output.len(), 7);
 }
 
 #[test]

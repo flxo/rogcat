@@ -4,13 +4,17 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
+use crate::profiles::*;
+use crate::record::{Format, Level, Record};
+use crate::utils::config_get;
+use crate::utils::terminal_width;
+use crate::LogSink;
 use atty::Stream;
+use clap::values_t;
 use clap::ArgMatches;
-use config_get;
+use failure::format_err;
 use failure::{err_msg, Error};
 use futures::{Async, AsyncSink, Poll, Sink, StartSend};
-use profiles::*;
-use record::{Format, Level, Record};
 use regex::Regex;
 use std::cmp::max;
 use std::collections::HashMap;
@@ -19,12 +23,17 @@ use std::str::FromStr;
 use term::color::*;
 use term::{stdout, Attr};
 use time::Tm;
-use utils::terminal_width;
 
 #[cfg(not(target_os = "windows"))]
 pub const DIMM_COLOR: Color = 243;
 #[cfg(target_os = "windows")]
 pub const DIMM_COLOR: Color = WHITE;
+
+pub fn with_args<'a>(args: &ArgMatches<'a>, profile: &Profile) -> Box<LogSink> {
+    let terminal = Terminal::new(args, profile)
+        .sink_map_err(|e| failure::format_err!("Terminal error: {}", e));
+    Box::new(terminal)
+}
 
 #[cfg(target_os = "windows")]
 fn hashed_color(i: &str) -> Color {
@@ -46,7 +55,7 @@ fn hashed_color(i: &str) -> Color {
     }
 }
 
-pub struct Terminal {
+struct Terminal {
     beginning_of: Regex,
     color: bool,
     date_format: (String, usize),
@@ -64,10 +73,10 @@ pub struct Terminal {
 }
 
 impl<'a> Terminal {
-    pub fn new(args: &ArgMatches<'a>, profile: &Profile) -> Result<Self, Error> {
-        let mut hl = profile.highlight().clone();
+    pub fn new(args: &ArgMatches<'a>, profile: &Profile) -> Terminal {
+        let mut hl = profile.highlight.clone();
         if args.is_present("highlight") {
-            hl.extend(values_t!(args.values_of("highlight"), String)?);
+            hl.extend(values_t!(args.values_of("highlight"), String).unwrap());
         }
         let highlight = hl.iter().flat_map(|h| Regex::new(h)).collect();
 
@@ -76,10 +85,10 @@ impl<'a> Terminal {
             .and_then(|f| Format::from_str(f).ok())
             .unwrap_or(Format::Human);
         if format == Format::Html {
-            return Err(err_msg("HTML format is unsupported when writing to files"));
+            panic!("HTML format is unsupported when writing to files");
         }
 
-        let term = stdout().ok_or_else(|| err_msg("Failed to lock terminal"))?;
+        let term = stdout().expect("Failed to lock terminal");
         let color = {
             match args
                 .value_of("color")
@@ -102,7 +111,7 @@ impl<'a> Terminal {
             || config_get("terminal_show_time_diff").unwrap_or(false);
         let time_diff_width = config_get("terminal_time_diff_width").unwrap_or(8);
 
-        Ok(Terminal {
+        Terminal {
             beginning_of: Regex::new(r"--------- beginning of.*").unwrap(),
             color,
             date_format: if show_date {
@@ -127,20 +136,6 @@ impl<'a> Terminal {
             thread_width: 0,
             time_diff,
             vovels: Regex::new(r"a|e|i|o|u").unwrap(),
-        })
-    }
-
-    /// Filter some unreadable (on dark background) or nasty colors
-    fn print_record(&mut self, record: &Record) -> Result<(), Error> {
-        match self.format {
-            Format::Csv | Format::Json | Format::Raw => {
-                println!("{}", record.format(&self.format)?);
-                Ok(())
-            }
-            Format::Human => self.print_human(record),
-            Format::Html => {
-                unreachable!("Unimplemented format html");
-            }
         }
     }
 
@@ -369,13 +364,17 @@ impl<'a> Terminal {
 }
 
 impl Sink for Terminal {
-    type SinkItem = Option<Record>;
+    type SinkItem = Record;
     type SinkError = Error;
 
-    fn start_send(&mut self, item: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
-        if let Some(record) = item {
-            if let Err(e) = self.print_record(&record) {
-                return Err(e);
+    fn start_send(&mut self, record: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
+        match self.format {
+            Format::Csv | Format::Json | Format::Raw => {
+                println!("{}", record.format(&self.format)?);
+            }
+            Format::Human => self.print_human(&record)?,
+            Format::Html => {
+                unreachable!("Unimplemented format html");
             }
         }
         Ok(AsyncSink::Ready)

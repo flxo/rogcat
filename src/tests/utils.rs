@@ -4,7 +4,7 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
-use failure::Error;
+use failure::{format_err, Error};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use std::env;

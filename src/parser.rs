@@ -4,11 +4,12 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
+use crate::record::{Level, Record, Timestamp};
 use csv::ReaderBuilder;
-use failure::{err_msg, Error};
+use failure::{err_msg, format_err, Error};
 use nom::types::CompleteStr;
+use nom::*;
 use nom::{hex_digit, rest, space};
-use record::{Level, Record, Timestamp};
 use serde_json::from_str;
 use time::Tm;
 
@@ -185,7 +186,8 @@ impl Parser {
             .map(|(_, mut v)| {
                 v.raw = line.into();
                 v
-            }).map_err(|e| format_err!("{}", e))
+            })
+            .map_err(|e| format_err!("{}", e))
     }
 
     fn parse_mindroid(line: &str) -> Result<Record, Error> {
@@ -193,7 +195,8 @@ impl Parser {
             .map(|(_, mut v)| {
                 v.raw = line.into();
                 v
-            }).map_err(|e| format_err!("{}", e))
+            })
+            .map_err(|e| format_err!("{}", e))
     }
 
     fn parse_csv(line: &str) -> Result<Record, Error> {
@@ -287,32 +290,33 @@ impl Parser {
         }
     }
 
-    pub fn process(&mut self, record: Option<Record>) -> Option<Record> {
-        record.map(|mut record| {
-            macro_rules! try_parse {
-                ($p:expr) => {
-                    if let Ok(r) = $p(&record.raw) {
-                        self.last = Some($p);
-                        return r;
-                    }
-                };
-            }
+    pub fn parse(&mut self, line: String) -> Record {
+        macro_rules! try_parse {
+            ($p:expr) => {
+                if let Ok(r) = $p(&line) {
+                    self.last = Some($p);
+                    return r;
+                }
+            };
+        }
 
-            if let Some(p) = self.last {
-                try_parse!(p);
-            }
-            try_parse!(Self::parse_default);
-            try_parse!(Self::parse_mindroid);
-            try_parse!(Self::parse_csv);
-            try_parse!(Self::parse_json);
-            try_parse!(Self::parse_gtest);
-            try_parse!(Self::parse_bugreport);
+        if let Some(p) = self.last {
+            try_parse!(p);
+        }
+        try_parse!(Self::parse_default);
+        try_parse!(Self::parse_mindroid);
+        try_parse!(Self::parse_csv);
+        try_parse!(Self::parse_json);
+        try_parse!(Self::parse_gtest);
+        try_parse!(Self::parse_bugreport);
 
-            // Seems that we cannot parse this record
-            // Treat the raw input as message
-            record.message = record.raw.clone();
-            record
-        })
+        // Seems that we cannot parse this record
+        // Treat the raw input as message
+        Record {
+            raw: line.clone(),
+            message: line,
+            ..Default::default()
+        }
     }
 }
 

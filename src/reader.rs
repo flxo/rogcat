@@ -4,151 +4,125 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
-use bytes::BytesMut;
+use crate::utils::{adb, config_get};
+use crate::{LogStream, StreamData, DEFAULT_BUFFER};
+use clap::value_t;
 use clap::ArgMatches;
-use failure::{err_msg, Error};
-use futures::sync::mpsc;
-use futures::{stream, Future, Sink, Stream};
-use record::Record;
-use std::fs::File;
-use std::io::stdin;
-use std::io::{BufRead, BufReader, Read};
-use std::net::SocketAddr;
+use failure::err_msg;
+use failure::format_err;
+use failure::Error;
+use futures::Future;
+use futures::{Async, Stream};
+use std::io::BufReader;
+use std::net::ToSocketAddrs;
+use url::Url;
+
 use std::path::PathBuf;
-use std::thread;
-use tokio_core::net::TcpStream;
-use tokio_core::reactor::Core;
-use tokio_io::codec::{Decoder, Encoder};
-use RStream;
+use std::process::{Command, Stdio};
+use tokio::codec::{Decoder, FramedRead, LinesCodec};
+use tokio::fs::File;
+use tokio::io::lines;
+use tokio::net::TcpStream;
+use tokio_process::{Child, CommandExt};
 
-fn records<T: Read + Send + Sized + 'static>(reader: T, core: &Core) -> Result<RStream, Error> {
-    let (tx, rx) = mpsc::channel(1);
-    let mut reader = BufReader::new(reader);
-    let remote = core.remote();
-
-    thread::spawn(move || {
-        let mut buffer = Vec::new();
-        loop {
-            let mut tx = tx.clone();
-            buffer.clear();
-            match reader.read_until(b'\n', &mut buffer) {
-                Ok(len) => {
-                    if len > 0 {
-                        while buffer.ends_with(&[b'\r']) || buffer.ends_with(&[b'\n']) {
-                            buffer.pop();
-                        }
-                        let record = Record {
-                            raw: String::from_utf8_lossy(&buffer).into(),
-                            ..Default::default()
-                        };
-                        let f = tx.send(Some(record)).map(|_| ()).map_err(|_| ());
-                        remote.spawn(|_| f);
-                    } else {
-                        let f = tx.clone().send(None).map(|_| ()).map_err(|_| ());
-                        remote.spawn(|_| f);
-                        tx.close().ok();
-                        break;
-                    }
-                }
-                Err(_) => {
-                    tx.close().ok();
-                    break;
-                }
-            }
-        }
-    });
-
-    Ok(Box::new(
-        rx.map_err(|e| format_err!("Channel error: {:?}", e)),
-    ))
+struct Process {
+    _child: Child,
+    inner: Box<LogStream>,
 }
 
-pub fn file_reader<'a>(args: &ArgMatches<'a>, core: &Core) -> Result<RStream, Error> {
-    let files = args
-        .values_of("input")
-        .map(|f| f.map(PathBuf::from).collect::<Vec<PathBuf>>())
-        .ok_or_else(|| err_msg("Failed to parse input files"))?;
+impl Stream for Process {
+    type Item = StreamData;
+    type Error = Error;
 
-    let mut streams = Vec::new();
-    for f in &files {
-        if !f.exists() {
-            return Err(format_err!("Cannot open {}", f.display()));
-        }
-
-        let file =
-            File::open(f).map_err(|e| format_err!("Failed to open {}: {}", f.display(), e))?;
-
-        streams.push(records(file, core)?);
-    }
-
-    // The flattened streams emmit None in between - filter those
-    // here...
-    let mut nones = streams.len();
-    let flat = stream::iter_ok::<_, Error>(streams)
-        .flatten()
-        .filter(move |f| {
-            if f.is_some() {
-                true
-            } else {
-                nones -= 1;
-                nones == 0
-            }
-        });
-    Ok(Box::new(flat))
-}
-
-pub fn stdin_reader(core: &Core) -> Result<RStream, Error> {
-    records(Box::new(stdin()), core)
-}
-
-pub fn serial_reader<'a>(args: &ArgMatches<'a>, core: &Core) -> Result<RStream, Error> {
-    let i = args
-        .value_of("input")
-        .ok_or_else(|| err_msg("Invalid input value"))?;
-    let port = ::serial::open(&i.trim_left_matches("serial://"))?;
-
-    records(port, core)
-}
-
-struct LossyLineCodec;
-
-impl Decoder for LossyLineCodec {
-    type Item = Record;
-    type Error = ::std::io::Error;
-
-    fn decode(
-        &mut self,
-        buf: &mut BytesMut,
-    ) -> ::std::result::Result<Option<Record>, ::std::io::Error> {
-        if let Some(n) = buf.as_ref().iter().position(|b| *b == b'\n') {
-            let line = buf.split_to(n);
-            buf.split_to(1);
-            return Ok(Some(Record {
-                raw: String::from_utf8_lossy(&line).into_owned(),
-                ..Default::default()
-            }));
-        }
-
-        Ok(None)
+    fn poll(&mut self) -> Result<Async<Option<Self::Item>>, Self::Error> {
+        self.inner.poll()
     }
 }
 
-impl Encoder for LossyLineCodec {
-    type Item = Record;
-    type Error = ::std::io::Error;
-
-    fn encode(&mut self, _msg: Record, _buf: &mut BytesMut) -> ::std::io::Result<()> {
-        unimplemented!();
-    }
+/// Open a file and provide a stream of lines
+pub fn file(file: PathBuf) -> Box<LogStream> {
+    let s = File::open(file.clone())
+        .map(|s| Decoder::framed(LinesCodec::new(), s))
+        .flatten_stream()
+        .map_err(move |e| format_err!("Failed to read {}: {}", file.display(), e))
+        .map(StreamData::Line);
+    Box::new(s)
 }
 
-pub fn tcp_reader(addr: &SocketAddr, core: &mut Core) -> Result<RStream, Error> {
-    let handle = core.handle();
-    let s = core
-        .run(TcpStream::connect(addr, &handle))
-        .map(|s| Decoder::framed(LossyLineCodec {}, s))
-        .map_err(|e| format_err!("Failed to connect: {}", e))?
-        .map(Some)
-        .map_err(|e| e.into());
+/// Open stdin and provide a stream of lines
+pub fn stdin() -> Box<LogStream> {
+    let s = FramedRead::new(tokio::io::stdin(), LinesCodec::new())
+        .map_err(|e| e.into())
+        .map(StreamData::Line);
+    Box::new(s)
+}
+
+/// Open a serial port and provide a stream of lines
+pub fn serial<'a>(_args: &ArgMatches<'a>) -> Box<LogStream> {
+    unimplemented!()
+}
+
+/// Connect to tcp socket and profile a stream of lines
+pub fn tcp(addr: &Url) -> Result<Box<LogStream>, Error> {
+    let addr = addr
+        .to_socket_addrs()?
+        .next()
+        .ok_or_else(|| err_msg("Failed to parse addr"))?;
+    let s = TcpStream::connect(&addr)
+        .map(|s| Decoder::framed(LinesCodec::new(), s))
+        .flatten_stream()
+        .map_err(|e| format_err!("Failed to connect: {}", e))
+        .map(StreamData::Line);
+
     Ok(Box::new(s))
+}
+
+/// Start a process and stream it stdout
+pub fn process<'a>(args: &ArgMatches<'a>) -> Result<Box<LogStream>, Error> {
+    let (cmd, _restart) = if let Ok(cmd) = value_t!(args, "COMMAND", String) {
+        (cmd, args.is_present("restart"))
+    } else {
+        let adb = format!("{}", adb()?.display());
+        let mut logcat_args = vec![];
+
+        let mut restart = args.is_present("restart");
+        if !restart {
+            restart = config_get::<bool>("restart").unwrap_or(true);
+        }
+
+        if args.is_present("tail") {
+            let count = value_t!(args, "tail", u32).unwrap_or_else(|e| e.exit());
+            logcat_args.push(format!("-t {}", count));
+            restart = false;
+        };
+
+        if args.is_present("dump") {
+            logcat_args.push("-d".to_owned());
+            restart = false;
+        }
+
+        let buffer = args
+            .values_of("buffer")
+            .map(|m| m.map(|f| f.to_owned()).collect::<Vec<String>>())
+            .or_else(|| config_get("buffer"))
+            .unwrap_or_else(|| DEFAULT_BUFFER.iter().map(|&s| s.to_owned()).collect())
+            .join(" -b ");
+
+        let cmd = format!("{} logcat -b {} {}", adb, buffer, logcat_args.join(" "));
+        (cmd, restart)
+    };
+
+    let cmd = cmd.split_whitespace().collect::<Vec<&str>>();
+    let mut child = Command::new(cmd[0])
+        .args(&cmd[1..])
+        .stdout(Stdio::piped())
+        .spawn_async()?;
+
+    let stdout = BufReader::new(child.stdout().take().unwrap());
+    let stream = lines(stdout).map_err(|e| e.into()).map(StreamData::Line);
+
+    Ok(Box::new(Process {
+        _child: child,
+        inner: Box::new(stream),
+    }))
 }

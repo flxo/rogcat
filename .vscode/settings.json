@@ -1,0 +1,5 @@
+{
+    "editor.formatOnSave": true,
+    "rust-client.channel": "beta",
+    "rust.cfg_test": true,
+}

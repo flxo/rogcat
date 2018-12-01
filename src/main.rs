@@ -4,95 +4,115 @@
 // the terms of the Do What The Fuck You Want To Public License, Version 2, as
 // published by Sam Hocevar. See the COPYING file for more details.
 
-extern crate atty;
-extern crate bytes;
-#[macro_use]
-extern crate clap;
-extern crate config;
-extern crate crc;
-extern crate csv;
-extern crate directories;
-#[macro_use]
-extern crate failure;
-extern crate futures;
-extern crate handlebars;
-extern crate indicatif;
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-extern crate nom;
-#[cfg(test)]
-extern crate rand;
-extern crate regex;
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
-extern crate serde_json;
-extern crate serial;
-#[cfg(test)]
-extern crate tempdir;
-extern crate term;
-extern crate term_size;
-extern crate time;
-extern crate tokio_core;
-#[macro_use]
-extern crate tokio_io;
-extern crate tokio_process;
-extern crate tokio_signal;
-extern crate toml;
-extern crate url;
-extern crate which;
-extern crate zip;
-
-use clap::ArgMatches;
-use cli::cli;
-use config::Config;
+use crate::record::Record;
 use failure::{err_msg, Error};
-use filewriter::FileWriter;
-use filter::Filter;
-use futures::future::ok;
 use futures::{Future, Sink, Stream};
-use parser::Parser;
-use profiles::Profiles;
-use reader::{file_reader, serial_reader, stdin_reader, tcp_reader};
-use record::Record;
-use runner::runner;
-use std::env;
 use std::io::{stderr, Write};
-use std::net::ToSocketAddrs;
 use std::path::PathBuf;
-use std::process::{exit, Command};
-use std::sync::RwLock;
-use terminal::Terminal;
-use tokio_core::reactor::Core;
-use tokio_process::CommandExt;
+use std::process::exit;
+use std::str::FromStr;
 use url::Url;
-use which::which_in;
 
-mod bugreport;
 mod cli;
-mod devices;
 mod filewriter;
 mod filter;
-mod log;
 mod parser;
 mod profiles;
 mod reader;
 mod record;
-mod runner;
+mod subcommands;
 mod terminal;
 #[cfg(test)]
 mod tests;
 mod utils;
 
-lazy_static! {
-    static ref CONFIG: RwLock<Config> = RwLock::new(Config::default());
+const DEFAULT_BUFFER: [&str; 4] = ["main", "events", "crash", "kernel"];
+
+#[derive(Debug, Clone)]
+pub enum StreamData {
+    Record(Record),
+    Line(String),
 }
 
-pub type RSink = Box<Sink<SinkItem = Option<Record>, SinkError = Error>>;
-pub type RStream = Box<Stream<Item = std::option::Option<Record>, Error = Error>>;
+type LogStream = Stream<Item = StreamData, Error = Error> + Send;
+type LogSink = Sink<SinkItem = Record, SinkError = Error> + Send;
 
-const DEFAULT_BUFFER: [&str; 4] = ["main", "events", "crash", "kernel"];
+fn run() -> Result<i32, Error> {
+    let args = cli::cli().get_matches();
+    utils::config_init();
+    subcommands::run(&args);
+
+    let source = {
+        if args.is_present("input") {
+            let input = args
+                .value_of("input")
+                .ok_or_else(|| err_msg("Invalid input value"))?;
+            match Url::parse(input) {
+                Ok(url) => match url.scheme() {
+                    "serial" => reader::serial(&args),
+                    _ => reader::file(PathBuf::from(input)),
+                },
+                _ => reader::file(PathBuf::from(input)),
+            }
+        } else {
+            match args.value_of("COMMAND") {
+                Some(c) => {
+                    if c == "-" {
+                        reader::stdin()
+                    } else if let Ok(url) = Url::parse(c) {
+                        match url.scheme() {
+                            "tcp" => reader::tcp(&url)?,
+                            "serial" => reader::serial(&args),
+                            _ => reader::process(&args)?,
+                        }
+                    } else {
+                        reader::process(&args)?
+                    }
+                }
+                None => reader::process(&args)?,
+            }
+        }
+    };
+
+    let profile = profiles::from_args(&args)?;
+    let sink = if args.is_present("output") {
+        filewriter::with_args(&args)?
+    } else {
+        terminal::with_args(&args, &profile)
+    };
+
+    // Stop process after n records if argument head is passed
+    let mut head = args
+        .value_of("head")
+        .map(|v| usize::from_str(v).expect("Invalid head arguement"));
+
+    let filter = filter::from_args_profile(&args, &profile);
+    let mut parser = parser::Parser::new();
+
+    tokio::run(
+        source
+            .map(move |a| match a {
+                StreamData::Line(l) => parser.parse(l),
+                StreamData::Record(r) => r,
+            })
+            .filter(move |r| filter.filter(r))
+            .take_while(move |_| {
+                Ok(match head {
+                    Some(0) => false,
+                    Some(n) => {
+                        head = Some(n - 1);
+                        true
+                    }
+                    None => true,
+                })
+            })
+            .forward(sink)
+            .map(|_| ())
+            .map_err(|_| ()),
+    );
+
+    Ok(0)
+}
 
 fn main() {
     match run() {
@@ -104,144 +124,4 @@ fn main() {
         }
         Ok(r) => exit(r),
     }
-}
-
-fn adb() -> Result<PathBuf, Error> {
-    which_in("adb", env::var_os("PATH"), env::current_dir()?)
-        .map_err(|e| format_err!("Cannot find adb: {}", e))
-}
-
-/// Detect configuration directory
-fn config_dir() -> PathBuf {
-    directories::BaseDirs::new()
-        .unwrap()
-        .config_dir()
-        .join("rogcat")
-}
-
-/// Read a value from the configuration file
-/// `config_dir/config.toml`
-fn config_get<'a, T>(key: &'a str) -> Option<T>
-where
-    T: serde::Deserialize<'a>,
-{
-    CONFIG.read().ok().and_then(|c| c.get::<T>(key).ok())
-}
-
-fn input(core: &mut Core, args: &ArgMatches) -> Result<RStream, Error> {
-    if args.is_present("input") {
-        let input = args
-            .value_of("input")
-            .ok_or_else(|| err_msg("Invalid input value"))?;
-        match Url::parse(input) {
-            Ok(url) => match url.scheme() {
-                "serial" => serial_reader(args, core),
-                _ => file_reader(args, core),
-            },
-            _ => file_reader(args, core),
-        }
-    } else {
-        match args.value_of("COMMAND") {
-            Some(c) => {
-                if c == "-" {
-                    stdin_reader(core)
-                } else if let Ok(url) = Url::parse(c) {
-                    match url.scheme() {
-                        "tcp" => {
-                            let addr = url
-                                .to_socket_addrs()?
-                                .next()
-                                .ok_or_else(|| err_msg("Failed to parse addr"))?;
-                            tcp_reader(&addr, core)
-                        }
-                        "serial" => serial_reader(args, core),
-                        _ => runner(args),
-                    }
-                } else {
-                    runner(args)
-                }
-            }
-            None => runner(args),
-        }
-    }
-}
-
-fn run() -> Result<i32, Error> {
-    let args = cli().get_matches();
-    let config_file = config_dir().join("config.toml");
-    CONFIG
-        .write()
-        .map_err(|e| format_err!("Failed to get config lock: {}", e))?
-        .merge(config::File::from(config_file))
-        .ok();
-    let profiles = Profiles::new(&args)?;
-    let profile = profiles.profile();
-    let mut core = Core::new()?;
-
-    match args.subcommand() {
-        ("bugreport", Some(sub_matches)) => exit(bugreport::create(sub_matches, &mut core)?),
-        ("completions", Some(sub_matches)) => exit(cli::subcommand_completions(sub_matches)?),
-        ("devices", _) => exit(devices::devices(&mut core)?),
-        ("log", Some(sub_matches)) => exit(log::run(sub_matches, &mut core)?),
-        ("profiles", Some(sub_matches)) => exit(profiles.subcommand(sub_matches)?),
-        (_, _) => (),
-    }
-
-    if args.is_present("clear") {
-        let buffer = args
-            .values_of("buffer")
-            .map(|m| m.map(|f| f.to_owned()).collect::<Vec<String>>())
-            .or_else(|| ::config_get("buffer"))
-            .unwrap_or_else(|| DEFAULT_BUFFER.iter().map(|&s| s.to_owned()).collect())
-            .join(" -b ");
-        let child = Command::new(adb()?)
-            .arg("logcat")
-            .arg("-c")
-            .arg("-b")
-            .args(buffer.split(' '))
-            .spawn_async()?;
-        let output = core.run(child)?;
-        exit(
-            output
-                .code()
-                .ok_or_else(|| err_msg("Failed to get exit code"))?,
-        );
-    }
-
-    let input = input(&mut core, &args)?;
-    let ctrl_c = tokio_signal::ctrl_c()
-        .flatten_stream()
-        .map(|_| None)
-        .map_err(|e| e.into());
-    let mut parser = Parser::new();
-    let mut filter = Filter::new(&args, &profile)?;
-    let output = if args.is_present("output") {
-        Box::new(FileWriter::new(&args)?) as RSink
-    } else {
-        Box::new(Terminal::new(&args, &profile)?) as RSink
-    };
-
-    let mut head = if args.is_present("head") {
-        Some(value_t!(args, "head", usize)?)
-    } else {
-        None
-    };
-
-    let result = input
-        .select(ctrl_c)
-        .take_while(|i| ok(i.is_some()))
-        .map(|m| parser.process(m))
-        .filter(|m| filter.filter(m))
-        .take_while(|_| {
-            ok(match head {
-                Some(0) => false,
-                Some(n) => {
-                    head = Some(n - 1);
-                    true
-                }
-                None => true,
-            })
-        }).forward(output);
-
-    core.run(result).map(|_| 0)
 }
