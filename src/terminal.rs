@@ -72,14 +72,6 @@ impl RecordFormatter {
     fn from<'a>(_: &ArgMatches<'a>, _: &Profile, format: Format) -> RecordFormatter {
         RecordFormatter(format, BytesMut::with_capacity(1024))
     }
-
-    fn format(&mut self, record: &Record) -> Result<(), Error> {
-        let l = record.format(&self.0)?;
-        self.1.reserve(l.len() + 1);
-        self.1.put_slice(l.as_bytes());
-        self.1.put_u8(b'\n');
-        Ok(())
-    }
 }
 
 impl Sink for RecordFormatter {
@@ -87,7 +79,11 @@ impl Sink for RecordFormatter {
     type SinkError = Error;
 
     fn start_send(&mut self, record: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
-        self.format(&record)?;
+        let l = record.format(&self.0)?;
+        self.1.reserve(l.len() + 1);
+        self.1.put_slice(l.as_bytes());
+        self.1.put_u8(b'\n');
+
         stdout().write_all(&self.1)?;
         self.1.clear();
         Ok(AsyncSink::Ready)
