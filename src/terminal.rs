@@ -242,13 +242,20 @@ impl Human {
             let pid = pid_color.paint(pid);
             let tid_color = Self::hashed_color(&tid);
             let tid = tid_color.paint(tid);
-            let level_color = match record.level {
-                Level::Trace | Level::Verbose | Level::Debug | Level::None => self.dimm_color,
-                Level::Info => Color::Green,
-                Level::Warn => Color::Yellow,
-                Level::Error | Level::Fatal | Level::Assert => Color::Red,
+            let (level, level_color) = match record.level {
+                #[cfg(target_os = "windows")]
+                Level::Trace | Level::Verbose | Level::Debug | Level::None => (level, Color::White),
+                #[cfg(not(target_os = "windows"))]
+                Level::Trace | Level::Verbose | Level::Debug | Level::None => (
+                    Color::White.on(self.dimm_color).paint(level),
+                    self.dimm_color,
+                ),
+                Level::Info => (Color::Black.on(Color::Green).paint(level), Color::Green),
+                Level::Warn => (Color::White.on(Color::Yellow).paint(level), Color::Yellow),
+                Level::Error | Level::Fatal | Level::Assert => {
+                    (Color::White.on(Color::Red).paint(level), Color::Red)
+                }
             };
-            let level = Color::White.on(level_color).paint(level);
             let preamble = format!(
                 "{timestamp} {tag} ({pid}{tid}) {level} ",
                 timestamp = timestamp,
@@ -302,7 +309,9 @@ impl Human {
                 .take(chunk_len)
                 .collect::<String>();
             if let Some(level_color) = level_color {
-                self.buffer.extend(level_color.paint(chunk).as_bytes());
+                // TODO: get rid of this extra allocation
+                let chunk = format!("{}", level_color.paint(chunk));
+                self.buffer.extend(chunk.as_bytes());
             } else {
                 self.buffer.extend(chunk.as_bytes());
             }
