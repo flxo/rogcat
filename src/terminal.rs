@@ -290,25 +290,21 @@ impl Human {
             self.buffer.extend(preamble.as_bytes());
 
             let c = if chunks == 1 {
-                " "
+                "  "
             } else if i == 0 {
-                "┌"
+                "┌ "
             } else if i == chunks - 1 {
-                "└"
+                "└ "
             } else {
-                "├"
+                "├ "
             };
-            let begin = i * payload_len;
-            let chunk_len = min(payload_len, message_len);
 
-            self.buffer.reserve(c.len() + 1);
-            self.buffer.put(c.as_bytes());
-            self.buffer.put_u8(b' ');
+            self.buffer.extend_from_slice(c.as_bytes());
 
             let chunk = message
                 .chars()
-                .skip(begin)
-                .take(chunk_len)
+                .skip(i * payload_len)
+                .take(payload_len)
                 .collect::<String>();
             if let Some(level_color) = level_color {
                 // TODO: get rid of this extra allocation
