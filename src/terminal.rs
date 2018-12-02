@@ -39,7 +39,7 @@ use tokio::io::stdout;
 #[cfg(not(target_os = "windows"))]
 pub const DIMM_COLOR: Color = Color::Fixed(243);
 #[cfg(target_os = "windows")]
-pub const DIMM_COLOR: Color = WHITE;
+pub const DIMM_COLOR: Color = Color::White;
 
 /// Construct a terminal sink for format from args with give profile
 pub fn from<'a>(args: &ArgMatches<'a>, profile: &Profile) -> Result<LogSink, Error> {
@@ -168,14 +168,15 @@ impl Human {
 
     #[cfg(target_os = "windows")]
     fn hashed_color(i: &str) -> Color {
-        i.bytes().fold(42u32, |c, x| (c ^ Color::from(x))) % 15 + 1
+        let v = i.bytes().fold(42u8, |c, x| c ^ x) % 15 + 1;
+        Color::Fixed(v)
     }
 
     #[cfg(not(target_os = "windows"))]
     fn hashed_color(i: &str) -> Color {
         // Some colors are hard to read on (at least) dark terminals
         // and I consider some others as ugly.
-        let c = match i.bytes().fold(42u8, |c, x| (c ^ x)) {
+        let c = match i.bytes().fold(42u8, |c, x| c ^ x) {
             c @ 0...1 => c + 2,
             c @ 16...21 => c + 6,
             c @ 52...55 | c @ 126...129 => c + 4,

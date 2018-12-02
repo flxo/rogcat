@@ -46,7 +46,7 @@ struct Process {
 }
 
 /// Open a file and provide a stream of lines
-pub fn file<'a>(args: &ArgMatches<'a>) -> Result<LogStream, Error> {
+pub fn files<'a>(args: &ArgMatches<'a>) -> Result<LogStream, Error> {
     let files = args
         .values_of("input")
         .ok_or_else(|| err_msg("Missing input argument"))?
