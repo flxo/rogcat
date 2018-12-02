@@ -58,7 +58,7 @@ fn run() -> Result<i32, Error> {
 
     let source = {
         if args.is_present("input") {
-            reader::file(&args)?
+            reader::files(&args)?
         } else {
             match args.value_of("COMMAND") {
                 Some(c) => {
