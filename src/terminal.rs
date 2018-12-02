@@ -244,7 +244,9 @@ impl Human {
             let tid = tid_color.paint(tid);
             let (level, level_color) = match record.level {
                 #[cfg(target_os = "windows")]
-                Level::Trace | Level::Verbose | Level::Debug | Level::None => (level, Color::White),
+                Level::Trace | Level::Verbose | Level::Debug | Level::None => {
+                    (Color::White.on(Color::Black).paint(level), Color::White)
+                }
                 #[cfg(not(target_os = "windows"))]
                 Level::Trace | Level::Verbose | Level::Debug | Level::None => (
                     Color::White.on(self.dimm_color).paint(level),
