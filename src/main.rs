@@ -48,7 +48,7 @@ pub enum StreamData {
     Line(String),
 }
 
-type LogStream = Stream<Item = StreamData, Error = Error> + Send;
+type LogStream = Box<Stream<Item = StreamData, Error = Error> + Send>;
 type LogSink = Box<Sink<SinkItem = Record, SinkError = Error> + Send>;
 
 fn run() -> Result<i32, Error> {

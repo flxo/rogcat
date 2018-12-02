@@ -42,11 +42,11 @@ struct Process {
     /// Respawn cmd upone termination
     respawn: bool,
     child: Option<Child>,
-    stream: Option<Box<LogStream>>,
+    stream: Option<LogStream>,
 }
 
 /// Open a file and provide a stream of lines
-pub fn file<'a>(args: &ArgMatches<'a>) -> Result<Box<LogStream>, Error> {
+pub fn file<'a>(args: &ArgMatches<'a>) -> Result<LogStream, Error> {
     let files = args
         .values_of("input")
         .ok_or_else(|| err_msg("Missing input argument"))?
@@ -67,7 +67,7 @@ pub fn file<'a>(args: &ArgMatches<'a>) -> Result<Box<LogStream>, Error> {
 }
 
 /// Open stdin and provide a stream of lines
-pub fn stdin() -> Box<LogStream> {
+pub fn stdin() -> LogStream {
     let s = FramedRead::new(tokio::io::stdin(), LossyLinesCodec::new())
         .map_err(|e| e.into())
         .map(StreamData::Line);
@@ -75,12 +75,12 @@ pub fn stdin() -> Box<LogStream> {
 }
 
 /// Open a serial port and provide a stream of lines
-pub fn serial<'a>(_args: &ArgMatches<'a>) -> Box<LogStream> {
+pub fn serial<'a>(_args: &ArgMatches<'a>) -> LogStream {
     unimplemented!()
 }
 
 /// Connect to tcp socket and profile a stream of lines
-pub fn tcp(addr: &Url) -> Result<Box<LogStream>, Error> {
+pub fn tcp(addr: &Url) -> Result<LogStream, Error> {
     let addr = addr
         .to_socket_addrs()?
         .next()
@@ -95,7 +95,7 @@ pub fn tcp(addr: &Url) -> Result<Box<LogStream>, Error> {
 }
 
 /// Start a process and stream it stdout
-pub fn logcat<'a>(args: &ArgMatches<'a>) -> Result<Box<LogStream>, Error> {
+pub fn logcat<'a>(args: &ArgMatches<'a>) -> Result<LogStream, Error> {
     let mut cmd = vec![adb()?.display().to_string()];
     cmd.push("logcat".into());
     let mut respawn = args.is_present("restart") | config_get::<bool>("restart").unwrap_or(true);
@@ -126,7 +126,7 @@ pub fn logcat<'a>(args: &ArgMatches<'a>) -> Result<Box<LogStream>, Error> {
 }
 
 /// Start a process and stream it stdout
-pub fn process<'a>(args: &ArgMatches<'a>) -> Result<Box<LogStream>, Error> {
+pub fn process<'a>(args: &ArgMatches<'a>) -> Result<LogStream, Error> {
     let respawn = args.is_present("restart");
     let cmd = value_t!(args, "COMMAND", String)?
         .split_whitespace()
