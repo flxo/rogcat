@@ -49,7 +49,7 @@ pub enum StreamData {
 }
 
 type LogStream = Stream<Item = StreamData, Error = Error> + Send;
-type LogSink = Sink<SinkItem = Record, SinkError = Error> + Send;
+type LogSink = Box<Sink<SinkItem = Record, SinkError = Error> + Send>;
 
 fn run() -> Result<i32, Error> {
     let args = cli::cli().get_matches();
@@ -81,9 +81,9 @@ fn run() -> Result<i32, Error> {
 
     let profile = profiles::from_args(&args)?;
     let sink = if args.is_present("output") {
-        filewriter::with_args(&args)?
+        filewriter::from(&args)?
     } else {
-        terminal::with_args(&args, &profile)
+        terminal::from(&args, &profile)?
     };
 
     // Stop process after n records if argument head is passed

@@ -28,11 +28,10 @@ use atty::Stream;
 use bytes::{BufMut, BytesMut};
 use clap::{values_t, ArgMatches};
 use console::measure_text_width;
-use failure::Error;
+use failure::{err_msg, format_err, Error};
 use futures::{Async, AsyncSink, Poll, Sink, StartSend};
 use regex::Regex;
-use std::cmp::max;
-use std::cmp::min;
+use std::cmp::{max, min};
 use std::io::Write;
 use std::str::FromStr;
 use tokio::io::stdout;
@@ -42,38 +41,67 @@ pub const DIMM_COLOR: Color = Color::Fixed(243);
 #[cfg(target_os = "windows")]
 pub const DIMM_COLOR: Color = WHITE;
 
-pub fn with_args<'a>(args: &ArgMatches<'a>, profile: &Profile) -> Box<LogSink> {
-    let terminal = Terminal::new(args, profile)
-        .sink_map_err(|e| failure::format_err!("Terminal error: {}", e));
-    Box::new(terminal)
-}
+/// Construct a terminal sink for format from args with give profile
+pub fn from<'a>(args: &ArgMatches<'a>, profile: &Profile) -> Result<LogSink, Error> {
+    let format = args
+        .value_of("format")
+        .ok_or_else(|| format_err!("Missing format argument"))
+        .and_then(|f| Format::from_str(f).map_err(err_msg))
+        .unwrap_or(Format::Human);
 
-#[cfg(target_os = "windows")]
-fn hashed_color(i: &str) -> Color {
-    i.bytes().fold(42u32, |c, x| (c ^ Color::from(x))) % 15 + 1
-}
-
-#[cfg(not(target_os = "windows"))]
-fn hashed_color(i: &str) -> Color {
-    // Some colors are hard to read on (at least) dark terminals
-    // and I consider some others as ugly.
-    let c = match i.bytes().fold(42u8, |c, x| (c ^ x)) {
-        c @ 0...1 => c + 2,
-        c @ 16...21 => c + 6,
-        c @ 52...55 | c @ 126...129 => c + 4,
-        c @ 163...165 | c @ 200...201 => c + 3,
-        c @ 207 => c + 1,
-        c @ 232...240 => c + 9,
-        c => c,
+    let sink = match format {
+        Format::Human => {
+            let human = Human::from(args, profile, format);
+            Box::new(human) as LogSink
+        }
+        format => {
+            let formatter = RecordFormatter::from(args, profile, format);
+            Box::new(formatter) as LogSink
+        }
     };
 
-    Color::Fixed(c)
+    Ok(Box::new(sink.sink_map_err(|e| {
+        failure::format_err!("Terminal error: {}", e)
+    })))
 }
 
-struct Terminal {
+/// A formatter that uses Record::format
+struct RecordFormatter(Format, BytesMut);
+
+impl RecordFormatter {
+    fn from<'a>(_: &ArgMatches<'a>, _: &Profile, format: Format) -> RecordFormatter {
+        RecordFormatter(format, BytesMut::with_capacity(1024))
+    }
+
+    fn format(&mut self, record: &Record) -> Result<(), Error> {
+        let l = record.format(&self.0)?;
+        self.1.reserve(l.len() + 1);
+        self.1.put_slice(l.as_bytes());
+        self.1.put_u8(b'\n');
+        Ok(())
+    }
+}
+
+impl Sink for RecordFormatter {
+    type SinkItem = Record;
+    type SinkError = Error;
+
+    fn start_send(&mut self, record: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
+        self.format(&record)?;
+        stdout().write_all(&self.1)?;
+        self.1.clear();
+        Ok(AsyncSink::Ready)
+    }
+
+    fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
+        Ok(Async::Ready(()))
+    }
+}
+
+/// Human readable terminal output
+struct Human {
     color: bool,
     date_format: Option<(&'static str, usize)>,
-    format: Format,
     highlight: Vec<Regex>,
     process_width: usize,
     tag_width: Option<usize>,
@@ -82,21 +110,13 @@ struct Terminal {
     buffer: BytesMut,
 }
 
-impl<'a> Terminal {
-    pub fn new(args: &ArgMatches<'a>, profile: &Profile) -> Terminal {
+impl Human {
+    pub fn from<'a>(args: &ArgMatches<'a>, profile: &Profile, _: Format) -> Human {
         let mut hl = profile.highlight.clone();
         if args.is_present("highlight") {
             hl.extend(values_t!(args.values_of("highlight"), String).unwrap());
         }
         let highlight = hl.iter().flat_map(|h| Regex::new(h)).collect();
-
-        let format = args
-            .value_of("format")
-            .and_then(|f| Format::from_str(f).ok())
-            .unwrap_or(Format::Human);
-        if format == Format::Html {
-            panic!("HTML format is unsupported when writing to files");
-        }
 
         let color = {
             match args
@@ -126,10 +146,9 @@ impl<'a> Terminal {
             Some(("%H:%M:%S.%f", 12))
         };
 
-        Terminal {
+        Human {
             color,
             dimm_color: if no_dimm { Color::White } else { DIMM_COLOR },
-            format,
             highlight,
             date_format,
             tag_width,
@@ -151,7 +170,29 @@ impl<'a> Terminal {
         })
     }
 
-    fn buffer_human(&mut self, record: &Record) {
+    #[cfg(target_os = "windows")]
+    fn hashed_color(i: &str) -> Color {
+        i.bytes().fold(42u32, |c, x| (c ^ Color::from(x))) % 15 + 1
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    fn hashed_color(i: &str) -> Color {
+        // Some colors are hard to read on (at least) dark terminals
+        // and I consider some others as ugly.
+        let c = match i.bytes().fold(42u8, |c, x| (c ^ x)) {
+            c @ 0...1 => c + 2,
+            c @ 16...21 => c + 6,
+            c @ 52...55 | c @ 126...129 => c + 4,
+            c @ 163...165 | c @ 200...201 => c + 3,
+            c @ 207 => c + 1,
+            c @ 232...240 => c + 9,
+            c => c,
+        };
+
+        Color::Fixed(c)
+    }
+
+    fn format(&mut self, record: &Record) -> Result<(), Error> {
         let empty = String::new();
         let timestamp = if let Some((format, len)) = self.date_format {
             if let Some(ref ts) = record.timestamp {
@@ -198,11 +239,11 @@ impl<'a> Terminal {
                 self.dimm_color
             };
             let timestamp = timestamp_color.paint(timestamp);
-            let tag_color = hashed_color(&record.tag);
+            let tag_color = Self::hashed_color(&record.tag);
             let tag = tag_color.paint(tag);
-            let pid_color = hashed_color(&pid);
+            let pid_color = Self::hashed_color(&pid);
             let pid = pid_color.paint(pid);
-            let tid_color = hashed_color(&tid);
+            let tid_color = Self::hashed_color(&tid);
             let tid = tid_color.paint(tid);
             let level_color = match record.level {
                 Level::Trace | Level::Verbose | Level::Debug | Level::None => self.dimm_color,
@@ -271,29 +312,17 @@ impl<'a> Terminal {
             self.buffer.reserve(1);
             self.buffer.put_u8(b'\n');
         }
-    }
 
-    fn buffer_format(&mut self, record: &Record) -> Result<(), Error> {
-        let line = record.format(&self.format)?;
-        self.buffer.reserve(line.len() + 1);
-        self.buffer.put_slice(line.as_bytes());
-        self.buffer.put_u8(b'\n');
         Ok(())
     }
 }
 
-impl Sink for Terminal {
+impl Sink for Human {
     type SinkItem = Record;
     type SinkError = Error;
 
     fn start_send(&mut self, record: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
-        match self.format {
-            Format::Csv | Format::Json | Format::Raw => self.buffer_format(&record)?,
-            Format::Human => self.buffer_human(&record),
-            Format::Html => {
-                unreachable!("Unimplemented format html");
-            }
-        }
+        self.format(&record)?;
         stdout().write_all(&self.buffer)?;
         self.buffer.clear();
         Ok(AsyncSink::Ready)

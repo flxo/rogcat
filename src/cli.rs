@@ -25,17 +25,17 @@ use clap::{App, AppSettings, Arg, SubCommand};
 use lazy_static::lazy_static;
 
 lazy_static! {
-     static ref ABOUT: String = {
-          format!(
-               "A 'adb logcat' wrapper and log processor. Your config directory is \"{}\".",
-               utils::config_dir().display()
-          )
-     };
+    static ref ABOUT: String = {
+        format!(
+            "A 'adb logcat' wrapper and log processor. Your config directory is \"{}\".",
+            utils::config_dir().display()
+        )
+    };
 }
 
 /// Build cli
 pub fn cli() -> App<'static, 'static> {
-     App::new(crate_name!())
+    App::new(crate_name!())
         .setting(AppSettings::ColoredHelp)
         .version(crate_version!())
         .author(crate_authors!())

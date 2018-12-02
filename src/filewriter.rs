@@ -67,7 +67,7 @@ trait Writer {
 }
 
 /// Crate a new log sink for given arguments
-pub fn with_args<'a>(args: &ArgMatches<'a>) -> Result<Box<LogSink>, Error> {
+pub fn from<'a>(args: &ArgMatches<'a>) -> Result<LogSink, Error> {
     let format = args
         .value_of("format")
         .and_then(|f| Format::from_str(f).ok())
@@ -75,11 +75,9 @@ pub fn with_args<'a>(args: &ArgMatches<'a>) -> Result<Box<LogSink>, Error> {
 
     Ok(match format {
         Format::Csv | Format::Json | Format::Raw => {
-            Box::new(FileWriter::<Textfile>::from_args(args, format)?) as Box<LogSink>
+            Box::new(FileWriter::<Textfile>::from_args(args, format)?) as LogSink
         }
-        Format::Html => {
-            Box::new(FileWriter::<html::Html>::from_args(args, format)?) as Box<LogSink>
-        }
+        Format::Html => Box::new(FileWriter::<html::Html>::from_args(args, format)?) as LogSink,
         Format::Human => panic!("Unsupported format human in output file"),
     })
 }
