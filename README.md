@@ -176,7 +176,6 @@ Some parameters of the `human` format are adjustable via the config file:
 
 ```
 terminal_tag_width = 20
-terminal_shorten_tag = true
 terminal_show_time_diff = true
 terminal_show_date = false
 terminal_time_diff_width = 10
@@ -249,9 +248,7 @@ FLAGS:
         --no-dimm           Use white as dimm color
         --overwrite         Overwrite output file if present
     -r, --restart           Restart command on exit
-        --shorten-tags      Shorten tags by removing vovels if too long for human terminal format
         --show-date         Show month and day in terminal output
-        --show-time-diff    Show the time difference between the occurence of equal tags in terminal output
     -s, --skip              Skip records on a command restart until the last received last record is received again. Use
                             with caution!
     -V, --version           Prints version information

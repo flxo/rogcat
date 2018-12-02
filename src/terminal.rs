@@ -23,23 +23,22 @@ use crate::record::{Format, Level, Record};
 use crate::utils::config_get;
 use crate::utils::terminal_width;
 use crate::LogSink;
+use ansi_term::Color;
 use atty::Stream;
-use clap::values_t;
-use clap::ArgMatches;
-use failure::format_err;
-use failure::{err_msg, Error};
+use bytes::{BufMut, BytesMut};
+use clap::{values_t, ArgMatches};
+use console::measure_text_width;
+use failure::Error;
 use futures::{Async, AsyncSink, Poll, Sink, StartSend};
 use regex::Regex;
 use std::cmp::max;
-use std::collections::HashMap;
+use std::cmp::min;
 use std::io::Write;
 use std::str::FromStr;
-use term::color::*;
-use term::{stdout, Attr};
-use time::Tm;
+use tokio::io::stdout;
 
 #[cfg(not(target_os = "windows"))]
-pub const DIMM_COLOR: Color = 243;
+pub const DIMM_COLOR: Color = Color::Fixed(243);
 #[cfg(target_os = "windows")]
 pub const DIMM_COLOR: Color = WHITE;
 
@@ -57,8 +56,8 @@ fn hashed_color(i: &str) -> Color {
 #[cfg(not(target_os = "windows"))]
 fn hashed_color(i: &str) -> Color {
     // Some colors are hard to read on (at least) dark terminals
-    // and others seem just ugly to me...
-    match i.bytes().fold(42u32, |c, x| (c ^ Color::from(x))) {
+    // and I consider some others as ugly.
+    let c = match i.bytes().fold(42u8, |c, x| (c ^ x)) {
         c @ 0...1 => c + 2,
         c @ 16...21 => c + 6,
         c @ 52...55 | c @ 126...129 => c + 4,
@@ -66,24 +65,21 @@ fn hashed_color(i: &str) -> Color {
         c @ 207 => c + 1,
         c @ 232...240 => c + 9,
         c => c,
-    }
+    };
+
+    Color::Fixed(c)
 }
 
 struct Terminal {
-    beginning_of: Regex,
     color: bool,
-    date_format: (String, usize),
-    diff_width: usize,
+    date_format: Option<(&'static str, usize)>,
     format: Format,
     highlight: Vec<Regex>,
-    no_dimm: bool,
     process_width: usize,
-    shorten_tag: bool,
-    tag_timestamps: HashMap<String, Tm>,
     tag_width: Option<usize>,
     thread_width: usize,
-    time_diff: bool,
-    vovels: Regex,
+    dimm_color: Color,
+    buffer: BytesMut,
 }
 
 impl<'a> Terminal {
@@ -102,7 +98,6 @@ impl<'a> Terminal {
             panic!("HTML format is unsupported when writing to files");
         }
 
-        let term = stdout().expect("Failed to lock terminal");
         let color = {
             match args
                 .value_of("color")
@@ -110,113 +105,77 @@ impl<'a> Terminal {
             {
                 "always" => true,
                 "never" => false,
-                "auto" | _ => ::atty::is(Stream::Stdout) && term.supports_color(),
+                "auto" | _ => atty::is(Stream::Stdout),
             }
         };
+        let no_dimm = args.is_present("no_dimm") || config_get("terminal_no_dimm").unwrap_or(false);
+        let tag_width = config_get("terminal_tag_width");
         let hide_timestamp = args.is_present("hide_timestamp")
             || config_get("terminal_hide_timestamp").unwrap_or(false);
-        let no_dimm = args.is_present("no_dimm") || config_get("terminal_no_dimm").unwrap_or(false);
-        let shorten_tag =
-            args.is_present("shorten_tags") || config_get("terminal_shorten_tags").unwrap_or(false);
         let show_date =
             args.is_present("show_date") || config_get("terminal_show_date").unwrap_or(false);
-        let tag_width = config_get("terminal_tag_width");
-        let time_diff = args.is_present("show_time_diff")
-            || config_get("terminal_show_time_diff").unwrap_or(false);
-        let time_diff_width = config_get("terminal_time_diff_width").unwrap_or(8);
+        let date_format = if show_date {
+            if hide_timestamp {
+                Some(("%m-%d", 5))
+            } else {
+                Some(("%m-%d %H:%M:%S.%f", 12 + 1 + 5))
+            }
+        } else if hide_timestamp {
+            None
+        } else {
+            Some(("%H:%M:%S.%f", 12))
+        };
 
         Terminal {
-            beginning_of: Regex::new(r"--------- beginning of.*").unwrap(),
             color,
-            date_format: if show_date {
-                if hide_timestamp {
-                    ("%m-%d".to_owned(), 5)
-                } else {
-                    ("%m-%d %H:%M:%S.%f".to_owned(), 18)
-                }
-            } else if hide_timestamp {
-                ("".to_owned(), 0)
-            } else {
-                ("%H:%M:%S.%f".to_owned(), 12)
-            },
-            diff_width: if time_diff { time_diff_width } else { 0 },
+            dimm_color: if no_dimm { Color::White } else { DIMM_COLOR },
             format,
             highlight,
-            no_dimm,
-            process_width: 0,
-            shorten_tag,
-            tag_timestamps: HashMap::new(),
+            date_format,
             tag_width,
+            process_width: 0,
             thread_width: 0,
-            time_diff,
-            vovels: Regex::new(r"a|e|i|o|u").unwrap(),
+            buffer: BytesMut::with_capacity(1024),
         }
     }
 
-    // TODO
-    // Rework this to use a more column based approach!
-    fn print_human(&mut self, record: &Record) -> Result<(), Error> {
-        let (timestamp, mut diff) = if let Some(ts) = record.timestamp.clone() {
-            let ts = *ts;
-            let timestamp = match ::time::strftime(&self.date_format.0, &ts) {
-                Ok(t) => t.chars().take(self.date_format.1).collect::<String>(),
-                Err(_) => (0..self.date_format.1).map(|_| " ").collect::<String>(),
-            };
-
-            let diff = if self.time_diff {
-                if let Some(t) = self.tag_timestamps.get(&record.tag) {
-                    let diff = ((ts - *t).num_milliseconds()).abs();
-                    let diff = format!("{}.{:03}", diff / 1000, diff % 1000);
-                    if diff.chars().count() <= self.diff_width {
-                        diff
-                    } else {
-                        "-.---".to_owned()
-                    }
-                } else {
-                    "".to_owned()
-                }
-            } else {
-                "".to_owned()
-            };
-
-            (timestamp, diff)
-        } else {
-            ("".to_owned(), "".to_owned())
-        };
-
+    // Dynamic tag width estimation according to terminal width
+    fn tag_width(&self) -> usize {
         let terminal_width = terminal_width();
-        let tag_width = self.tag_width.unwrap_or_else(|| match terminal_width {
+        self.tag_width.unwrap_or_else(|| match terminal_width {
             Some(n) if n <= 80 => 15,
             Some(n) if n <= 90 => 20,
             Some(n) if n <= 100 => 25,
             Some(n) if n <= 110 => 30,
             _ => 35,
-        });
+        })
+    }
 
-        let tag = {
-            let mut t = if self.beginning_of.is_match(&record.message) {
-                diff = "".to_owned();
-                self.tag_timestamps.clear();
-                // Print horizontal line if temrinal width is detectable
-                if let Some(width) = terminal_width {
-                    println!("{}", (0..width).map(|_| "─").collect::<String>());
-                }
-                // "beginnig of" messages never have a tag
-                record.message.clone()
+    fn buffer_human(&mut self, record: &Record) {
+        let empty = String::new();
+        let timestamp = if let Some((format, len)) = self.date_format {
+            if let Some(ref ts) = record.timestamp {
+                let mut ts = time::strftime(format, &ts).expect("Date format error");
+                ts.truncate(len);
+                ts
             } else {
-                record.tag.clone()
-            };
-
-            if t.chars().count() > tag_width {
-                if self.shorten_tag {
-                    t = self.vovels.replace_all(&t.to_owned(), "").to_string();
-                }
-                if t.chars().count() > tag_width {
-                    t.truncate(tag_width);
-                }
+                " ".repeat(len)
             }
-            format!("{:>width$}", t, width = tag_width)
+        } else {
+            empty
         };
+
+        let tag_width = self.tag_width();
+        let tag_chars = record.tag.chars().count();
+        let tag = format!(
+            "{:>width$}",
+            record
+                .tag
+                .chars()
+                .take(min(tag_width, tag_chars))
+                .collect::<String>(),
+            width = tag_width
+        );
 
         self.process_width = max(self.process_width, record.process.chars().count());
         let pid = if record.process.is_empty() {
@@ -224,155 +183,101 @@ impl<'a> Terminal {
         } else {
             format!("{:<width$}", record.process, width = self.process_width)
         };
-        let tid = if record.thread.is_empty() {
-            if self.thread_width > 0 {
-                " ".repeat(self.thread_width + 1)
-            } else {
-                "".to_owned()
-            }
-        } else {
-            self.thread_width = max(self.thread_width, record.thread.chars().count());
-            format!(" {:>width$}", record.thread, width = self.thread_width)
-        };
-
-        let dimm_color = if self.no_dimm { WHITE } else { 243u32 };
+        self.thread_width = max(self.thread_width, record.thread.chars().count());
+        let tid = format!(" {:>width$}", record.thread, width = self.thread_width);
 
         let level = format!(" {} ", record.level);
-        let level_color = match record.level {
-            Level::Trace | Level::Verbose | Level::Debug | Level::None => dimm_color,
-            Level::Info => GREEN,
-            Level::Warn => YELLOW,
-            Level::Error | Level::Fatal | Level::Assert => RED,
-        };
 
-        let color = self.color;
-        let highlight = !self.highlight.is_empty()
-            && (self.highlight.iter().any(|r| r.is_match(&record.tag))
-                || self.highlight.iter().any(|r| r.is_match(&record.message)));
-        let diff_width = self.diff_width;
-        let timestamp_width = self.date_format.1;
-
-        let print = |t: &str, fg: Option<Color>, bg: Option<Color>| -> Result<(), Error> {
-            let mut term = stdout().ok_or_else(|| err_msg("Failed to lock terminal"))?;
-            if highlight {
-                term.attr(Attr::Bold)?;
-            }
-            if let Some(bg) = bg {
-                term.bg(bg).map_err(|e| format_err!("{}", e))?;
-            }
-            if let Some(fg) = fg {
-                term.fg(fg).map_err(|e| format_err!("{}", e))?;
-            }
-            write!(term, "{}", t)?;
-            if bg.is_some() {
-                term.reset()?;
-            }
-            Ok(())
-        };
-
-        let print_msg = |chunk: &str, sign: &str| -> Result<(), Error> {
-            if color {
-                let timestamp_color = if highlight { YELLOW } else { DIMM_COLOR };
-                print(
-                    &format!(
-                        "{:<timestamp_width$} ",
-                        timestamp,
-                        timestamp_width = timestamp_width
-                    ),
-                    Some(timestamp_color),
-                    None,
-                )?;
-                print(
-                    &format!("{:>diff_width$} ", diff, diff_width = diff_width,),
-                    Some(timestamp_color),
-                    None,
-                )?;
-                print(
-                    &format!("{:<tag_width$}", tag, tag_width = tag_width),
-                    Some(hashed_color(&tag)),
-                    None,
-                )?;
-                print(" (", Some(DIMM_COLOR), None)?;
-                print(&pid, Some(hashed_color(&pid)), None)?;
-                print(&tid, Some(hashed_color(&tid)), None)?;
-                print(") ", Some(DIMM_COLOR), None)?;
-                print(&level.to_string(), Some(BLACK), Some(level_color))?;
-                print(" ", None, None)?;
-                print(&format!("{} {}", sign, chunk), Some(level_color), None)?;
-                print("\n", None, None)
+        let (preamble, level_color) = if self.color {
+            let highlight = !self.highlight.is_empty()
+                && (self.highlight.iter().any(|r| r.is_match(&record.tag))
+                    || self.highlight.iter().any(|r| r.is_match(&record.message)));
+            let timestamp_color = if highlight {
+                Color::Yellow
             } else {
-                println!(
-                    "{:<timestamp_width$} {:>diff_width$} {:>tag_width$} ({}{}) {} {} {}",
-                    timestamp,
-                    diff,
-                    tag,
-                    pid,
-                    tid,
-                    level,
-                    sign,
-                    chunk,
-                    timestamp_width = timestamp_width,
-                    diff_width = diff_width,
-                    tag_width = tag_width
-                );
-                Ok(())
-            }
-        };
-
-        if let Some(width) = terminal_width {
-            let preamble_width = timestamp_width
-                + 1
-                + self.diff_width
-                + 1
-                + tag_width
-                + 1
-                + 1
-                + self.process_width
-                + if self.thread_width == 0 { 0 } else { 1 }
-                + self.thread_width
-                + 1
-                + 1
-                + 3
-                + 3
-                + 1;
-            // Windows terminal width reported is too big
-            #[cfg(target_os = "windows")]
-            let preamble_width = preamble_width + 1;
-
-            let record_len = record.message.chars().count();
-            let columns = width as usize;
-            if (preamble_width + record_len) > columns {
-                let mut m = record.message.clone();
-                // TODO: Refactor this!
-                while !m.is_empty() {
-                    let chars_left = m.chars().count();
-                    let (chunk_width, sign) = if chars_left == record_len {
-                        (columns - preamble_width, "┌")
-                    } else if chars_left <= (columns - preamble_width) {
-                        (chars_left, "└")
-                    } else {
-                        (columns - preamble_width, "├")
-                    };
-
-                    let chunk: String = m.chars().take(chunk_width).collect();
-                    m = m.chars().skip(chunk_width).collect();
-                    print_msg(&chunk, sign)?;
-                }
-            } else {
-                print_msg(&record.message, " ")?;
-            }
+                self.dimm_color
+            };
+            let timestamp = timestamp_color.paint(timestamp);
+            let tag_color = hashed_color(&record.tag);
+            let tag = tag_color.paint(tag);
+            let pid_color = hashed_color(&pid);
+            let pid = pid_color.paint(pid);
+            let tid_color = hashed_color(&tid);
+            let tid = tid_color.paint(tid);
+            let level_color = match record.level {
+                Level::Trace | Level::Verbose | Level::Debug | Level::None => self.dimm_color,
+                Level::Info => Color::Green,
+                Level::Warn => Color::Yellow,
+                Level::Error | Level::Fatal | Level::Assert => Color::Red,
+            };
+            let level = Color::White.on(level_color).paint(level);
+            let preamble = format!(
+                "{timestamp} {tag} ({pid}{tid}) {level} ",
+                timestamp = timestamp,
+                tag = tag,
+                pid = pid,
+                tid = tid,
+                level = level,
+            );
+            (preamble, Some(level_color))
         } else {
-            print_msg(&record.message, " ")?;
+            let preamble = format!(
+                "{timestamp} {tag} ({pid}{tid}) {level} ",
+                timestamp = timestamp,
+                tag = tag,
+                pid = pid,
+                tid = tid,
+                level = level,
+            );
+            (preamble, None)
         };
 
-        if self.time_diff {
-            if let Some(ref ts) = record.timestamp {
-                if !record.tag.is_empty() {
-                    self.tag_timestamps.insert(record.tag.clone(), **ts);
-                }
-            }
-        }
+        let preamble_width = measure_text_width(&preamble) + 3;
+        let payload_len = terminal_width().unwrap_or(std::usize::MAX) - preamble_width;
+        let message = &record.message;
 
+        let message_len = message.chars().count();
+        let chunks = message_len / payload_len + 1;
+
+        for i in 0..chunks {
+            self.buffer.extend(preamble.as_bytes());
+
+            let c = if chunks == 1 {
+                " "
+            } else if i == 0 {
+                "┌"
+            } else if i == chunks - 1 {
+                "└"
+            } else {
+                "├"
+            };
+            let begin = i * payload_len;
+            let chunk_len = min(payload_len, message_len);
+
+            self.buffer.reserve(c.len() + 1);
+            self.buffer.put(c.as_bytes());
+            self.buffer.put_u8(b' ');
+
+            let chunk = message
+                .chars()
+                .skip(begin)
+                .take(chunk_len)
+                .collect::<String>();
+            if let Some(level_color) = level_color {
+                self.buffer.extend(level_color.paint(chunk).as_bytes());
+            } else {
+                self.buffer.extend(chunk.as_bytes());
+            }
+            self.buffer.reserve(1);
+            self.buffer.put_u8(b'\n');
+        }
+    }
+
+    fn buffer_format(&mut self, record: &Record) -> Result<(), Error> {
+        let line = record.format(&self.format)?;
+        self.buffer.reserve(line.len() + 1);
+        self.buffer.put_slice(line.as_bytes());
+        self.buffer.put_u8(b'\n');
         Ok(())
     }
 }
@@ -383,14 +288,14 @@ impl Sink for Terminal {
 
     fn start_send(&mut self, record: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
         match self.format {
-            Format::Csv | Format::Json | Format::Raw => {
-                println!("{}", record.format(&self.format)?);
-            }
-            Format::Human => self.print_human(&record)?,
+            Format::Csv | Format::Json | Format::Raw => self.buffer_format(&record)?,
+            Format::Human => self.buffer_human(&record),
             Format::Html => {
                 unreachable!("Unimplemented format html");
             }
         }
+        stdout().write_all(&self.buffer)?;
+        self.buffer.clear();
         Ok(AsyncSink::Ready)
     }
 

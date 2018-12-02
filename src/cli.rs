@@ -25,17 +25,17 @@ use clap::{App, AppSettings, Arg, SubCommand};
 use lazy_static::lazy_static;
 
 lazy_static! {
-    static ref ABOUT: String = {
-        format!(
-            "A 'adb logcat' wrapper and log processor. Your config directory is \"{}\".",
-            utils::config_dir().display()
-        )
-    };
+     static ref ABOUT: String = {
+          format!(
+               "A 'adb logcat' wrapper and log processor. Your config directory is \"{}\".",
+               utils::config_dir().display()
+          )
+     };
 }
 
 /// Build cli
 pub fn cli() -> App<'static, 'static> {
-    App::new(crate_name!())
+     App::new(crate_name!())
         .setting(AppSettings::ColoredHelp)
         .version(crate_version!())
         .author(crate_authors!())
@@ -145,18 +145,14 @@ pub fn cli() -> App<'static, 'static> {
              .short("s")
              .long("skip")
              .help("Skip records on a command restart until the last received last record is received again. Use with caution!"))
-        .arg(Arg::with_name("shorten_tags")
-             .long("shorten-tags")
-             .conflicts_with("output")
-             .help( "Shorten tags by removing vovels if too long for human terminal format"))
         .arg(Arg::with_name("show_date")
              .long("show-date")
              .conflicts_with("output")
              .help("Show month and day in terminal output"))
-        .arg(Arg::with_name("show_time_diff")
-             .long("show-time-diff")
-             .conflicts_with("output")
-             .help( "Show the time difference between the occurence of equal tags in terminal output"))
+     //    .arg(Arg::with_name("show_time_diff")
+     //         .long("show-time-diff")
+     //         .conflicts_with("output")
+     //         .help( "Show the time difference between the occurence of equal tags in terminal output"))
         .arg(Arg::with_name("tag")
              .short("t")
              .long("tag")

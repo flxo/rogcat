@@ -25,6 +25,7 @@ fn help() {
     let args = &[
         svec!("--help"),
         svec!("bugreport", "--help"),
+        svec!("clear", "--help"),
         svec!("completions", "--help"),
         svec!("configuration", "--help"),
         svec!("devices", "--help"),
