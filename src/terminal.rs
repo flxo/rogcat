@@ -25,21 +25,18 @@ use crate::utils::terminal_width;
 use crate::LogSink;
 use ansi_term::Color;
 use atty::Stream;
-use bytes::{BufMut, BytesMut};
+use bytes::{BufMut, Bytes, BytesMut};
 use clap::{values_t, ArgMatches};
-use console::measure_text_width;
 use failure::{err_msg, format_err, Error};
+use futures::future::{lazy, Future};
 use futures::{Async, AsyncSink, Poll, Sink, StartSend};
 use regex::Regex;
 use std::cmp::{max, min};
-use std::io::Write;
 use std::str::FromStr;
-use tokio::io::stdout;
+use tokio::io;
 
-#[cfg(not(target_os = "windows"))]
-pub const DIMM_COLOR: Color = Color::Fixed(243);
-#[cfg(target_os = "windows")]
-pub const DIMM_COLOR: Color = Color::White;
+const INITIAL_BUFFER_CAPACITY: usize = 1024;
+const DIMM_COLOR: Color = Color::Fixed(243);
 
 /// Construct a terminal sink for format from args with give profile
 pub fn from<'a>(args: &ArgMatches<'a>, profile: &Profile) -> Result<LogSink, Error> {
@@ -50,14 +47,8 @@ pub fn from<'a>(args: &ArgMatches<'a>, profile: &Profile) -> Result<LogSink, Err
         .unwrap_or(Format::Human);
 
     let sink = match format {
-        Format::Human => {
-            let human = Human::from(args, profile, format);
-            Box::new(human) as LogSink
-        }
-        format => {
-            let formatter = RecordFormatter::from(args, profile, format);
-            Box::new(formatter) as LogSink
-        }
+        Format::Human => Box::new(Human::from(args, profile, format)) as LogSink,
+        format => Box::new(format) as LogSink,
     };
 
     Ok(Box::new(sink.sink_map_err(|e| {
@@ -65,27 +56,20 @@ pub fn from<'a>(args: &ArgMatches<'a>, profile: &Profile) -> Result<LogSink, Err
     })))
 }
 
-/// A formatter that uses Record::format
-struct RecordFormatter(Format, BytesMut);
-
-impl RecordFormatter {
-    fn from<'a>(_: &ArgMatches<'a>, _: &Profile, format: Format) -> RecordFormatter {
-        RecordFormatter(format, BytesMut::with_capacity(1024))
-    }
-}
-
-impl Sink for RecordFormatter {
+impl Sink for Format {
     type SinkItem = Record;
     type SinkError = Error;
 
     fn start_send(&mut self, record: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
-        let l = record.format(&self.0)?;
-        self.1.reserve(l.len() + 1);
-        self.1.put_slice(l.as_bytes());
-        self.1.put_u8(b'\n');
-
-        stdout().write_all(&self.1)?;
-        self.1.clear();
+        let format = self.clone();
+        let f = lazy(move || record.format(&format))
+            .and_then(|mut l| {
+                l.push_str("\n");
+                io::write_all(io::stdout(), l).map_err(|e| e.into())
+            })
+            .map_err(|e| panic!(e))
+            .map(|_| ());
+        tokio::spawn(f);
         Ok(AsyncSink::Ready)
     }
 
@@ -150,7 +134,7 @@ impl Human {
             tag_width,
             process_width: 0,
             thread_width: 0,
-            buffer: BytesMut::with_capacity(1024),
+            buffer: BytesMut::with_capacity(INITIAL_BUFFER_CAPACITY),
         }
     }
 
@@ -189,8 +173,7 @@ impl Human {
         Color::Fixed(c)
     }
 
-    fn format(&mut self, record: &Record) -> Result<(), Error> {
-        let empty = String::new();
+    fn format(&mut self, record: &Record) -> Result<Bytes, Error> {
         let timestamp = if let Some((format, len)) = self.date_format {
             if let Some(ref ts) = record.timestamp {
                 let mut ts = time::strftime(format, &ts).expect("Date format error");
@@ -200,7 +183,7 @@ impl Human {
                 " ".repeat(len)
             }
         } else {
-            empty
+            String::new()
         };
 
         let tag_width = self.tag_width();
@@ -222,14 +205,28 @@ impl Human {
             format!("{:<width$}", record.process, width = self.process_width)
         };
         self.thread_width = max(self.thread_width, record.thread.chars().count());
-        let tid = format!(" {:>width$}", record.thread, width = self.thread_width);
+        let tid = if !record.thread.is_empty() {
+            format!(" {:>width$}", record.thread, width = self.thread_width)
+        } else {
+            String::new()
+        };
 
         let level = format!(" {} ", record.level);
 
-        let (preamble, level_color) = if self.color {
-            let highlight = !self.highlight.is_empty()
+        let highlight = self.color
+            && (!self.highlight.is_empty()
                 && (self.highlight.iter().any(|r| r.is_match(&record.tag))
-                    || self.highlight.iter().any(|r| r.is_match(&record.message)));
+                    || self.highlight.iter().any(|r| r.is_match(&record.message))));
+
+        let preamble_width = timestamp.chars().count()
+            + 1 // " "
+            + tag.chars().count()
+            + 2 // " ("
+            + pid.chars().count() + tid.chars().count()
+            + 2 // ") "
+            + 3; // level
+
+        let (preamble, level_color) = if self.color {
             let timestamp_color = if highlight {
                 Color::Yellow
             } else {
@@ -259,7 +256,7 @@ impl Human {
                 }
             };
             let preamble = format!(
-                "{timestamp} {tag} ({pid}{tid}) {level} ",
+                "{timestamp} {tag} ({pid}{tid}) {level}",
                 timestamp = timestamp,
                 tag = tag,
                 pid = pid,
@@ -269,7 +266,7 @@ impl Human {
             (preamble, Some(level_color))
         } else {
             let preamble = format!(
-                "{timestamp} {tag} ({pid}{tid}) {level} ",
+                "{timestamp} {tag} ({pid}{tid}) {level}",
                 timestamp = timestamp,
                 tag = tag,
                 pid = pid,
@@ -279,7 +276,6 @@ impl Human {
             (preamble, None)
         };
 
-        let preamble_width = measure_text_width(&preamble) + 3;
         let payload_len = terminal_width().unwrap_or(std::usize::MAX) - preamble_width;
         let message = &record.message;
 
@@ -290,15 +286,14 @@ impl Human {
             self.buffer.extend(preamble.as_bytes());
 
             let c = if chunks == 1 {
-                "  "
+                "   "
             } else if i == 0 {
-                "┌ "
+                " ┌ "
             } else if i == chunks - 1 {
-                "└ "
+                " └ "
             } else {
-                "├ "
+                " ├ "
             };
-
             self.buffer.extend_from_slice(c.as_bytes());
 
             let chunk = message
@@ -306,10 +301,9 @@ impl Human {
                 .skip(i * payload_len)
                 .take(payload_len)
                 .collect::<String>();
-            if let Some(level_color) = level_color {
-                // TODO: get rid of this extra allocation
-                let chunk = format!("{}", level_color.paint(chunk));
-                self.buffer.extend(chunk.as_bytes());
+            if let Some(color) = level_color {
+                let c = color.paint(chunk).to_string();
+                self.buffer.extend(c.as_bytes());
             } else {
                 self.buffer.extend(chunk.as_bytes());
             }
@@ -317,7 +311,7 @@ impl Human {
             self.buffer.put_u8(b'\n');
         }
 
-        Ok(())
+        Ok(self.buffer.take().freeze())
     }
 }
 
@@ -326,9 +320,11 @@ impl Sink for Human {
     type SinkError = Error;
 
     fn start_send(&mut self, record: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
-        self.format(&record)?;
-        stdout().write_all(&self.buffer)?;
-        self.buffer.clear();
+        let buffer = self.format(&record)?;
+        let f = io::write_all(io::stdout(), buffer)
+            .map_err(|e| panic!(e))
+            .map(|_| ());
+        tokio::spawn(f);
         Ok(AsyncSink::Ready)
     }
 
