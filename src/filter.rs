@@ -104,10 +104,10 @@ fn init_filter(i: &[String]) -> Result<(Vec<Regex>, Vec<Regex>), Error> {
 
 #[test]
 fn filter_args() {
-    assert!(init_filter(&vec![]).is_ok());
-    assert!(init_filter(&vec!["".to_owned()]).is_ok());
-    assert!(init_filter(&vec!["a".to_owned()]).is_ok());
-    assert!(init_filter(&vec![".*".to_owned()]).is_ok());
-    assert!(init_filter(&vec![".*".to_owned(), ".*".to_owned()]).is_ok());
-    assert!(init_filter(&vec!["(".to_owned()]).is_err());
+    assert!(init_filter(&[]).is_ok());
+    assert!(init_filter(&["".to_owned()]).is_ok());
+    assert!(init_filter(&["a".to_owned()]).is_ok());
+    assert!(init_filter(&[".*".to_owned()]).is_ok());
+    assert!(init_filter(&[".*".to_owned(), ".*".to_owned()]).is_ok());
+    assert!(init_filter(&["(".to_owned()]).is_err());
 }
