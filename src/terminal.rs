@@ -276,7 +276,7 @@ impl Human {
             (preamble, None)
         };
 
-        let payload_len = terminal_width().unwrap_or(std::usize::MAX) - preamble_width;
+        let payload_len = terminal_width().unwrap_or(std::usize::MAX) - preamble_width - 3;
         let message = &record.message;
 
         let message_len = message.chars().count();
@@ -324,7 +324,8 @@ impl Sink for Human {
         let f = io::write_all(io::stdout(), buffer)
             .map_err(|e| panic!(e))
             .map(|_| ());
-        tokio::spawn(f);
+        f.wait()
+            .map_err(|_| format_err!("Failed to write to terminal"))?;
         Ok(AsyncSink::Ready)
     }
 
