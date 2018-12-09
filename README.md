@@ -9,17 +9,16 @@ tries to give access to those logs in a convenient way including post processing
 is a painted and reformatted view. `rogcat` can read logs from
 
 * running `adb logcat` (default)
-* a custom command (`stdout` and `stderr`)
+* a custom command (stdout)
 * one or multiple files
 * `stdin`
-* a serial port
-* TCP host and port
+* connect to TCP port
 
 The processing steps within a `rogcat` run include parsing of the input stream and applying filters (if provided).
 `rogcat` comes with a set of implemented in and output formats:
 
 * `csv:` Comma separated values
-* `raw:` Record (line) as received
+* `raw:` Record (line) as captured
 * `html:` A static single page html with a static table. This option cannot be used as input format. The page layout needs some love...
 * `human:` A human friendly colored column based format. See screenshot
 * `json:` Single line JSON
@@ -30,7 +29,7 @@ Except the `human` and `html` format the output of `rogcat` is parseable by `rog
 
 ## Examples
 
-The following examples show a subset of `rogcats` features. *Please read `--help`!*
+The following examples show a subset of `rogcat's` features. *Please read `--help`!*
 
 ### Live
 
@@ -49,9 +48,9 @@ it is created:
 
 ### stdin
 
-Process the `stdout/stderr` output of `somecommand`:
+Process `stdout` of `command`:
 
-`rogcat somecommand` or `somecommand | rogcat -`
+`rogcat command` or `command | rogcat -`
 
 ### Filter
 
@@ -64,18 +63,6 @@ The Read all files matching `trace*` in alphanumerical order and dump lines matc
 `rogcat -i trace* -m hmmm  -o /tmp/filtered`
 
 Check the `--message` and `--highlight` options in the helptext.
-
-### Serial
-
-Open and read `/dev/ttyUSB0` with given settings and process:
-
-`rogcat -i serial:///dev/ttyUSB0@115200,8N1`
-
-...and on `Windows` this would look like this:
-
-`rogcat -i serial://COM0@115200,8N1`
-
-The `,8N1` part is optional and default ;-).
 
 ### TCP
 
