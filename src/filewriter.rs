@@ -67,7 +67,7 @@ trait Writer {
 }
 
 /// Crate a new log sink for given arguments
-pub fn from<'a>(args: &ArgMatches<'a>) -> Result<LogSink, Error> {
+pub fn try_from<'a>(args: &ArgMatches<'a>) -> Result<LogSink, Error> {
     let format = args
         .value_of("format")
         .and_then(|f| Format::from_str(f).ok())

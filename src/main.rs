@@ -81,9 +81,9 @@ fn run() -> Result<i32, Error> {
 
     let profile = profiles::from_args(&args)?;
     let sink = if args.is_present("output") {
-        filewriter::from(&args)?
+        filewriter::try_from(&args)?
     } else {
-        terminal::from(&args, &profile)?
+        terminal::try_from(&args, &profile)?
     };
 
     // Stop process after n records if argument head is passed

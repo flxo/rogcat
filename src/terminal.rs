@@ -23,23 +23,21 @@ use crate::record::{Format, Level, Record};
 use crate::utils::config_get;
 use crate::utils::terminal_width;
 use crate::LogSink;
-use ansi_term::Color;
-use atty::Stream;
-use bytes::{BufMut, Bytes, BytesMut};
 use clap::{values_t, ArgMatches};
 use failure::{err_msg, format_err, Error};
 use futures::future::{lazy, Future};
 use futures::{Async, AsyncSink, Poll, Sink, StartSend};
 use regex::Regex;
 use std::cmp::{max, min};
+use std::io::Write;
 use std::str::FromStr;
+use termcolor::{Buffer, BufferWriter, Color, ColorChoice, ColorSpec, WriteColor};
 use tokio::io;
 
-const INITIAL_BUFFER_CAPACITY: usize = 1024;
-const DIMM_COLOR: Color = Color::Fixed(243);
+const DIMM_COLOR: Color = Color::Ansi256(243);
 
 /// Construct a terminal sink for format from args with give profile
-pub fn from<'a>(args: &ArgMatches<'a>, profile: &Profile) -> Result<LogSink, Error> {
+pub fn try_from<'a>(args: &ArgMatches<'a>, profile: &Profile) -> Result<LogSink, Error> {
     let format = args
         .value_of("format")
         .ok_or_else(|| format_err!("Missing format argument"))
@@ -80,14 +78,13 @@ impl Sink for Format {
 
 /// Human readable terminal output
 struct Human {
-    color: bool,
+    writer: BufferWriter,
     date_format: Option<(&'static str, usize)>,
     highlight: Vec<Regex>,
     process_width: usize,
     tag_width: Option<usize>,
     thread_width: usize,
-    dimm_color: Color,
-    buffer: BytesMut,
+    dimm_color: Option<Color>,
 }
 
 impl Human {
@@ -103,9 +100,9 @@ impl Human {
                 .value_of("color")
                 .unwrap_or_else(|| config_get("terminal_color").unwrap_or_else(|| "auto"))
             {
-                "always" => true,
-                "never" => false,
-                "auto" | _ => atty::is(Stream::Stdout),
+                "always" => ColorChoice::Always,
+                "never" => ColorChoice::Never,
+                "auto" | _ => ColorChoice::Auto,
             }
         };
         let no_dimm = args.is_present("no_dimm") || config_get("terminal_no_dimm").unwrap_or(false);
@@ -127,14 +124,13 @@ impl Human {
         };
 
         Human {
-            color,
-            dimm_color: if no_dimm { Color::White } else { DIMM_COLOR },
+            writer: BufferWriter::stdout(color),
+            dimm_color: if no_dimm { None } else { Some(DIMM_COLOR) },
             highlight,
             date_format,
             tag_width,
             process_width: 0,
             thread_width: 0,
-            buffer: BytesMut::with_capacity(INITIAL_BUFFER_CAPACITY),
         }
     }
 
@@ -152,15 +148,23 @@ impl Human {
 
     #[cfg(target_os = "windows")]
     fn hashed_color(i: &str) -> Color {
-        let v = i.bytes().fold(42u8, |c, x| c ^ x) % 15 + 1;
-        Color::Fixed(v)
+        let v = i.bytes().fold(42u8, |c, x| c ^ x) % 7;
+        match v {
+            0 => Color::Blue,
+            1 => Color::Green,
+            2 => Color::Red,
+            3 => Color::Cyan,
+            4 => Color::Magenta,
+            5 => Color::Yellow,
+            _ => Color::White,
+        }
     }
 
     #[cfg(not(target_os = "windows"))]
     fn hashed_color(i: &str) -> Color {
         // Some colors are hard to read on (at least) dark terminals
         // and I consider some others as ugly.
-        let c = match i.bytes().fold(42u8, |c, x| c ^ x) {
+        Color::Ansi256(match i.bytes().fold(42u8, |c, x| c ^ x) {
             c @ 0...1 => c + 2,
             c @ 16...21 => c + 6,
             c @ 52...55 | c @ 126...129 => c + 4,
@@ -168,12 +172,10 @@ impl Human {
             c @ 207 => c + 1,
             c @ 232...240 => c + 9,
             c => c,
-        };
-
-        Color::Fixed(c)
+        })
     }
 
-    fn format(&mut self, record: &Record) -> Result<Bytes, Error> {
+    fn print(&mut self, record: &Record) -> Result<(), Error> {
         let timestamp = if let Some((format, len)) = self.date_format {
             if let Some(ref ts) = record.timestamp {
                 let mut ts = time::strftime(format, &ts).expect("Date format error");
@@ -211,12 +213,9 @@ impl Human {
             String::new()
         };
 
-        let level = format!(" {} ", record.level);
-
-        let highlight = self.color
-            && (!self.highlight.is_empty()
-                && (self.highlight.iter().any(|r| r.is_match(&record.tag))
-                    || self.highlight.iter().any(|r| r.is_match(&record.message))));
+        let highlight = !self.highlight.is_empty()
+            && (self.highlight.iter().any(|r| r.is_match(&record.tag))
+                || self.highlight.iter().any(|r| r.is_match(&record.message)));
 
         let preamble_width = timestamp.chars().count()
             + 1 // " "
@@ -226,64 +225,60 @@ impl Human {
             + 2 // ") "
             + 3; // level
 
-        let (preamble, level_color) = if self.color {
-            let timestamp_color = if highlight {
-                Color::Yellow
-            } else {
-                self.dimm_color
-            };
-            let timestamp = timestamp_color.paint(timestamp);
-            let tag_color = Self::hashed_color(&record.tag);
-            let tag = tag_color.paint(tag);
-            let pid_color = Self::hashed_color(&pid);
-            let pid = pid_color.paint(pid);
-            let tid_color = Self::hashed_color(&tid);
-            let tid = tid_color.paint(tid);
-            let (level, level_color) = match record.level {
-                #[cfg(target_os = "windows")]
-                Level::Trace | Level::Verbose | Level::Debug | Level::None => {
-                    (Color::White.on(Color::Black).paint(level), Color::White)
-                }
-                #[cfg(not(target_os = "windows"))]
-                Level::Trace | Level::Verbose | Level::Debug | Level::None => (
-                    Color::White.on(self.dimm_color).paint(level),
-                    self.dimm_color,
-                ),
-                Level::Info => (Color::Black.on(Color::Green).paint(level), Color::Green),
-                Level::Warn => (Color::White.on(Color::Yellow).paint(level), Color::Yellow),
-                Level::Error | Level::Fatal | Level::Assert => {
-                    (Color::White.on(Color::Red).paint(level), Color::Red)
-                }
-            };
-            let preamble = format!(
-                "{timestamp} {tag} ({pid}{tid}) {level}",
-                timestamp = timestamp,
-                tag = tag,
-                pid = pid,
-                tid = tid,
-                level = level,
-            );
-            (preamble, Some(level_color))
+        let timestamp_color = if highlight {
+            Some(Color::Yellow)
         } else {
-            let preamble = format!(
-                "{timestamp} {tag} ({pid}{tid}) {level}",
-                timestamp = timestamp,
-                tag = tag,
-                pid = pid,
-                tid = tid,
-                level = level,
-            );
-            (preamble, None)
+            self.dimm_color
+        };
+        let tag_color = Self::hashed_color(&record.tag);
+        let pid_color = Self::hashed_color(&pid);
+        let tid_color = Self::hashed_color(&tid);
+        let level_color = match record.level {
+            Level::Info => Some(Color::Green),
+            Level::Warn => Some(Color::Yellow),
+            Level::Error | Level::Fatal | Level::Assert => Some(Color::Red),
+            _ => self.dimm_color,
+        };
+
+        let write_preamble = |buffer: &mut Buffer| -> Result<(), Error> {
+            let mut spec = ColorSpec::new();
+            buffer.set_color(spec.set_fg(timestamp_color))?;
+            buffer.write_all(timestamp.as_bytes())?;
+            buffer.write_all(b" ")?;
+
+            buffer.set_color(spec.set_fg(Some(tag_color)))?;
+            buffer.write_all(tag.as_bytes())?;
+            buffer.set_color(spec.set_fg(None))?;
+
+            buffer.write_all(b" (")?;
+            buffer.set_color(spec.set_fg(Some(pid_color)))?;
+            buffer.write_all(pid.as_bytes())?;
+            if !tid.is_empty() {
+                buffer.set_color(spec.set_fg(Some(tid_color)))?;
+                buffer.write_all(tid.as_bytes())?;
+            }
+            buffer.set_color(spec.set_fg(None))?;
+            buffer.write_all(b") ")?;
+
+            buffer.set_color(
+                spec.set_bg(level_color)
+                    .set_fg(level_color.map(|_| Color::Black)), // Set fg only if bg is set
+            )?;
+            write!(buffer, " {} ", record.level)?;
+            buffer.set_color(&ColorSpec::new())?;
+
+            Ok(())
         };
 
         let payload_len = terminal_width().unwrap_or(std::usize::MAX) - preamble_width - 3;
         let message = &record.message;
-
         let message_len = message.chars().count();
         let chunks = message_len / payload_len + 1;
 
+        let mut buffer = self.writer.buffer();
+
         for i in 0..chunks {
-            self.buffer.extend(preamble.as_bytes());
+            write_preamble(&mut buffer)?;
 
             let c = if chunks == 1 {
                 "   "
@@ -294,24 +289,23 @@ impl Human {
             } else {
                 " ├ "
             };
-            self.buffer.extend_from_slice(c.as_bytes());
+
+            buffer.write_all(c.as_bytes())?;
 
             let chunk = message
                 .chars()
                 .skip(i * payload_len)
                 .take(payload_len)
                 .collect::<String>();
-            if let Some(color) = level_color {
-                let c = color.paint(chunk).to_string();
-                self.buffer.extend(c.as_bytes());
-            } else {
-                self.buffer.extend(chunk.as_bytes());
-            }
-            self.buffer.reserve(1);
-            self.buffer.put_u8(b'\n');
+            buffer.set_color(ColorSpec::new().set_fg(level_color))?;
+            buffer.write_all(chunk.as_bytes())?;
+            buffer.write_all(b"\n")?;
         }
 
-        Ok(self.buffer.take().freeze())
+        buffer
+            .set_color(&ColorSpec::new())
+            .and_then(|_| self.writer.print(&buffer))
+            .map_err(|e| e.into())
     }
 }
 
@@ -320,13 +314,7 @@ impl Sink for Human {
     type SinkError = Error;
 
     fn start_send(&mut self, record: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
-        let buffer = self.format(&record)?;
-        let f = io::write_all(io::stdout(), buffer)
-            .map_err(|e| panic!(e))
-            .map(|_| ());
-        f.wait()
-            .map_err(|_| format_err!("Failed to write to terminal"))?;
-        Ok(AsyncSink::Ready)
+        self.print(&record).map(|_| AsyncSink::Ready)
     }
 
     fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {

@@ -21,12 +21,9 @@ version = "0.3.0-alpha.0"
 edition = "2018"
 
 [dependencies]
-ansi_term = "0.11.0"
-atty = "0.2.11"
 bytes = "0.4.11"
 clap = "2.32.0"
 config = "0.9.1"
-console = "0.7.0"
 crc = "1.8.1"
 csv = "1.0.2"
 directories = "1.0.2"
@@ -49,6 +46,7 @@ toml = "0.4.9"
 url = "1.7.2"
 which = "2.0.1"
 zip = "0.5.0"
+termcolor = "1.0.4"
 
 [dev-dependencies]
 rand = "0.6.1"

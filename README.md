@@ -176,9 +176,7 @@ Some parameters of the `human` format are adjustable via the config file:
 
 ```
 terminal_tag_width = 20
-terminal_show_time_diff = true
 terminal_show_date = false
-terminal_time_diff_width = 10
 terminal_hide_timestamp = true
 terminal_color = never
 terminal_no_dimm = true
