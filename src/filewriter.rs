@@ -34,8 +34,8 @@ use time::{now, strftime};
 /// Filename format
 #[derive(Clone)]
 enum FilenameFormat {
-    Date(bool, u64),
-    Enumerate(bool, u64),
+    Date(bool, usize),
+    Enumerate(bool, usize),
     Single(bool),
 }
 
@@ -47,7 +47,7 @@ struct Textfile {
 
 struct FileWriter<T> {
     current_filename: PathBuf,
-    file_size: u64,
+    file_size: usize,
     filename: PathBuf,
     filename_format: FilenameFormat,
     index: usize,
@@ -118,7 +118,7 @@ impl<'a, T: Writer> FileWriter<T> {
                 .and_then(|caps| {
                     caps.get(1)
                         .map(|m| m.as_str())
-                        .and_then(|size| u64::from_str(size).ok())
+                        .and_then(|size| usize::from_str(size).ok())
                         .map(|size| (size, caps.get(2).map(|m| m.as_str())))
                 })
                 .and_then(|(size, suffix)| match suffix {
@@ -127,12 +127,12 @@ impl<'a, T: Writer> FileWriter<T> {
                     Some("G") => Some(1_000_000_000 * size),
                     _ => None,
                 })
-                .or_else(|| u64::from_str(l).ok())
+                .or_else(|| usize::from_str(l).ok())
         });
 
         let overwrite = args.is_present("overwrite");
 
-        let records = records_per_file.unwrap_or(::std::u64::MAX);
+        let records = records_per_file.unwrap_or(std::usize::MAX);
         let filename_format = match args.value_of("filename_format") {
             Some("enumerate") => FilenameFormat::Enumerate(overwrite, records),
             Some("date") => FilenameFormat::Date(overwrite, records),
@@ -150,13 +150,13 @@ impl<'a, T: Writer> FileWriter<T> {
         let progress = {
             let (pb, chars, template) = if let Some(n) = records_per_file {
                 (
-                    ProgressBar::new(n),
+                    ProgressBar::new(n as u64),
                     "•• ",
                     "{spinner:.yellow} Writing {msg:.dim.bold} {pos:>7.dim}/{len:.dim} {elapsed_precise:.dim} [{bar:40.yellow/green}] ({eta:.dim})",
                 )
             } else {
                 (
-                    ProgressBar::new(::std::u64::MAX),
+                    ProgressBar::new(std::u64::MAX),
                     " • ",
                     "{spinner:.yellow} Writing {msg:.dim.bold} {pos:>7.dim} {elapsed_precise:.dim}",
                 )
@@ -292,7 +292,7 @@ impl<'a, T: Writer> FileWriter<T> {
         }
 
         self.file_size += 1;
-        self.progress.set_position(self.file_size);
+        self.progress.set_position(self.file_size as u64);
 
         match self.filename_format {
             FilenameFormat::Enumerate(_, n) | FilenameFormat::Date(_, n) => {
@@ -313,9 +313,9 @@ impl<'a, T: Writer> FileWriter<T> {
         self.progress
             .set_style(ProgressStyle::default_bar().template("{msg:.dim.bold}"));
         self.progress
-            .finish_with_message(&format!("Finished dumping {} records.", self.index));
+            .finish_with_message(&format!("Dumped {} records", self.index));
         self.file_size = 0;
-        self.writer = None;
+        self.writer.take();
         Ok(())
     }
 }
