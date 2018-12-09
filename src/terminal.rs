@@ -44,6 +44,10 @@ pub fn try_from<'a>(args: &ArgMatches<'a>, profile: &Profile) -> Result<LogSink,
         .and_then(|f| Format::from_str(f).map_err(err_msg))
         .unwrap_or(Format::Human);
 
+    if format == Format::Html {
+        return Err(format_err!("HTML format is only valid for file output"));
+    }
+
     let sink = match format {
         Format::Human => Box::new(Human::from(args, profile, format)) as LogSink,
         format => Box::new(format) as LogSink,
