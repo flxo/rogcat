@@ -1,6 +1,7 @@
 [![Build Status](https://travis-ci.org/flxo/rogcat.svg)](https://travis-ci.org/flxo/rogcat)
 [![crates.io](https://img.shields.io/crates/v/rogcat.svg)](https://crates.io/crates/rogcat)
 [![Release](https://img.shields.io/github/release/flxo/rogcat.svg)](https://img.shields.io/github/release/flxo/rogcat.svg)
+[![License](https://img.shields.io/github/license/flxo/rogcat.svg)](https://img.shields.io/github/license/flxo/rogcat.svg)
 
 # rogcat
 
