@@ -21,7 +21,6 @@
 use crate::record::Record;
 use failure::Error;
 use futures::{Future, Sink, Stream};
-use std::io::{stderr, Write};
 use std::process::exit;
 use std::str::FromStr;
 use url::Url;
@@ -51,7 +50,7 @@ pub enum StreamData {
 type LogStream = Box<Stream<Item = StreamData, Error = Error> + Send>;
 type LogSink = Box<Sink<SinkItem = Record, SinkError = Error> + Send>;
 
-fn run() -> Result<i32, Error> {
+fn run() -> Result<(), Error> {
     let args = cli::cli().get_matches();
     utils::config_init();
     subcommands::run(&args);
@@ -116,17 +115,15 @@ fn run() -> Result<i32, Error> {
             .map_err(|e| eprintln!("{}", e)),
     );
 
-    Ok(0)
+    Ok(())
 }
 
 fn main() {
     match run() {
         Err(e) => {
-            let stderr = &mut stderr();
-            let errmsg = "Error writing to stderr";
-            writeln!(stderr, "{}", e).unwrap_or_else(|_| panic!(errmsg));
+            eprintln!("{}", e);
             exit(1)
         }
-        Ok(r) => exit(r),
+        Ok(_) => exit(0),
     }
 }
