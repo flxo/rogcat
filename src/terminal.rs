@@ -102,7 +102,13 @@ impl Human {
             {
                 "always" => ColorChoice::Always,
                 "never" => ColorChoice::Never,
-                "auto" | _ => ColorChoice::Auto,
+                "auto" | _ => {
+                    if atty::is(atty::Stream::Stdout) {
+                        ColorChoice::Auto
+                    } else {
+                        ColorChoice::Never
+                    }
+                }
             }
         };
         let no_dimm = args.is_present("no_dimm") || config_get("terminal_no_dimm").unwrap_or(false);

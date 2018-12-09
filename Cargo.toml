@@ -21,6 +21,7 @@ version = "0.3.0-alpha.0"
 edition = "2018"
 
 [dependencies]
+atty = "0.2.11"
 bytes = "0.4.11"
 clap = "2.32.0"
 config = "0.9.1"
