@@ -25,10 +25,12 @@ use failure::{err_msg, format_err, Error};
 use futures::{Async, AsyncSink, Poll, Sink, StartSend};
 use indicatif::{ProgressBar, ProgressStyle};
 use regex::Regex;
-use std::fs::{DirBuilder, File};
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
+use std::{
+    fs::{DirBuilder, File},
+    io::Write,
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 use time::{now, strftime};
 
 /// Filename format

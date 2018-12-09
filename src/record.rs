@@ -19,18 +19,21 @@
 // SOFTWARE.
 
 use csv::WriterBuilder;
-use failure::format_err;
-use failure::Error;
-use serde::de::{Deserialize, Deserializer, Visitor};
-use serde::ser::Serializer;
-use serde::Serialize;
+use failure::{format_err, Error};
+use serde::{
+    de::{Deserialize, Deserializer, Visitor},
+    ser::Serializer,
+    Serialize,
+};
 use serde_derive::{Deserialize, Serialize};
-use std::fmt::{Display, Formatter};
-use std::ops::Deref;
-use std::str::FromStr;
+use std::{
+    fmt::{Display, Formatter},
+    ops::Deref,
+    str::FromStr,
+};
 use time::{strftime, strptime, Tm};
 
-type StdResult<T, E> = ::std::result::Result<T, E>;
+type StdResult<T, E> = std::result::Result<T, E>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Format {

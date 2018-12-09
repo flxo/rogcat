@@ -18,10 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-use crate::record::Level;
-use crate::utils;
-use clap::{crate_authors, crate_name, crate_version};
-use clap::{App, AppSettings, Arg, SubCommand};
+use crate::{record::Level, utils};
+use clap::{crate_authors, crate_name, crate_version, App, AppSettings, Arg, SubCommand};
 use lazy_static::lazy_static;
 
 lazy_static! {

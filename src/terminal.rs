@@ -18,19 +18,25 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-use crate::profiles::*;
-use crate::record::{Format, Level, Record};
-use crate::utils::config_get;
-use crate::utils::terminal_width;
-use crate::LogSink;
+use crate::{
+    profiles::Profile,
+    record::{Format, Level, Record},
+    utils::config_get,
+    utils::terminal_width,
+    LogSink,
+};
 use clap::{values_t, ArgMatches};
 use failure::{err_msg, format_err, Error};
-use futures::future::{lazy, Future};
-use futures::{Async, AsyncSink, Poll, Sink, StartSend};
+use futures::{
+    future::{lazy, Future},
+    Async, AsyncSink, Poll, Sink, StartSend,
+};
 use regex::Regex;
-use std::cmp::{max, min};
-use std::io::Write;
-use std::str::FromStr;
+use std::{
+    cmp::{max, min},
+    io::Write,
+    str::FromStr,
+};
 use termcolor::{Buffer, BufferWriter, Color, ColorChoice, ColorSpec, WriteColor};
 use tokio::io;
 

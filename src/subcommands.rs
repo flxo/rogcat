@@ -18,26 +18,22 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-use crate::cli::cli;
-use crate::reader::stdin;
-use crate::record::Level;
-use crate::utils;
-use crate::utils::adb;
-use crate::StreamData;
-use crate::DEFAULT_BUFFER;
-use clap::{crate_name, Shell};
-use clap::{value_t, ArgMatches};
+use crate::{
+    cli::cli, reader::stdin, record::Level, utils, utils::adb, StreamData, DEFAULT_BUFFER,
+};
+use clap::{crate_name, value_t, ArgMatches, Shell};
 use failure::{err_msg, Error};
-use futures::future::ok;
-use futures::stream::Stream;
-use futures::sync::oneshot;
-use futures::{Async, AsyncSink, Future, Poll, Sink, StartSend};
+use futures::{
+    future::ok, stream::Stream, sync::oneshot, Async, AsyncSink, Future, Poll, Sink, StartSend,
+};
 use indicatif::{ProgressBar, ProgressStyle};
-use std::fs::{DirBuilder, File};
-use std::io::BufReader;
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::process::{exit, Command, Stdio};
+use std::{
+    fs::{DirBuilder, File},
+    io::BufReader,
+    io::Write,
+    path::{Path, PathBuf},
+    process::{exit, Command, Stdio},
+};
 use time::{now, strftime};
 use tokio::io::lines;
 use tokio::runtime::Runtime;

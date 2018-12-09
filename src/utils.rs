@@ -22,9 +22,7 @@ use config::Config;
 use failure::Error;
 use lazy_static::lazy_static;
 use serde::Deserialize;
-use std::env;
-use std::path::PathBuf;
-use std::sync::RwLock;
+use std::{env, path::PathBuf, sync::RwLock};
 use which::which_in;
 
 lazy_static! {

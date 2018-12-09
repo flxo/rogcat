@@ -21,8 +21,10 @@
 use crate::record::{Level, Record, Timestamp};
 use csv::ReaderBuilder;
 use failure::{err_msg, format_err, Error};
-use nom::types::CompleteStr;
-use nom::*;
+use nom::{
+    alt, call, char, complete, do_parse, error_position, flat_map, many0, many1, map, named, opt,
+    parse_to, peek, tag, take, take_until, try_parse, types::CompleteStr,
+};
 use nom::{hex_digit, rest, space};
 use serde_json::from_str;
 use time::Tm;

@@ -21,8 +21,7 @@
 use crate::record::Record;
 use failure::Error;
 use futures::{Future, Sink, Stream};
-use std::process::exit;
-use std::str::FromStr;
+use std::{process::exit, str::FromStr};
 use url::Url;
 
 mod cli;

@@ -23,13 +23,13 @@ use crate::utils::{adb, config_get};
 use crate::{LogStream, StreamData, DEFAULT_BUFFER};
 use clap::{value_t, ArgMatches};
 use failure::{err_msg, format_err, Error};
-use futures::stream::iter_ok;
-use futures::Future;
-use futures::{Async, Stream};
-use std::io::BufReader;
-use std::net::ToSocketAddrs;
-use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use futures::{stream::iter_ok, Async, Future, Stream};
+use std::{
+    io::BufReader,
+    net::ToSocketAddrs,
+    path::PathBuf,
+    process::{Command, Stdio},
+};
 use tokio::codec::{Decoder, FramedRead};
 use tokio::fs::File;
 use tokio::net::TcpStream;

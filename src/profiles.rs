@@ -22,13 +22,10 @@ use crate::utils;
 use clap::{value_t, ArgMatches};
 use failure::{format_err, Error};
 use serde_derive::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::convert::Into;
-use std::env::var;
-use std::fs::File;
-use std::io::Read;
-use std::ops::AddAssign;
-use std::path::PathBuf;
+use std::{
+    collections::HashMap, convert::Into, env::var, fs::File, io::Read, ops::AddAssign,
+    path::PathBuf,
+};
 use toml::from_str;
 
 /// Profile definition with filters and misc

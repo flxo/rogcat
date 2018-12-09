@@ -2,8 +2,7 @@
 
 use bytes::{BufMut, BytesMut};
 use futures::{Poll, Stream};
-use std::io::BufRead;
-use std::{cmp, io, usize};
+use std::{cmp, io, io::BufRead, usize};
 use tokio::codec::{Decoder, Encoder};
 use tokio::io::AsyncRead;
 
@@ -42,7 +41,7 @@ where
         let n = match self.io.read_until(b'\n', &mut self.buffer) {
             Ok(t) => t,
             Err(ref e) if e.kind() == ::std::io::ErrorKind::WouldBlock => {
-                return Ok(::futures::Async::NotReady)
+                return Ok(::futures::Async::NotReady);
             }
             Err(e) => return Err(e),
         };

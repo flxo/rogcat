@@ -18,11 +18,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-use crate::profiles::*;
-use crate::record::{Level, Record};
+use crate::{
+    profiles::Profile,
+    record::{Level, Record},
+};
 use clap::ArgMatches;
-use failure::format_err;
-use failure::Error;
+use failure::{format_err, Error};
 use regex::Regex;
 
 /// Configured filters
