@@ -149,13 +149,21 @@ impl Process {
         let mut child = Command::new(self.cmd[0].clone())
             .args(&self.cmd[1..])
             .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
             .spawn_async()?;
 
         let stdout = BufReader::new(child.stdout().take().unwrap());
+        let stderr = BufReader::new(child.stderr().take().unwrap());
         self.child = Some(child);
-        let mut stream = lossy_lines(stdout)
+
+        let stdout = lossy_lines(stdout)
             .map_err(|e| e.into())
             .map(StreamData::Line);
+        let stderr = lossy_lines(stderr)
+            .map_err(|e| e.into())
+            .map(StreamData::Line);
+
+        let mut stream = stdout.select(stderr);
         let poll = stream.poll();
         self.stream = Some(Box::new(stream));
         poll

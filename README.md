@@ -11,7 +11,7 @@ tries to give access to those logs in a convenient way including post processing
 is a painted and reformatted view. `rogcat` can read logs from
 
 * running `adb logcat` (default)
-* a custom command (stdout)
+* a custom command (`stdout`, `stderr`)
 * one or multiple files
 * `stdin`
 * connect to TCP port
@@ -50,7 +50,7 @@ it is created:
 
 ### stdin
 
-Process `stdout` of `command`:
+Process `stdout` and `stderr` of `command`:
 
 `rogcat command` or `command | rogcat -`
 
@@ -272,7 +272,7 @@ OPTIONS:
     -T, --tail <tail>                            Dump only the most recent <COUNT> lines (implies --dump)
 
 ARGS:
-    <COMMAND>    Optional command to run and capture stdout from. Pass "-" to d capture stdin'. If omitted, rogcat
+    <COMMAND>    Optional command to run and capture stdout and stderr from. Pass "-" to d capture stdin'. If omitted, rogcat
                  will run "adb logcat -b all" and restarts this commmand if 'adb' terminates
 
 SUBCOMMANDS:

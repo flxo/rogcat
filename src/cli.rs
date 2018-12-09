@@ -23,17 +23,17 @@ use clap::{crate_authors, crate_name, crate_version, App, AppSettings, Arg, SubC
 use lazy_static::lazy_static;
 
 lazy_static! {
-    static ref ABOUT: String = {
-        format!(
-            "A 'adb logcat' wrapper and log processor. Your config directory is \"{}\".",
-            utils::config_dir().display()
-        )
-    };
+     static ref ABOUT: String = {
+          format!(
+               "A 'adb logcat' wrapper and log processor. Your config directory is \"{}\".",
+               utils::config_dir().display()
+          )
+     };
 }
 
 /// Build cli
 pub fn cli() -> App<'static, 'static> {
-    App::new(crate_name!())
+     App::new(crate_name!())
         .setting(AppSettings::ColoredHelp)
         .version(crate_version!())
         .author(crate_authors!())
@@ -163,7 +163,7 @@ pub fn cli() -> App<'static, 'static> {
              .conflicts_with_all(&["input", "COMMAND", "restart"])
              .help("Dump only the most recent <COUNT> lines (implies --dump)"))
         .arg(Arg::with_name("COMMAND")
-             .help( "Optional command to run and capture stdout from. Pass \"-\" to d capture stdin'. If omitted, rogcat will run \"adb logcat -b all\" and restarts this commmand if 'adb' terminates",))
+             .help( "Optional command to run and capture stdout and stdderr from. Pass \"-\" to d capture stdin'. If omitted, rogcat will run \"adb logcat -b all\" and restarts this commmand if 'adb' terminates",))
         .subcommand(SubCommand::with_name("bugreport")
                 .about("Capture bugreport. This is only works for Android versions < 7.")
                 .arg(Arg::with_name("zip").short("z").long("zip").help("Zip report"))
