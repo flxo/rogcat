@@ -318,10 +318,17 @@ impl Human {
             buffer.write_all(b"\n")?;
         }
 
+        self.writer.print(&buffer).map_err(|e| e.into())
+    }
+}
+
+impl Drop for Human {
+    fn drop(&mut self) {
+        let mut buffer = self.writer.buffer();
         buffer
-            .set_color(&ColorSpec::new())
+            .reset()
             .and_then(|_| self.writer.print(&buffer))
-            .map_err(|e| e.into())
+            .expect("Failed to reset terminal");
     }
 }
 
