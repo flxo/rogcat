@@ -121,10 +121,10 @@ Live trace with profile `app`:
 
 ## Installation
 
-With a working/recent `Rust` and `cargo` setup run
+Building `rogcat` requires Rust 2018 edition:
 
 ```
-cargo install rogcat
+cargo install --path .
 ```
 
 or use Homebrew by running
