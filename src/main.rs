@@ -114,7 +114,7 @@ fn run() -> Result<(), Error> {
             })
         })
         .forward(sink)
-        .map(|_| ())
+        .map(|_| exit(0))
         .map_err(|e| eprintln!("{}", e));
     let mut f = Some(oneshot::spawn(f, &runtime.executor()));
 
