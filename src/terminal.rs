@@ -27,10 +27,7 @@ use crate::{
 };
 use clap::{values_t, ArgMatches};
 use failure::{err_msg, format_err, Error};
-use futures::{
-    future::{lazy, Future},
-    Async, AsyncSink, Poll, Sink, StartSend,
-};
+use futures::{Async, AsyncSink, Poll, Sink, StartSend};
 use regex::Regex;
 use std::{
     cmp::{max, min},
@@ -38,7 +35,6 @@ use std::{
     str::FromStr,
 };
 use termcolor::{Buffer, BufferWriter, Color, ColorChoice, ColorSpec, WriteColor};
-use tokio::io;
 
 const DIMM_COLOR: Color = Color::Ansi256(243);
 
@@ -69,15 +65,9 @@ impl Sink for Format {
     type SinkError = Error;
 
     fn start_send(&mut self, record: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
-        let format = self.clone();
-        let f = lazy(move || record.format(&format))
-            .and_then(|mut l| {
-                l.push_str("\n");
-                io::write_all(io::stdout(), l).map_err(|e| e.into())
-            })
-            .map_err(|e| panic!(e))
-            .map(|_| ());
-        tokio::spawn(f);
+        let mut r = record.format(self)?;
+        r.push('\n');
+        std::io::stdout().write_all(r.as_bytes())?;
         Ok(AsyncSink::Ready)
     }
 
