@@ -23,7 +23,7 @@ use csv::ReaderBuilder;
 use failure::{err_msg, format_err, Error};
 use nom::{
     alt, call, char, complete, do_parse, error_position, flat_map, many0, many1, map, named, opt,
-    parse_to, peek, tag, take, take_until, try_parse, types::CompleteStr,
+    parse_to, peek, tag, take, take_until, take_until_either, try_parse, types::CompleteStr,
 };
 use nom::{hex_digit, rest, space};
 use serde_json::from_str;
@@ -120,18 +120,19 @@ named!(
         do_parse!(
             level: level >>
             char!('/') >>
-            tag: take_until!("(") >>
-            tag!("(") >>
+            tag: take_until_either!("(:") >>
+            opt!(tag!("(")) >>
             opt!(tag!("0x")) >>
-            process: hex_digit >>
-            tag!("):") >>
+            process: opt!(hex_digit) >>
+            opt!(tag!(")")) >>
+            tag!(":") >>
             message: opt!(rest) >>
             (
                 Record {
                     timestamp: None,
                     level,
                     tag: tag.trim().to_owned(),
-                    process: process.trim().to_owned(),
+                    process: process.map(|s| s.trim()).unwrap_or("").to_owned(),
                     message: message.unwrap_or(CompleteStr("")).trim().to_owned(),
                     ..Default::default()
                 }
@@ -409,6 +410,14 @@ fn parse_printable() {
 
 #[test]
 fn parse_mindroid() {
+    let t = "I/Runtime: Mindroid runtime system node id: 1";
+    let r = Parser::parse_mindroid(t).unwrap();
+    assert_eq!(r.level, Level::Info);
+    assert_eq!(r.tag, "Runtime");
+    assert_eq!(r.process, "");
+    assert_eq!(r.thread, "");
+    assert_eq!(r.message, "Mindroid runtime system node id: 1");
+
     let t = "D/ServiceManager(000000000000000C): foo bar";
     let r = Parser::parse_mindroid(t).unwrap();
     assert_eq!(r.level, Level::Debug);
