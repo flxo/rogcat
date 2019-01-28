@@ -236,27 +236,32 @@ impl Parser {
         if line.len() >= 12 {
             let mut chars = line.chars();
             if let Some('[') = chars.next() {
-                if let Some(']') = chars.nth(11) {
+                if let Some(']') = chars.nth(10) {
+                    let process = line[1..=10]
+                        .trim()
+                        .trim_matches('-')
+                        .trim_matches('=')
+                        .to_owned();
                     Ok(Record {
                         timestamp: None,
-                        level: Level::Info,
-                        tag: "Test".to_owned(),
-                        process: line[1..11]
-                            .trim()
-                            .trim_matches('-')
-                            .trim_matches('=')
-                            .to_owned(),
+                        level: if process == "FAILED" {
+                            Level::Error
+                        } else {
+                            Level::Info
+                        },
+                        tag: "googletest".to_owned(),
+                        process,
                         message: line[12..].trim().to_owned(),
                         ..Default::default()
                     })
                 } else {
-                    Err(err_msg("Failed to parse gtest"))
+                    Err(err_msg("Failed to parse gtest: Missing closing bracket"))
                 }
             } else {
-                Err(err_msg("Failed to parse gtest"))
+                Err(err_msg("Failed to parse gtest: Missing opening bracket"))
             }
         } else {
-            Err(err_msg("Failed to parse gtest"))
+            Err(err_msg("Failed to parse gtest: Message is too short"))
         }
     }
 
@@ -483,4 +488,19 @@ fn parse_property() {
         property(CompleteStr(t)).unwrap().1,
         ("ro.build.tags".to_owned(), "release-keys".to_owned())
     );
+}
+
+#[test]
+fn parse_gtest() {
+    let t = "[       OK ] TestName.Test (115 ms)";
+    let r = Parser::parse_gtest(t).unwrap();
+    // assert_eq!(r.level, Level::Info);
+    // assert_eq!(r.tag, "ThermalEngine");
+    // assert_eq!(r.process, "225");
+    // assert_eq!(r.thread, "295");
+    // assert_eq!(r.message, "Sensor:batt_therm:29000 mC");
+    // assert_eq!(
+    //     r.raw,
+    //     "07-01 14:13:14.446   225   295 I ThermalEngine: Sensor:batt_therm:29000 mC"
+    // );
 }
