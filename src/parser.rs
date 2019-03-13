@@ -493,7 +493,7 @@ fn parse_property() {
 #[test]
 fn parse_gtest() {
     let t = "[       OK ] TestName.Test (115 ms)";
-    let r = Parser::parse_gtest(t).unwrap();
+    let _r = Parser::parse_gtest(t).unwrap();
     // assert_eq!(r.level, Level::Info);
     // assert_eq!(r.tag, "ThermalEngine");
     // assert_eq!(r.process, "225");

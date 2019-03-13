@@ -221,7 +221,7 @@ impl Record {
                 wtr.serialize(self)?;
                 wtr.flush()?;
                 Ok(String::from_utf8(wtr.into_inner().unwrap())?
-                    .trim_right_matches('\n')
+                    .trim_end_matches('\n')
                     .to_owned())
             }
             Format::Html => unimplemented!(),
