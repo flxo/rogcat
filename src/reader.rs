@@ -19,6 +19,8 @@
 // SOFTWARE.
 
 use crate::lossy_lines::{lossy_lines, LossyLinesCodec};
+#[cfg(target_os = "linux")]
+use crate::record::{Record, Timestamp};
 use crate::utils::{adb, config_get};
 use crate::{LogStream, StreamData, DEFAULT_BUFFER};
 use clap::{value_t, ArgMatches};
@@ -79,6 +81,41 @@ pub fn stdin() -> LogStream {
 /// Open a serial port and provide a stream of lines
 pub fn serial<'a>(_args: &ArgMatches<'a>) -> LogStream {
     unimplemented!()
+}
+
+#[cfg(target_os = "linux")]
+pub fn can(dev: &str) -> Result<LogStream, Error> {
+    let process = dev.to_string();
+    let now = time::now();
+    let stream = tokio_socketcan::CANSocket::open(dev)?
+        .map_err(std::convert::Into::into)
+        .map(move |s| {
+            let data = s
+                .data()
+                .iter()
+                .map(|b| format!("{:02x}", b))
+                .collect::<Vec<String>>();
+            let extended = if s.is_extended() { "E" } else { " " };
+            StreamData::Record(Record {
+                timestamp: Some(Timestamp::new(now)),
+                message: format!("{} {} ", extended, data.join(" ")),
+                tag: format!("0x{:x}", s.id()),
+                raw: format!(
+                    "({}) {} {}#{}",
+                    now.strftime("%s.%f").unwrap(),
+                    process,
+                    if s.is_extended() {
+                        format!("{:08X}", s.id())
+                    } else {
+                        format!("{:X}", s.id())
+                    },
+                    data.join("")
+                ),
+                process: process.clone(),
+                ..Default::default()
+            })
+        });
+    Ok(Box::new(stream))
 }
 
 /// Connect to tcp socket and profile a stream of lines

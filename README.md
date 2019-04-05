@@ -15,6 +15,7 @@ is a painted and reformatted view. `rogcat` can read logs from
 * one or multiple files
 * `stdin`
 * connect to TCP port
+* A SocketCAN CAN device (Linux only)
 
 The processing steps within a `rogcat` run include parsing of the input stream and applying filters (if provided).
 `rogcat` comes with a set of implemented in and output formats:
@@ -71,6 +72,14 @@ Check the `--message` and `--highlight` options in the helptext.
 To connect via TCP to some host run something like:
 
 `rogcat tcp://traceserver:1234`
+
+### SocketCAN
+
+To open a SocketCAN device and read frames run:
+
+`rogcat can://can0`
+
+SocketCAN is a Linux only thing.
 
 ### Bugreport
 

@@ -157,6 +157,10 @@ impl Timestamp {
     pub fn new(t: Tm) -> Timestamp {
         Timestamp { tm: t }
     }
+
+    pub fn now() -> Timestamp {
+        Timestamp { tm: time::now() }
+    }
 }
 
 impl Serialize for Timestamp {

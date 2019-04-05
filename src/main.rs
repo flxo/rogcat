@@ -67,6 +67,8 @@ fn run() -> Result<(), Error> {
                         reader::stdin()
                     } else if let Ok(url) = Url::parse(c) {
                         match url.scheme() {
+                            #[cfg(target_os = "linux")]
+                            "can" => reader::can(&url.host_str().expect("Invalid can device"))?,
                             "tcp" => reader::tcp(&url)?,
                             "serial" => reader::serial(&args),
                             _ => reader::process(&args)?,
