@@ -27,6 +27,7 @@ use nom::{
 };
 use nom::{hex_digit, rest, space};
 use serde_json::from_str;
+use std::convert::Into;
 use time::Tm;
 
 named!(
@@ -223,7 +224,7 @@ impl Parser {
             .has_headers(false)
             .from_reader(line.as_bytes());
         if let Some(result) = rdr.deserialize().next() {
-            return result.map_err(|e| e.into());
+            return result.map_err(Into::into);
         }
         Err(err_msg("Failed to parse csv"))
     }

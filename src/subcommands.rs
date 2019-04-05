@@ -21,12 +21,13 @@
 use crate::{
     cli::cli, reader::stdin, record::Level, utils, utils::adb, StreamData, DEFAULT_BUFFER,
 };
-use clap::{crate_name, value_t, ArgMatches, Shell};
+use clap::{crate_name, value_t, ArgMatches};
 use failure::{err_msg, Error};
 use futures::{
     future::ok, stream::Stream, sync::oneshot, Async, AsyncSink, Future, Poll, Sink, StartSend,
 };
 use indicatif::{ProgressBar, ProgressStyle};
+use std::borrow::ToOwned;
 use std::{
     fs::{DirBuilder, File},
     io::BufReader,
@@ -56,7 +57,7 @@ pub fn completions(args: &ArgMatches) {
     if let Err(e) = args
         .value_of("shell")
         .ok_or_else(|| err_msg("Required shell argument is missing"))
-        .map(|s| s.parse::<Shell>())
+        .map(str::parse)
         .map(|s| {
             cli().gen_completions_to(crate_name!(), s.unwrap(), &mut std::io::stdout());
         })
@@ -81,7 +82,7 @@ impl ZipFile {
         let filename_path = PathBuf::from(&filename);
         let f = filename_path
             .file_name()
-            .and_then(|f| f.to_str())
+            .and_then(std::ffi::OsStr::to_str)
             .ok_or_else(|| err_msg("Failed to get filename"))?;
         let mut zip = ZipWriter::new(file);
         zip.start_file(f, options)?;
@@ -95,7 +96,10 @@ impl Write for ZipFile {
     }
 
     fn flush(&mut self) -> ::std::io::Result<()> {
-        self.zip.finish().map_err(|e| e.into()).map(|_| ())
+        self.zip
+            .finish()
+            .map_err(std::convert::Into::into)
+            .map(|_| ())
     }
 }
 
@@ -293,7 +297,7 @@ pub fn log(args: &ArgMatches) {
 pub fn clear(args: &ArgMatches) {
     let buffer = args
         .values_of("buffer")
-        .map(|m| m.map(|f| f.to_owned()).collect::<Vec<String>>())
+        .map(|m| m.map(ToOwned::to_owned).collect::<Vec<String>>())
         .or_else(|| utils::config_get("buffer"))
         .unwrap_or_else(|| DEFAULT_BUFFER.iter().map(|&s| s.to_owned()).collect())
         .join(" -b ");

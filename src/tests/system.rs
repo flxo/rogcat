@@ -34,7 +34,7 @@ fn help() {
     ];
 
     for a in args {
-        let result = run_rogcat(a, None).expect(&a.join(" "));
+        let result = run_rogcat(a, None).unwrap_or_else(|_| panic!(a.join(" ")));
         assert!(result.0);
         assert!(!result.1.is_empty());
     }

@@ -29,6 +29,7 @@ use clap::{values_t, ArgMatches};
 use failure::{err_msg, format_err, Error};
 use futures::{Async, AsyncSink, Poll, Sink, StartSend};
 use regex::Regex;
+use std::convert::Into;
 use std::{
     cmp::{max, min},
     io::Write,
@@ -308,7 +309,7 @@ impl Human {
             buffer.write_all(b"\n")?;
         }
 
-        self.writer.print(&buffer).map_err(|e| e.into())
+        self.writer.print(&buffer).map_err(Into::into)
     }
 }
 

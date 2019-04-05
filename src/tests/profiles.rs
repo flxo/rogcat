@@ -20,6 +20,7 @@
 
 use crate::tests::utils::*;
 use failure::Error;
+use std::string::ToString;
 
 const CONFIG: &str = "
 [profile.A]
@@ -44,11 +45,17 @@ extends = [\"CircleB\"]
 [profile.CircleB]
 extends = [\"CircleA\"]";
 
-fn run_rogcat_with_config_and_input_file(args: &SVec, payload: &SVec) -> Result<SVec, Error> {
-    let lines = CONFIG.lines().map(|s| s.to_string()).collect();
+fn run_rogcat_with_config_and_input_file(
+    args: &[String],
+    payload: &[String],
+) -> Result<SVec, Error> {
+    let lines = CONFIG
+        .lines()
+        .map(ToString::to_string)
+        .collect::<Vec<String>>();
     let config = tempfile_with_content(&lines)?.display().to_string();
     let mut a = svec!("-P", config);
-    a.extend(args.clone());
+    a.extend(args.iter().cloned());
     let output = run_rogcat_with_input_file(&a, payload)
         .expect("Failed to run rogcat with config and input file");
     assert!(output.0);
@@ -110,7 +117,10 @@ fn extends_message_a_b_c() {
 
 #[test]
 fn extends_circle() {
-    let lines = CONFIG.lines().map(|s| s.to_string()).collect();
+    let lines = CONFIG
+        .lines()
+        .map(ToString::to_string)
+        .collect::<Vec<String>>();
     let config = tempfile_with_content(&lines).unwrap().display().to_string();
     // This is supposed to fail!
     let args = svec!("--profiles-path", config, "-p", "CircleA");

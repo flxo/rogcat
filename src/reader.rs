@@ -24,6 +24,8 @@ use crate::{LogStream, StreamData, DEFAULT_BUFFER};
 use clap::{value_t, ArgMatches};
 use failure::{err_msg, format_err, Error};
 use futures::{stream::iter_ok, Async, Future, Stream};
+use std::borrow::ToOwned;
+use std::convert::Into;
 use std::{
     io::BufReader,
     net::ToSocketAddrs,
@@ -69,7 +71,7 @@ pub fn files<'a>(args: &ArgMatches<'a>) -> Result<LogStream, Error> {
 /// Open stdin and provide a stream of lines
 pub fn stdin() -> LogStream {
     let s = FramedRead::new(tokio::io::stdin(), LossyLinesCodec::new())
-        .map_err(|e| e.into())
+        .map_err(Into::into)
         .map(StreamData::Line);
     Box::new(s)
 }
@@ -114,7 +116,7 @@ pub fn logcat<'a>(args: &ArgMatches<'a>) -> Result<LogStream, Error> {
 
     for buffer in args
         .values_of("buffer")
-        .map(|m| m.map(|f| f.to_owned()).collect::<Vec<String>>())
+        .map(|m| m.map(ToOwned::to_owned).collect::<Vec<String>>())
         .or_else(|| config_get("buffer"))
         .unwrap_or_else(|| DEFAULT_BUFFER.iter().map(|&s| s.to_owned()).collect())
     {
@@ -130,7 +132,7 @@ pub fn process<'a>(args: &ArgMatches<'a>) -> Result<LogStream, Error> {
     let respawn = args.is_present("restart");
     let cmd = value_t!(args, "COMMAND", String)?
         .split_whitespace()
-        .map(|s| s.to_owned())
+        .map(ToOwned::to_owned)
         .collect();
     Ok(Box::new(Process::with_cmd(cmd, respawn)))
 }
@@ -157,10 +159,10 @@ impl Process {
         self.child = Some(child);
 
         let stdout = lossy_lines(stdout)
-            .map_err(|e| e.into())
+            .map_err(Into::into)
             .map(StreamData::Line);
         let stderr = lossy_lines(stderr)
-            .map_err(|e| e.into())
+            .map_err(Into::into)
             .map(StreamData::Line);
 
         let mut stream = stdout.select(stderr);

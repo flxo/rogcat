@@ -22,6 +22,7 @@ use config::Config;
 use failure::Error;
 use lazy_static::lazy_static;
 use serde::Deserialize;
+use std::convert::Into;
 use std::{env, path::PathBuf, sync::RwLock};
 use which::which_in;
 
@@ -31,7 +32,7 @@ lazy_static! {
 
 /// Find adb binary
 pub fn adb() -> Result<PathBuf, Error> {
-    which_in("adb", env::var_os("PATH"), env::current_dir()?).map_err(|e| e.into())
+    which_in("adb", env::var_os("PATH"), env::current_dir()?).map_err(Into::into)
 }
 
 pub fn terminal_width() -> Option<usize> {

@@ -25,6 +25,7 @@ use crate::{
 use clap::ArgMatches;
 use failure::{format_err, Error};
 use regex::Regex;
+use std::borrow::ToOwned;
 
 /// Configured filters
 pub struct Filter {
@@ -38,12 +39,12 @@ pub struct Filter {
 pub fn from_args_profile<'a>(args: &ArgMatches<'a>, profile: &Profile) -> Filter {
     let mut tag_filter = args
         .values_of("tag")
-        .map(|m| m.map(|f| f.to_owned()).collect::<Vec<String>>())
+        .map(|m| m.map(ToOwned::to_owned).collect::<Vec<String>>())
         .unwrap_or_else(|| vec![]);
     tag_filter.extend(profile.tag.clone());
     let mut message_filter = args
         .values_of("message")
-        .map(|m| m.map(|f| f.to_owned()).collect::<Vec<String>>())
+        .map(|m| m.map(ToOwned::to_owned).collect::<Vec<String>>())
         .unwrap_or_else(|| vec![]);
     message_filter.extend(profile.message.clone());
 

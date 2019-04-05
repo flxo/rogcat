@@ -40,7 +40,7 @@ pub type SVec = Vec<String>;
 
 pub fn tempdir() -> Result<PathBuf, Error> {
     TempDir::new("rogcat")
-        .map(|e| e.into_path())
+        .map(tempdir::TempDir::into_path)
         .map_err(|e| format_err!("Tempdir error: {}", e))
 }
 
@@ -51,7 +51,7 @@ pub fn tempfile() -> Result<PathBuf, Error> {
     Ok(path)
 }
 
-pub fn tempfile_with_content(c: &SVec) -> Result<PathBuf, Error> {
+pub fn tempfile_with_content(c: &[String]) -> Result<PathBuf, Error> {
     let path = tempfile()?;
     File::create(path.clone())?.write_all(c.join("\n").as_bytes())?;
     Ok(path)
@@ -60,7 +60,7 @@ pub fn tempfile_with_content(c: &SVec) -> Result<PathBuf, Error> {
 pub fn file_content(file: &PathBuf) -> Result<SVec, Error> {
     let content = BufReader::new(File::open(file)?)
         .lines()
-        .map(|e| e.unwrap())
+        .map(Result::unwrap)
         .collect();
     Ok(content)
 }
@@ -77,10 +77,7 @@ pub fn find_rogcat_binary() -> PathBuf {
         .map(|d| d.join("rogcat").with_extension(env::consts::EXE_EXTENSION))
         .filter_map(|d| fs::metadata(&d).ok().map(|_| d))
         .next()
-        .expect(&format!(
-            "Error: rogcat binary not found, looked in `{:?}`. Do you need to run `cargo build`?",
-            dirs
-        ))
+        .unwrap_or_else(|| panic!("Error: rogcat binary not found, looked in `{:?}`. Do you need to run `cargo build`?", dirs))
 }
 
 pub fn run_rogcat(args: &SVec, input: Option<SVec>) -> Result<(bool, SVec), Error> {
@@ -97,7 +94,7 @@ pub fn run_rogcat(args: &SVec, input: Option<SVec>) -> Result<(bool, SVec), Erro
         if let Some(input) = input {
             let stdin = process.stdin.as_mut().expect("failed to get stdin");
             let mut input = input.join("\n");
-            if input.len() != 0 {
+            if !input.is_empty() {
                 input.push('\n');
             }
             stdin.write_all(input.as_bytes()).unwrap();
@@ -108,15 +105,18 @@ pub fn run_rogcat(args: &SVec, input: Option<SVec>) -> Result<(bool, SVec), Erro
     let stdout = String::from_utf8(output.stdout)
         .expect("Malformed stdout")
         .lines()
-        .map(|s| s.to_string())
+        .map(std::string::ToString::to_string)
         .collect();
     Ok((output.status.success(), stdout))
 }
 
-pub fn run_rogcat_with_input_file(args: &SVec, payload: &SVec) -> Result<(bool, SVec), Error> {
+pub fn run_rogcat_with_input_file(
+    args: &[String],
+    payload: &[String],
+) -> Result<(bool, SVec), Error> {
     let input = tempfile_with_content(payload).expect("Failed to crate input file");
     let mut a = svec!("-i", format!("{}", input.display()));
-    a.extend(args.clone());
+    a.extend(args.iter().cloned());
     run_rogcat(&a, None)
 }
 
