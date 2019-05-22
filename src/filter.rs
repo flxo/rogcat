@@ -31,19 +31,30 @@ use regex::Regex;
 pub struct Filter {
     level: Level,
     tag: FilterGroup,
+    tag_ignore_case: FilterGroup,
     message: FilterGroup,
+    message_ignore_case: FilterGroup,
     regex: FilterGroup,
 }
 
 pub fn from_args_profile<'a>(args: &ArgMatches<'a>, profile: &Profile) -> Result<Filter, Error> {
     let tag = profile.tag.iter().map(String::as_str);
+    let tag_ignorecase = profile.tag_ignore_case.iter().map(String::as_str);
     let message = profile.message.iter().map(String::as_str);
+    let message_ignorecase = profile.message_ignore_case.iter().map(String::as_str);
     let regex = profile.regex.iter().map(String::as_str);
     let filter = Filter {
         level: Level::from(args.value_of("level").unwrap_or("")),
-        tag: FilterGroup::from_args(args, "tag", tag)?,
-        message: FilterGroup::from_args(args, "message", message)?,
-        regex: FilterGroup::from_args(args, "regex_filter", regex)?,
+        tag: FilterGroup::from_args(args, "tag", tag, false)?,
+        tag_ignore_case: FilterGroup::from_args(args, "tag-ignore-case", tag_ignorecase, true)?,
+        message: FilterGroup::from_args(args, "message", message, false)?,
+        message_ignore_case: FilterGroup::from_args(
+            args,
+            "message-ignore-case",
+            message_ignorecase,
+            true,
+        )?,
+        regex: FilterGroup::from_args(args, "regex_filter", regex, false)?,
     };
 
     Ok(filter)
@@ -56,7 +67,9 @@ impl Filter {
         }
 
         self.message.filter(&record.message)
+            && self.message_ignore_case.filter(&record.message)
             && self.tag.filter(&record.tag)
+            && self.tag_ignore_case.filter(&record.tag)
             && (self.regex.filter(&record.process)
                 || self.regex.filter(&record.thread)
                 || self.regex.filter(&record.tag)
@@ -66,6 +79,7 @@ impl Filter {
 
 #[derive(Debug)]
 struct FilterGroup {
+    ignore_case: bool,
     positive: Vec<Regex>,
     negative: Vec<Regex>,
 }
@@ -75,6 +89,7 @@ impl FilterGroup {
         args: &'a ArgMatches<'a>,
         flag: &str,
         merge: T,
+        ignore_case: bool,
     ) -> Result<FilterGroup, Error> {
         let mut filters: Vec<&str> = args
             .values_of(flag)
@@ -84,27 +99,47 @@ impl FilterGroup {
 
         let mut positive = vec![];
         let mut negative = vec![];
-        for r in filters {
+        for r in filters.iter().map(|f| {
+            if ignore_case {
+                f.to_lowercase()
+            } else {
+                f.to_string()
+            }
+        }) {
             if r.starts_with('!') {
                 let r = Regex::new(&r[1..])
                     .map_err(|e| format_err!("Invalid regex string: {}: {}", r, e))?;
                 negative.push(r);
             } else {
-                let r =
-                    Regex::new(r).map_err(|e| format_err!("Invalid regex string: {}: {}", r, e))?;
+                let r = Regex::new(&r)
+                    .map_err(|e| format_err!("Invalid regex string: {}: {}", r, e))?;
                 positive.push(r);
             }
         }
 
-        Ok(FilterGroup { positive, negative })
+        Ok(FilterGroup {
+            ignore_case,
+            positive,
+            negative,
+        })
     }
 
     fn filter(&self, item: &str) -> bool {
-        if !self.positive.is_empty() && !self.positive.iter().any(|m| m.is_match(item)) {
-            return false;
-        }
-        if self.negative.iter().any(|m| m.is_match(item)) {
-            return false;
+        if self.ignore_case {
+            let item = item.to_lowercase();
+            if !self.positive.is_empty() && !self.positive.iter().any(|m| m.is_match(&item)) {
+                return false;
+            }
+            if self.negative.iter().any(|m| m.is_match(&item)) {
+                return false;
+            }
+        } else {
+            if !self.positive.is_empty() && !self.positive.iter().any(|m| m.is_match(item)) {
+                return false;
+            }
+            if self.negative.iter().any(|m| m.is_match(item)) {
+                return false;
+            }
         }
         true
     }

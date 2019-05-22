@@ -195,6 +195,10 @@ The environment variable overrules the default path. See `rogcat profiles --help
 Example:
 
 ```
+[profile.a]
+comment = "Messages starting with A or a"
+message_ignore_case = ["^A.*"]
+
 [profile.B]
 comment = "Messages starting with B"
 message = ["^B.*"]
@@ -216,10 +220,6 @@ tag = ["b*", "!adb"]
 [profile."W hitespace"]
 comment = "Profile names can contain whitespaces. Quote on command line..."
 
-[profile.A]
-comment = "Messages starting with A"
-message = ["^A.*"]
-
 [profile.rogcat]
 comment = "Only tag \"rogcat\""
 tag = ["^rogcat$"]
@@ -230,7 +230,7 @@ To check your setup, run `rogcat profiles --list` and select a profile for a run
 ## Usage
 
 ```
-rogcat 0.3.1-alpha.0
+rogcat 0.4.0-alpha.0
 Felix Obenhuber <felix@obenhuber.de>
 A 'adb logcat' wrapper and log processor. Your config directory is "/Users/felix/Library/Preferences/rogcat".
 
@@ -273,13 +273,15 @@ OPTIONS:
             Minimum level [possible values: trace, debug, info, warn, error, fatal, assert, T, D, I, W, E, F, A]
 
     -m, --message <message>...                   Message filters in RE2. The prefix '!' inverts the match
+    -M, --Message <message-ignore-case>...       Same as -m/--message but case insensitive
     -o, --output <output>                        Write output to file
     -p, --profile <profile>                      Select profile
     -P, --profiles-path <profiles_path>          Manually specify profile file (overrules ROGCAT_PROFILES)
     -n, --records-per-file <records_per_file>    Write n records per file. Use k, M, G suffixes or a plain number
-    -r, --regex <regex_filter>...                Regex filter on tag, pid, thread and message. The prefix '!' inverts the match.
+    -r, --regex <regex_filter>...                Regex filter on tag, pid, thread and message.
     -t, --tag <tag>...                           Tag filters in RE2. The prefix '!' inverts the match
-    -T, --tail <tail>                            Dump only the most recent <COUNT> lines (implies --dump)
+    -T, --Tag <tag-ignore-case>...               Same as -t/--tag but case insensitive
+        --tail <tail>                            Dump only the most recent <COUNT> lines (implies --dump)
 
 ARGS:
     <COMMAND>    Optional command to run and capture stdout and stdderr from. Pass "-" to d capture stdin'. If

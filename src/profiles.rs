@@ -35,8 +35,10 @@ pub struct Profile {
     pub extends: Vec<String>,
     pub highlight: Vec<String>,
     pub message: Vec<String>,
+    pub message_ignore_case: Vec<String>,
     pub regex: Vec<String>,
     pub tag: Vec<String>,
+    pub tag_ignore_case: Vec<String>,
 }
 
 /// Create a new Profiles instance from a give configuration file
@@ -139,8 +141,10 @@ struct ProfileFile {
     extends: Option<Vec<String>>,
     highlight: Option<Vec<String>>,
     message: Option<Vec<String>>,
+    message_ignore_case: Option<Vec<String>>,
     regex: Option<Vec<String>>,
     tag: Option<Vec<String>>,
+    tag_ignore_case: Option<Vec<String>>,
 }
 
 impl From<ProfileFile> for Profile {
@@ -150,8 +154,10 @@ impl From<ProfileFile> for Profile {
             extends: f.extends.unwrap_or_default(),
             highlight: f.highlight.unwrap_or_default(),
             message: f.message.unwrap_or_default(),
+            message_ignore_case: f.message_ignore_case.unwrap_or_default(),
             regex: f.regex.unwrap_or_default(),
             tag: f.tag.unwrap_or_default(),
+            tag_ignore_case: f.tag_ignore_case.unwrap_or_default(),
         }
     }
 }

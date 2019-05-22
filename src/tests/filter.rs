@@ -92,3 +92,19 @@ fn filter_message_regex() {
     assert!(output.0);
     assert_eq!(output.1.len(), 3);
 }
+
+#[test]
+fn filter_message_ignorecase() {
+    let input = svec!("A", "B", "C");
+    let output = run_rogcat_with_input_file(&svec!("-M", "a"), &input).unwrap();
+    assert!(output.0);
+    assert_eq!(output.1.len(), 1);
+}
+
+#[test]
+fn filter_tag_ignorecase() {
+    let input = svec!("I/Runtime: Mindroid runtime system node id: 1", "I/Other: Mindroid runtime system node id: 1");
+    let output = run_rogcat_with_input_file(&svec!("-T", "Runtime"), &input).unwrap();
+    assert!(output.0);
+    assert_eq!(output.1.len(), 1);
+}
