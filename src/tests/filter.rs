@@ -60,6 +60,23 @@ fn filter_message_opt_short_long() {
 }
 
 #[test]
+fn filter_regex() {
+    let input = svec!("A", "B", "CF", "D", "EF", "FE", "monkey");
+    let output = run_rogcat_with_input_file(&svec!("-r", "^.*nk.*"), &input).unwrap();
+    assert!(output.0);
+    assert_eq!(output.1.len(), 1);
+
+    let output = run_rogcat_with_input_file(&svec!("-r", "^E.*"), &input).unwrap();
+    assert!(output.0);
+    assert_eq!(output.1.len(), 1);
+
+    let input = svec!("I/Runtime: Mindroid runtime system node id: 1", "I/Other: Mindroid runtime system node id: 1");
+    let output = run_rogcat_with_input_file(&svec!("-r", "^Other$"), &input).unwrap();
+    assert!(output.0);
+    assert_eq!(output.1.len(), 1);
+}
+
+#[test]
 fn filter_message_regex() {
     let input = svec!("A", "B", "CF", "D", "EF", "FE", "monkey");
     let output = run_rogcat_with_input_file(&svec!("-m", "^.*nk.*"), &input).unwrap();

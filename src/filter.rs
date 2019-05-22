@@ -25,91 +25,87 @@ use crate::{
 use clap::ArgMatches;
 use failure::{format_err, Error};
 use regex::Regex;
-use std::borrow::ToOwned;
 
 /// Configured filters
+#[derive(Debug)]
 pub struct Filter {
     level: Level,
-    message: Vec<Regex>,
-    message_negative: Vec<Regex>,
-    tag: Vec<Regex>,
-    tag_negative: Vec<Regex>,
+    tag: FilterGroup,
+    message: FilterGroup,
+    regex: FilterGroup,
 }
 
-pub fn from_args_profile<'a>(args: &ArgMatches<'a>, profile: &Profile) -> Filter {
-    let mut tag_filter = args
-        .values_of("tag")
-        .map(|m| m.map(ToOwned::to_owned).collect::<Vec<String>>())
-        .unwrap_or_else(|| vec![]);
-    tag_filter.extend(profile.tag.clone());
-    let mut message_filter = args
-        .values_of("message")
-        .map(|m| m.map(ToOwned::to_owned).collect::<Vec<String>>())
-        .unwrap_or_else(|| vec![]);
-    message_filter.extend(profile.message.clone());
-
-    let (tag, tag_negative) = init_filter(&tag_filter).expect("Filter config error");
-    let (message, message_negative) = init_filter(&message_filter).expect("Filter config error");
-
-    Filter {
+pub fn from_args_profile<'a>(args: &ArgMatches<'a>, profile: &Profile) -> Result<Filter, Error> {
+    let tag = profile.tag.iter().map(String::as_str);
+    let message = profile.message.iter().map(String::as_str);
+    let regex = profile.regex.iter().map(String::as_str);
+    let filter = Filter {
         level: Level::from(args.value_of("level").unwrap_or("")),
-        message,
-        message_negative,
-        tag,
-        tag_negative,
-    }
+        tag: FilterGroup::from_args(args, "tag", tag)?,
+        message: FilterGroup::from_args(args, "message", message)?,
+        regex: FilterGroup::from_args(args, "regex_filter", regex)?,
+    };
+
+    Ok(filter)
 }
 
-impl<'a> Filter {
+impl Filter {
     pub fn filter(&self, record: &Record) -> bool {
         if record.level < self.level {
             return false;
         }
 
-        if !self.message.is_empty() && !self.message.iter().any(|m| m.is_match(&record.message)) {
-            return false;
+        self.message.filter(&record.message)
+            && self.tag.filter(&record.tag)
+            && (self.regex.filter(&record.process)
+                || self.regex.filter(&record.thread)
+                || self.regex.filter(&record.tag)
+                || self.regex.filter(&record.message))
+    }
+}
+
+#[derive(Debug)]
+struct FilterGroup {
+    positive: Vec<Regex>,
+    negative: Vec<Regex>,
+}
+
+impl FilterGroup {
+    fn from_args<'a, T: Iterator<Item = &'a str>>(
+        args: &'a ArgMatches<'a>,
+        flag: &str,
+        merge: T,
+    ) -> Result<FilterGroup, Error> {
+        let mut filters: Vec<&str> = args
+            .values_of(flag)
+            .map(Iterator::collect)
+            .unwrap_or_default();
+        filters.extend(merge);
+
+        let mut positive = vec![];
+        let mut negative = vec![];
+        for r in filters {
+            if r.starts_with('!') {
+                let r = Regex::new(&r[1..])
+                    .map_err(|e| format_err!("Invalid regex string: {}: {}", r, e))?;
+                negative.push(r);
+            } else {
+                let r =
+                    Regex::new(r).map_err(|e| format_err!("Invalid regex string: {}: {}", r, e))?;
+                positive.push(r);
+            }
         }
 
-        if self
-            .message_negative
-            .iter()
-            .any(|m| m.is_match(&record.message))
-        {
+        Ok(FilterGroup { positive, negative })
+    }
+
+    fn filter(&self, item: &str) -> bool {
+        if !self.positive.is_empty() && !self.positive.iter().any(|m| m.is_match(item)) {
             return false;
         }
-
-        if !self.tag.is_empty() && !self.tag.iter().any(|m| m.is_match(&record.tag)) {
+        if self.negative.iter().any(|m| m.is_match(item)) {
             return false;
         }
-
-        if self.tag_negative.iter().any(|m| m.is_match(&record.tag)) {
-            return false;
-        }
-
         true
     }
-}
-
-fn init_filter(i: &[String]) -> Result<(Vec<Regex>, Vec<Regex>), Error> {
-    let mut positive = vec![];
-    let mut negative = vec![];
-    for r in i {
-        if r.starts_with('!') {
-            let r = &r[1..];
-            negative.push(Regex::new(r).map_err(|_| format_err!("Invalid regex string: {}", r))?)
-        } else {
-            positive.push(Regex::new(r).map_err(|_| format_err!("Invalid regex string: {}", r))?)
-        }
-    }
-    Ok((positive, negative))
-}
-
-#[test]
-fn filter_args() {
-    assert!(init_filter(&[]).is_ok());
-    assert!(init_filter(&["".to_owned()]).is_ok());
-    assert!(init_filter(&["a".to_owned()]).is_ok());
-    assert!(init_filter(&[".*".to_owned()]).is_ok());
-    assert!(init_filter(&[".*".to_owned(), ".*".to_owned()]).is_ok());
-    assert!(init_filter(&["(".to_owned()]).is_err());
 }

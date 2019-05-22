@@ -94,7 +94,7 @@ fn run() -> Result<(), Error> {
         .value_of("head")
         .map(|v| usize::from_str(v).expect("Invalid head arguement"));
 
-    let filter = filter::from_args_profile(&args, &profile);
+    let filter = filter::from_args_profile(&args, &profile)?;
     let mut parser = parser::Parser::new();
 
     let mut runtime = Runtime::new()?;

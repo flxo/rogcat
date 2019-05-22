@@ -230,7 +230,7 @@ To check your setup, run `rogcat profiles --list` and select a profile for a run
 ## Usage
 
 ```
-rogcat 0.3.0-alpha.0
+rogcat 0.3.1-alpha.0
 Felix Obenhuber <felix@obenhuber.de>
 A 'adb logcat' wrapper and log processor. Your config directory is "/Users/felix/Library/Preferences/rogcat".
 
@@ -243,7 +243,7 @@ FLAGS:
         --hide-timestamp    Hide timestamp in terminal output
         --no-dimm           Use white as dimm color
         --overwrite         Overwrite output file if present
-    -r, --restart           Restart command on exit
+        --restart           Restart command on exit
         --show-date         Show month and day in terminal output
     -s, --skip              Skip records on a command restart until the last received last record is received again. Use
                             with caution!
@@ -277,12 +277,13 @@ OPTIONS:
     -p, --profile <profile>                      Select profile
     -P, --profiles-path <profiles_path>          Manually specify profile file (overrules ROGCAT_PROFILES)
     -n, --records-per-file <records_per_file>    Write n records per file. Use k, M, G suffixes or a plain number
+    -r, --regex <regex_filter>...                Regex filter on tag, pid, thread and message. The prefix '!' inverts the match.
     -t, --tag <tag>...                           Tag filters in RE2. The prefix '!' inverts the match
     -T, --tail <tail>                            Dump only the most recent <COUNT> lines (implies --dump)
 
 ARGS:
-    <COMMAND>    Optional command to run and capture stdout and stderr from. Pass "-" to d capture stdin'. If omitted, rogcat
-                 will run "adb logcat -b all" and restarts this commmand if 'adb' terminates
+    <COMMAND>    Optional command to run and capture stdout and stdderr from. Pass "-" to d capture stdin'. If
+                 omitted, rogcat will run "adb logcat -b all" and restarts this commmand if 'adb' terminates
 
 SUBCOMMANDS:
     bugreport      Capture bugreport. This is only works for Android versions < 7.

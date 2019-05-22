@@ -35,6 +35,7 @@ pub struct Profile {
     pub extends: Vec<String>,
     pub highlight: Vec<String>,
     pub message: Vec<String>,
+    pub regex: Vec<String>,
     pub tag: Vec<String>,
 }
 
@@ -113,7 +114,7 @@ fn file(args: Option<&ArgMatches>) -> Result<PathBuf, Error> {
     }
     if let Ok(f) = var("ROGCAT_PROFILES").map(PathBuf::from) {
         if f.exists() {
-            return Ok(f);
+            Ok(f)
         } else {
             Err(format_err!(
                 "Cannot find {} set in ROGCAT_PROFILES!",
@@ -134,10 +135,11 @@ struct ConfigurationFile {
 /// Struct with exact layout as used in config file
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 struct ProfileFile {
-    extends: Option<Vec<String>>,
     comment: Option<String>,
+    extends: Option<Vec<String>>,
     highlight: Option<Vec<String>>,
     message: Option<Vec<String>>,
+    regex: Option<Vec<String>>,
     tag: Option<Vec<String>>,
 }
 
@@ -145,10 +147,11 @@ impl From<ProfileFile> for Profile {
     fn from(f: ProfileFile) -> Profile {
         Profile {
             comment: f.comment,
-            extends: f.extends.unwrap_or_else(|| vec![]),
-            highlight: f.highlight.unwrap_or_else(|| vec![]),
-            message: f.message.unwrap_or_else(|| vec![]),
-            tag: f.tag.unwrap_or_else(|| vec![]),
+            extends: f.extends.unwrap_or_default(),
+            highlight: f.highlight.unwrap_or_default(),
+            message: f.message.unwrap_or_default(),
+            regex: f.regex.unwrap_or_default(),
+            tag: f.tag.unwrap_or_default(),
         }
     }
 }

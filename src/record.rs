@@ -75,8 +75,7 @@ impl Display for Format {
 }
 
 const LEVEL_VALUES: &[&str] = &[
-    "trace", "debug", "info", "warn", "error", "fatal", "assert", "T", "D", "I", "W", "E", "F",
-    "A",
+    "trace", "debug", "info", "warn", "error", "fatal", "assert", "T", "D", "I", "W", "E", "F", "A",
 ];
 
 #[derive(Clone, Debug, Deserialize, PartialOrd, PartialEq, Serialize)]

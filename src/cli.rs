@@ -23,17 +23,17 @@ use clap::{crate_authors, crate_name, crate_version, App, AppSettings, Arg, SubC
 use lazy_static::lazy_static;
 
 lazy_static! {
-    static ref ABOUT: String = {
-        format!(
-            "A 'adb logcat' wrapper and log processor. Your config directory is \"{}\".",
-            utils::config_dir().display()
-        )
-    };
+     static ref ABOUT: String = {
+          format!(
+               "A 'adb logcat' wrapper and log processor. Your config directory is \"{}\".",
+               utils::config_dir().display()
+          )
+     };
 }
 
 /// Build cli
 pub fn cli() -> App<'static, 'static> {
-    App::new(crate_name!())
+     App::new(crate_name!())
         .setting(AppSettings::ColoredHelp)
         .version(crate_version!())
         .author(crate_authors!())
@@ -134,8 +134,13 @@ pub fn cli() -> App<'static, 'static> {
              .takes_value(true)
              .requires("output")
              .help( "Write n records per file. Use k, M, G suffixes or a plain number"))
-        .arg(Arg::with_name("restart")
+        .arg(Arg::with_name("regex_filter")
+             .long("regex")
              .short("r")
+             .takes_value(true)
+             .multiple(true)
+             .help("Regex filter on tag, pid, thread and message."))
+        .arg(Arg::with_name("restart")
              .long("restart")
              .conflicts_with_all(&["dump", "input", "tail"])
              .help("Restart command on exit"))
