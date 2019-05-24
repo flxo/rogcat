@@ -217,7 +217,7 @@ impl Human {
         let tid = if !record.thread.is_empty() {
             format!(" {:>width$}", record.thread, width = self.thread_width)
         } else {
-            String::new()
+            " ".repeat(self.thread_width + 1)
         };
 
         let highlight = !self.highlight.is_empty()
