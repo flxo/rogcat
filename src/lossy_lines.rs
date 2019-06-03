@@ -2,9 +2,15 @@
 
 use bytes::{BufMut, BytesMut};
 use futures::{Poll, Stream};
-use std::{cmp, io, io::BufRead, usize};
-use tokio::codec::{Decoder, Encoder};
-use tokio::io::AsyncRead;
+use std::{
+    cmp,
+    io::{self, BufRead},
+    usize,
+};
+use tokio::{
+    codec::{Decoder, Encoder},
+    io::AsyncRead,
+};
 
 /// Combinator created by the top-level `lossy_lines` method which is a stream over
 /// the lines of text on an I/O object.

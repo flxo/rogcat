@@ -20,8 +20,7 @@
 
 use crate::record::Record;
 use failure::Error;
-use futures::sync::oneshot;
-use futures::{Future, Sink, Stream};
+use futures::{sync::oneshot, Future, Sink, Stream};
 use std::{process::exit, str::FromStr};
 use tokio::runtime::Runtime;
 use tokio_signal::ctrl_c;

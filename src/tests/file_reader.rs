@@ -19,8 +19,7 @@
 // SOFTWARE.
 
 use crate::tests::utils::*;
-use std::fs::File;
-use std::io::prelude::*;
+use std::{fs::File, io::prelude::*};
 
 #[test]
 fn invalid_string() {

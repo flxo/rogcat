@@ -21,17 +21,16 @@
 use crate::{
     profiles::Profile,
     record::{Format, Level, Record},
-    utils::config_get,
-    utils::terminal_width,
+    utils::{config_get, terminal_width},
     LogSink,
 };
 use clap::{values_t, ArgMatches};
 use failure::{err_msg, format_err, Error};
 use futures::{Async, AsyncSink, Poll, Sink, StartSend};
 use regex::Regex;
-use std::convert::Into;
 use std::{
     cmp::{max, min},
+    convert::Into,
     io::Write,
     str::FromStr,
 };

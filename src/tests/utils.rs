@@ -19,15 +19,14 @@
 // SOFTWARE.
 
 use failure::{format_err, Error};
-use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
-use std::env;
-use std::fs;
-use std::fs::File;
-use std::io::prelude::*;
-use std::io::BufReader;
-use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use rand::{distributions::Alphanumeric, thread_rng, Rng};
+use std::{
+    env,
+    fs::{self, File},
+    io::{prelude::*, BufReader},
+    path::PathBuf,
+    process::{Command, Stdio},
+};
 use tempdir::TempDir;
 
 macro_rules! svec {

@@ -18,8 +18,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-use crate::record::{Format, Record};
-use crate::LogSink;
+use crate::{
+    record::{Format, Record},
+    LogSink,
+};
 use clap::ArgMatches;
 use failure::{err_msg, format_err, Error};
 use futures::{Async, AsyncSink, Poll, Sink, StartSend};
@@ -346,9 +348,11 @@ mod html {
     };
     use serde_derive::Serialize;
     use serde_json::value::{Map, Value as Json};
-    use std::fs::File;
-    use std::path::{Path, PathBuf};
-    use std::str;
+    use std::{
+        fs::File,
+        path::{Path, PathBuf},
+        str,
+    };
 
     #[derive(Serialize)]
     struct HtmlRecord {

@@ -18,25 +18,29 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-use crate::lossy_lines::{lossy_lines, LossyLinesCodec};
 #[cfg(target_os = "linux")]
 use crate::record::{Record, Timestamp};
-use crate::utils::{adb, config_get};
-use crate::{LogStream, StreamData, DEFAULT_BUFFER};
+use crate::{
+    lossy_lines::{lossy_lines, LossyLinesCodec},
+    utils::{adb, config_get},
+    LogStream, StreamData, DEFAULT_BUFFER,
+};
 use clap::{value_t, ArgMatches};
 use failure::{err_msg, format_err, Error};
 use futures::{stream::iter_ok, Async, Future, Stream};
-use std::borrow::ToOwned;
-use std::convert::Into;
 use std::{
+    borrow::ToOwned,
+    convert::Into,
     io::BufReader,
     net::ToSocketAddrs,
     path::PathBuf,
     process::{Command, Stdio},
 };
-use tokio::codec::{Decoder, FramedRead};
-use tokio::fs::File;
-use tokio::net::TcpStream;
+use tokio::{
+    codec::{Decoder, FramedRead},
+    fs::File,
+    net::TcpStream,
+};
 use tokio_process::{Child, CommandExt};
 use url::Url;
 

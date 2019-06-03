@@ -19,7 +19,11 @@
 // SOFTWARE.
 
 use crate::{
-    cli::cli, reader::stdin, record::Level, utils, utils::adb, StreamData, DEFAULT_BUFFER,
+    cli::cli,
+    reader::stdin,
+    record::Level,
+    utils::{self, adb},
+    StreamData, DEFAULT_BUFFER,
 };
 use clap::{crate_name, value_t, ArgMatches};
 use failure::{err_msg, Error};
@@ -27,20 +31,17 @@ use futures::{
     future::ok, stream::Stream, sync::oneshot, Async, AsyncSink, Future, Poll, Sink, StartSend,
 };
 use indicatif::{ProgressBar, ProgressStyle};
-use std::borrow::ToOwned;
 use std::{
+    borrow::ToOwned,
     fs::{DirBuilder, File},
-    io::BufReader,
-    io::Write,
+    io::{BufReader, Write},
     path::{Path, PathBuf},
     process::{exit, Command, Stdio},
 };
 use time::{now, strftime};
-use tokio::io::lines;
-use tokio::runtime::Runtime;
+use tokio::{io::lines, runtime::Runtime};
 use tokio_process::CommandExt;
-use zip::write::FileOptions;
-use zip::{CompressionMethod, ZipWriter};
+use zip::{write::FileOptions, CompressionMethod, ZipWriter};
 
 pub fn run(args: &ArgMatches) {
     match args.subcommand() {
