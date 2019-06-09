@@ -20,7 +20,6 @@
 
 use crate::{
     profiles::Profile,
-    record::{Format, Level, Record},
     utils::{config_get, terminal_width},
     LogSink,
 };
@@ -28,10 +27,11 @@ use clap::{values_t, ArgMatches};
 use failure::{err_msg, format_err, Error};
 use futures::{Async, AsyncSink, Poll, Sink, StartSend};
 use regex::Regex;
+use rogcat::record::{Format, Level, Record};
 use std::{
     cmp::{max, min},
     convert::Into,
-    io::Write,
+    io::{stdout, BufWriter, Write},
     str::FromStr,
 };
 use termcolor::{Buffer, BufferWriter, Color, ColorChoice, ColorSpec, WriteColor};
@@ -52,28 +52,12 @@ pub fn try_from<'a>(args: &ArgMatches<'a>, profile: &Profile) -> Result<LogSink,
 
     let sink = match format {
         Format::Human => Box::new(Human::from(args, profile, format)) as LogSink,
-        format => Box::new(format) as LogSink,
+        format => Box::new(FormatSink::new(format, stdout())) as LogSink,
     };
 
     Ok(Box::new(sink.sink_map_err(|e| {
         failure::format_err!("Terminal error: {}", e)
     })))
-}
-
-impl Sink for Format {
-    type SinkItem = Record;
-    type SinkError = Error;
-
-    fn start_send(&mut self, record: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
-        let mut r = record.format(self)?;
-        r.push('\n');
-        std::io::stdout().write_all(r.as_bytes())?;
-        Ok(AsyncSink::Ready)
-    }
-
-    fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
-        Ok(Async::Ready(()))
-    }
 }
 
 /// Human readable terminal output
@@ -319,6 +303,35 @@ impl Drop for Human {
             .reset()
             .and_then(|_| self.writer.print(&buffer))
             .expect("Failed to reset terminal");
+    }
+}
+
+struct FormatSink<T: Write> {
+    format: Format,
+    sink: BufWriter<T>,
+}
+
+impl<T: Write> FormatSink<T> {
+    fn new(format: Format, sink: T) -> FormatSink<T> {
+        FormatSink {
+            format,
+            sink: BufWriter::new(sink),
+        }
+    }
+}
+
+impl<T: Write> Sink for FormatSink<T> {
+    type SinkItem = Record;
+    type SinkError = Error;
+
+    fn start_send(&mut self, record: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
+        self.sink.write_all(self.format.fmt_record(&record)?.as_bytes())?;
+        self.sink.write_all(&[b'\n'])?;
+        Ok(AsyncSink::Ready)
+    }
+
+    fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
+        Ok(Async::Ready(()))
     }
 }
 

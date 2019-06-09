@@ -18,9 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-use crate::record::Record;
 use failure::Error;
 use futures::{sync::oneshot, Future, Sink, Stream};
+use rogcat::record::*;
 use std::{process::exit, str::FromStr};
 use tokio::runtime::Runtime;
 use tokio_signal::ctrl_c;
@@ -33,7 +33,6 @@ mod lossy_lines;
 mod parser;
 mod profiles;
 mod reader;
-mod record;
 mod subcommands;
 mod terminal;
 #[cfg(all(test, not(target_os = "windows")))]

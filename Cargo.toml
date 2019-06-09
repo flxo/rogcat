@@ -20,6 +20,14 @@ repository = "https://github.com/flxo/rogcat"
 version = "0.4.1-alpha.0"
 edition = "2018"
 
+[lib]
+name = "rogcat"
+path = "src/lib.rs"
+
+[[bin]]
+name = "rogcat"
+path = "src/main.rs"
+
 [dependencies]
 atty = "0.2.11"
 bytes = "0.4.12"

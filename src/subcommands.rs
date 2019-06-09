@@ -21,7 +21,6 @@
 use crate::{
     cli::cli,
     reader::stdin,
-    record::Level,
     utils::{self, adb},
     StreamData, DEFAULT_BUFFER,
 };
@@ -31,6 +30,7 @@ use futures::{
     future::ok, stream::Stream, sync::oneshot, Async, AsyncSink, Future, Poll, Sink, StartSend,
 };
 use indicatif::{ProgressBar, ProgressStyle};
+use rogcat::record::Level;
 use std::{
     borrow::ToOwned,
     fs::{DirBuilder, File},

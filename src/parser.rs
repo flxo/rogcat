@@ -18,13 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-use crate::record::{Level, Record, Timestamp};
 use csv::ReaderBuilder;
 use failure::{err_msg, format_err, Error};
 use nom::{
     alt, char, complete, do_parse, flat_map, hex_digit, many0, many1, map, named, opt, parse_to,
     peek, rest, space, tag, take, take_until, take_until_either, try_parse, types::CompleteStr,
 };
+use rogcat::record::{Level, Record, Timestamp};
 use serde_json::from_str;
 use std::convert::Into;
 use time::Tm;

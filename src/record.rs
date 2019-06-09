@@ -44,6 +44,26 @@ pub enum Format {
     Raw,
 }
 
+impl Format {
+    pub fn fmt_record(&self, record: &Record) -> Result<String, Error> {
+        match self {
+            Format::Csv => {
+                let mut wtr = WriterBuilder::new().has_headers(false).from_writer(vec![]);
+                wtr.serialize(record)?;
+                wtr.flush()?;
+                Ok(String::from_utf8(wtr.into_inner().unwrap())?
+                    .trim_end_matches('\n')
+                    .to_owned())
+            }
+            Format::Html => unimplemented!(),
+            Format::Human => unimplemented!(),
+            Format::Json => serde_json::to_string(record)
+                .map_err(|e| format_err!("Json serialization error: {}", e)),
+            Format::Raw => Ok(record.raw.clone()),
+        }
+    }
+}
+
 impl FromStr for Format {
     type Err = &'static str;
     fn from_str(s: &str) -> StdResult<Self, Self::Err> {
@@ -214,33 +234,4 @@ pub struct Record {
     pub process: String,
     pub thread: String,
     pub raw: String,
-}
-
-impl Record {
-    pub fn format(&self, format: &Format) -> Result<String, Error> {
-        match *format {
-            Format::Csv => {
-                let mut wtr = WriterBuilder::new().has_headers(false).from_writer(vec![]);
-                wtr.serialize(self)?;
-                wtr.flush()?;
-                Ok(String::from_utf8(wtr.into_inner().unwrap())?
-                    .trim_end_matches('\n')
-                    .to_owned())
-            }
-            Format::Html => unimplemented!(),
-            Format::Human => unimplemented!(),
-            Format::Json => ::serde_json::to_string(self)
-                .map_err(|e| format_err!("Json serialization error: {}", e)),
-            Format::Raw => Ok(self.raw.clone()),
-        }
-    }
-}
-
-impl From<String> for Record {
-    fn from(raw: String) -> Record {
-        Record {
-            raw,
-            ..Default::default()
-        }
-    }
 }

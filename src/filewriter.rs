@@ -18,15 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-use crate::{
-    record::{Format, Record},
-    LogSink,
-};
+use crate::LogSink;
 use clap::ArgMatches;
 use failure::{err_msg, format_err, Error};
 use futures::{Async, AsyncSink, Poll, Sink, StartSend};
 use indicatif::{ProgressBar, ProgressStyle};
 use regex::Regex;
+use rogcat::record::{Format, Record};
 use std::{
     fs::{DirBuilder, File},
     io::Write,
@@ -99,7 +97,7 @@ impl Writer for Textfile {
 
     fn write(&mut self, record: &Record, _index: usize) -> Result<(), Error> {
         self.file
-            .write(record.format(&self.format)?.as_bytes())
+            .write(self.format.fmt_record(record)?.as_bytes())
             .map_err(|e| format_err!("Failed to write: {}", e))?;
         self.file
             .write(b"\n")
@@ -339,13 +337,13 @@ impl<T: Writer> Sink for FileWriter<T> {
 
 mod html {
     use super::Writer;
-    use crate::record::{Format, Record};
     use crc::{crc32, Hasher32};
     use failure::{format_err, Error};
     use handlebars::{
         to_json, Context, Handlebars, Helper, HelperResult, JsonRender, Output, RenderContext,
         RenderError,
     };
+    use rogcat::record::{Format, Record};
     use serde_derive::Serialize;
     use serde_json::value::{Map, Value as Json};
     use std::{

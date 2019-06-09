@@ -18,9 +18,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-use crate::{record::Level, utils};
+use crate::utils;
 use clap::{crate_authors, crate_name, crate_version, App, AppSettings, Arg, SubCommand};
 use lazy_static::lazy_static;
+use rogcat::record::Level;
 
 lazy_static! {
     static ref ABOUT: String = {
