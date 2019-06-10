@@ -162,6 +162,7 @@ terminal_show_date = false
 terminal_hide_timestamp = true
 terminal_color = never
 terminal_no_dimm = true
+terminal_bright_colors = false
 ```
 
 ## Profiles
