@@ -223,9 +223,14 @@ comment = "Profile names can contain whitespaces. Quote on command line..."
 [profile.rogcat]
 comment = "Only tag \"rogcat\""
 tag = ["^rogcat$"]
+
+[profile.default]
+comment = "Default profile"
 ```
 
 To check your setup, run `rogcat profiles --list` and select a profile for a run by passing the `-p/--profile` option.
+
+You can create a special profile named `default` which will be used when no other profile is selected on the command line.
 
 ## Usage
 
