@@ -86,6 +86,7 @@ struct Human {
     tag_width: Option<usize>,
     thread_width: usize,
     dimm_color: Option<Color>,
+    bright_colors: bool,
 }
 
 impl Human {
@@ -130,6 +131,9 @@ impl Human {
             Some(("%H:%M:%S.%f", 12))
         };
 
+        let bright_colors = args.is_present("bright_colors")
+            || config_get("terminal_bright_colors").unwrap_or(false);
+
         Human {
             writer: BufferWriter::stdout(color),
             dimm_color: if no_dimm { None } else { Some(DIMM_COLOR) },
@@ -138,6 +142,7 @@ impl Human {
             tag_width,
             process_width: 0,
             thread_width: 0,
+            bright_colors,
         }
     }
 
@@ -304,7 +309,11 @@ impl Human {
                 .skip(i * payload_len)
                 .take(payload_len)
                 .collect::<String>();
-            buffer.set_color(ColorSpec::new().set_fg(level_color))?;
+            buffer.set_color(
+                ColorSpec::new()
+                    .set_intense(self.bright_colors)
+                    .set_fg(level_color),
+            )?;
             buffer.write_all(chunk.as_bytes())?;
             buffer.write_all(b"\n")?;
         }
