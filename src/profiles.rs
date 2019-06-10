@@ -28,6 +28,8 @@ use std::{
 };
 use toml::from_str;
 
+const DEFAULT_PROFILE_NAME: &str = "default";
+
 /// Profile definition with filters and misc
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Profile {
@@ -69,6 +71,9 @@ pub fn from_args(args: &ArgMatches) -> Result<Profile, Error> {
                 .ok_or_else(|| format_err!("Unknown profile {}", n))?
                 .clone();
             expand(n, &mut profile, &profiles)?;
+        } else if let Some(default_profile) = profiles.get(DEFAULT_PROFILE_NAME) {
+            profile = default_profile.clone();
+            expand(DEFAULT_PROFILE_NAME, &mut profile, &profiles)?;
         }
 
         Ok(profile)
