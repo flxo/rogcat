@@ -155,12 +155,12 @@ impl Human {
         // Some colors are hard to read on (at least) dark terminals
         // and I consider some others as ugly.
         Color::Ansi256(match i.bytes().fold(42u8, |c, x| c ^ x) {
-            c @ 0...1 => c + 2,
-            c @ 16...21 => c + 6,
-            c @ 52...55 | c @ 126...129 => c + 4,
-            c @ 163...165 | c @ 200...201 => c + 3,
+            c @ 0..=1 => c + 2,
+            c @ 16..=21 => c + 6,
+            c @ 52..=55 | c @ 126..=129 => c + 4,
+            c @ 163..=165 | c @ 200..=201 => c + 3,
             c @ 207 => c + 1,
-            c @ 232...240 => c + 9,
+            c @ 232..=240 => c + 9,
             c => c,
         })
     }
@@ -327,7 +327,8 @@ impl<T: Write> Sink for FormatSink<T> {
     type SinkError = Error;
 
     fn start_send(&mut self, record: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
-        self.sink.write_all(self.format.fmt_record(&record)?.as_bytes())?;
+        self.sink
+            .write_all(self.format.fmt_record(&record)?.as_bytes())?;
         self.sink.write_all(&[b'\n'])?;
         Ok(AsyncSink::Ready)
     }

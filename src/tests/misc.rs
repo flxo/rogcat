@@ -23,7 +23,7 @@ use crate::tests::utils::*;
 #[test]
 fn head() {
     let input = svec!("A", "B", "C", "D");
-    let output = run_rogcat_with_input_file(&svec!("--head", "2"), &input).unwrap();
+    let output = run_rogcat_with_input_file(svec!("--head", "2"), input).unwrap();
     assert!(output.0);
     assert_eq!(output.1.len(), 2);
 }

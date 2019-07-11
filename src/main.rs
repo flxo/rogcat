@@ -47,8 +47,8 @@ pub enum StreamData {
     Line(String),
 }
 
-type LogStream = Box<Stream<Item = StreamData, Error = Error> + Send>;
-type LogSink = Box<Sink<SinkItem = Record, SinkError = Error> + Send>;
+type LogStream = Box<dyn Stream<Item = StreamData, Error = Error> + Send>;
+type LogSink = Box<dyn Sink<SinkItem = Record, SinkError = Error> + Send>;
 
 fn run() -> Result<(), Error> {
     let args = cli::cli().get_matches();

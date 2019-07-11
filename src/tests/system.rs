@@ -23,18 +23,19 @@ use crate::tests::utils::*;
 #[test]
 fn help() {
     let args = &[
-        svec!("--help"),
-        svec!("bugreport", "--help"),
-        svec!("clear", "--help"),
-        svec!("completions", "--help"),
-        svec!("configuration", "--help"),
-        svec!("devices", "--help"),
-        svec!("log", "--help"),
-        svec!("profiles", "--help"),
+        vec!["--help"],
+        vec!["bugreport", "--help"],
+        vec!["clear", "--help"],
+        vec!["completions", "--help"],
+        vec!["configuration", "--help"],
+        vec!["devices", "--help"],
+        vec!["log", "--help"],
+        vec!["profiles", "--help"],
     ];
 
-    for a in args {
-        let result = run_rogcat(a, None).unwrap_or_else(|_| panic!(a.join(" ")));
+    for set in args {
+        let cmd = set.iter().map(|s| s.to_string()).collect::<Vec<String>>();
+        let result = run_rogcat(&cmd, None).unwrap_or_else(|_| panic!(cmd.join(" ")));
         assert!(result.0);
         assert!(!result.1.is_empty());
     }

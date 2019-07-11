@@ -380,7 +380,7 @@ mod html {
             _: &Handlebars,
             _: &Context,
             _: &mut RenderContext,
-            out: &mut Output,
+            out: &mut dyn Output,
         ) -> HelperResult {
             let param = h
                 .param(0)

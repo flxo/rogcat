@@ -31,7 +31,7 @@ use tempdir::TempDir;
 
 macro_rules! svec {
     ( $( $x:expr ),* ) => {
-        vec!($( $x.to_owned(), )*)
+        &[$( $x.to_owned(), )*]
     };
 }
 
@@ -64,8 +64,8 @@ pub fn file_content(file: &PathBuf) -> Result<SVec, Error> {
     Ok(content)
 }
 
-pub fn check_file_content(file: &PathBuf, content: &SVec) -> Result<bool, Error> {
-    Ok(content == &file_content(file)?)
+pub fn check_file_content(file: &PathBuf, content: &[String]) -> Result<bool, Error> {
+    Ok(content == file_content(file)?.as_slice())
 }
 
 pub fn find_rogcat_binary() -> PathBuf {
@@ -79,7 +79,7 @@ pub fn find_rogcat_binary() -> PathBuf {
         .unwrap_or_else(|| panic!("Error: rogcat binary not found, looked in `{:?}`. Do you need to run `cargo build`?", dirs))
 }
 
-pub fn run_rogcat(args: &SVec, input: Option<SVec>) -> Result<(bool, SVec), Error> {
+pub fn run_rogcat(args: &[String], input: Option<&[String]>) -> Result<(bool, SVec), Error> {
     let rogcat = find_rogcat_binary();
     let mut process = Command::new(format!("{}", rogcat.display()))
         .args(args)
@@ -114,7 +114,7 @@ pub fn run_rogcat_with_input_file(
     payload: &[String],
 ) -> Result<(bool, SVec), Error> {
     let input = tempfile_with_content(payload).expect("Failed to crate input file");
-    let mut a = svec!("-i", format!("{}", input.display()));
+    let mut a = svec!("-i", format!("{}", input.display())).to_vec();
     a.extend(args.iter().cloned());
     run_rogcat(&a, None)
 }
@@ -130,7 +130,7 @@ fn tempdirs() {
 #[test]
 fn create_tempfile_with_content() {
     let content = svec!("A", "B", "C");
-    let tempfile = tempfile_with_content(&content).expect("Failed to create tempfile with content");
+    let tempfile = tempfile_with_content(content).expect("Failed to create tempfile with content");
     let file = File::open(tempfile).expect("Failed to open tempfile");
     let reader: BufReader<File> = BufReader::new(file);
     assert_eq!(reader.lines().count(), content.len());
@@ -139,24 +139,21 @@ fn create_tempfile_with_content() {
 #[test]
 fn compare_file_content() {
     let content = svec!("A", "B", "C");
-    let tempfile = tempfile_with_content(&content).expect("Failed to create tempfile with content");
-    assert!(check_file_content(&tempfile, &content).unwrap());
+    let tempfile = tempfile_with_content(content).expect("Failed to create tempfile with content");
+    assert!(check_file_content(&tempfile, content).unwrap());
 }
 
 #[test]
 fn stdin_stdout() {
-    let input = Some(vec![]);
-    let output = run_rogcat(&svec!("-"), input).unwrap();
+    let output = run_rogcat(svec!("-"), Some(&[])).unwrap();
     assert!(output.0);
     assert_eq!(output.1.len(), 0);
 
-    let input = Some(svec!("A", "B", "C"));
-    let output = run_rogcat(&svec!("-"), input).unwrap();
+    let output = run_rogcat(svec!("-"), Some(svec!("A", "B", "C"))).unwrap();
     assert!(output.0);
     assert_eq!(output.1.len(), 3);
 
-    let input = Some(svec!("A", "B", "C", "D"));
-    let output = run_rogcat(&svec!("-"), input).unwrap();
+    let output = run_rogcat(svec!("-"), Some(svec!("A", "B", "C", "D"))).unwrap();
     assert!(output.0);
     assert_eq!(output.1.len(), 4);
 }
@@ -164,7 +161,7 @@ fn stdin_stdout() {
 #[test]
 fn testrun_rogcat_with_input_file() {
     let input = svec!("A", "B", "C");
-    let output = run_rogcat_with_input_file(&vec![], &input).unwrap();
+    let output = run_rogcat_with_input_file(&[], input).unwrap();
     assert!(output.0);
     assert_eq!(output.1.len(), 3);
 }

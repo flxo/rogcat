@@ -29,7 +29,7 @@ fn invalid_string() {
         .write_all(b"some invalid bytes come here: \xF0\x90\x80\nhaha")
         .unwrap();
     let args = svec!("-i", format!("{}", path.display()));
-    let output = run_rogcat(&args, None).unwrap();
+    let output = run_rogcat(args, None).unwrap();
     assert!(output.0);
     assert_eq!(output.1.len(), 2);
 }
@@ -37,16 +37,16 @@ fn invalid_string() {
 #[test]
 fn multiple_files() {
     let content = svec!("A", "B", "C");
-    let a = tempfile_with_content(&content)
+    let a = tempfile_with_content(content)
         .unwrap()
         .display()
         .to_string();
-    let b = tempfile_with_content(&content)
+    let b = tempfile_with_content(content)
         .unwrap()
         .display()
         .to_string();
     let args = svec!("-i", a, "-i", b);
-    let output = run_rogcat(&args, None).unwrap();
+    let output = run_rogcat(args, None).unwrap();
     assert!(output.0);
     assert_eq!(output.1.len(), 6);
 }

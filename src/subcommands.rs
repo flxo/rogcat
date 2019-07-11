@@ -155,9 +155,9 @@ pub fn bugreport(args: &ArgMatches) {
     progress.set_message("Connecting");
 
     let mut write = if args.is_present("zip") {
-        Box::new(ZipFile::create(&filename).expect("Failed to create zip file")) as Box<Write>
+        Box::new(ZipFile::create(&filename).expect("Failed to create zip file")) as Box<dyn Write>
     } else {
-        Box::new(File::create(&filename).expect("Failed to craete file")) as Box<Write>
+        Box::new(File::create(&filename).expect("Failed to craete file")) as Box<dyn Write>
     };
 
     progress.set_message("Pulling bugreport line");
