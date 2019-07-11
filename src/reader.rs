@@ -18,8 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#[cfg(target_os = "linux")]
-use crate::record::{Record, Timestamp};
 use crate::{
     lossy_lines::{lossy_lines, LossyLinesCodec},
     utils::{adb, config_get},
@@ -28,6 +26,8 @@ use crate::{
 use clap::{value_t, ArgMatches};
 use failure::{err_msg, format_err, Error};
 use futures::{stream::iter_ok, Async, Future, Stream};
+#[cfg(target_os = "linux")]
+use rogcat::record::{Record, Timestamp};
 use std::{
     borrow::ToOwned,
     convert::Into,
