@@ -26,7 +26,10 @@ use nom::{
 };
 use rogcat::record::{Level, Record, Timestamp};
 use serde_json::from_str;
-use std::convert::Into;
+use std::{
+    convert::Into,
+    io::{Cursor, Read},
+};
 use time::Tm;
 
 named!(
@@ -217,15 +220,13 @@ impl Parser {
     }
 
     fn parse_csv(line: &str) -> Result<Record, Error> {
-        let mut line = line.to_owned();
-        line.push('\n');
-        let mut rdr = ReaderBuilder::new()
-            .has_headers(false)
-            .from_reader(line.as_bytes());
+        let reader = Cursor::new(line).chain(Cursor::new([b'\n']));
+        let mut rdr = ReaderBuilder::new().has_headers(false).from_reader(reader);
         if let Some(result) = rdr.deserialize().next() {
-            return result.map_err(Into::into);
+            result.map_err(Into::into)
+        } else {
+            Err(err_msg("Failed to parse csv"))
         }
-        Err(err_msg("Failed to parse csv"))
     }
 
     fn parse_json(line: &str) -> Result<Record, Error> {
