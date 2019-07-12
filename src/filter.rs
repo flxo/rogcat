@@ -123,22 +123,26 @@ impl FilterGroup {
     }
 
     fn filter(&self, item: &str) -> bool {
-        if self.ignore_case {
-            let item = item.to_lowercase();
-            if !self.positive.is_empty() && !self.positive.iter().any(|m| m.is_match(&item)) {
-                return false;
-            }
-            if self.negative.iter().any(|m| m.is_match(&item)) {
-                return false;
-            }
-        } else {
-            if !self.positive.is_empty() && !self.positive.iter().any(|m| m.is_match(item)) {
-                return false;
-            }
-            if self.negative.iter().any(|m| m.is_match(item)) {
+        if !self.positive.is_empty() {
+            if self.ignore_case {
+                let item = item.to_lowercase();
+                if !self.positive.iter().any(|m| m.is_match(&item)) {
+                    return false;
+                }
+            } else if !self.positive.iter().any(|m| m.is_match(&item)) {
                 return false;
             }
         }
+
+        if !self.negative.is_empty() {
+            if self.ignore_case {
+                let item = item.to_lowercase();
+                return self.negative.iter().any(|m| m.is_match(&item));
+            } else {
+                return self.negative.iter().any(|m| m.is_match(&item));
+            }
+        }
+
         true
     }
 }
