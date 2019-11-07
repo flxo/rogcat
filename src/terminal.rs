@@ -301,10 +301,7 @@ impl Human {
 impl Drop for Human {
     fn drop(&mut self) {
         let mut buffer = self.writer.buffer();
-        buffer
-            .reset()
-            .and_then(|_| self.writer.print(&buffer))
-            .expect("Failed to reset terminal");
+        buffer.reset().and_then(|_| self.writer.print(&buffer)).ok();
     }
 }
 
