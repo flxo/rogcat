@@ -137,9 +137,9 @@ impl FilterGroup {
         if !self.negative.is_empty() {
             if self.ignore_case {
                 let item = item.to_lowercase();
-                return self.negative.iter().any(|m| m.is_match(&item));
+                return !self.negative.iter().any(|m| m.is_match(&item));
             } else {
-                return self.negative.iter().any(|m| m.is_match(&item));
+                return !self.negative.iter().any(|m| m.is_match(&item));
             }
         }
 
