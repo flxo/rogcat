@@ -21,6 +21,7 @@
 use failure::Error;
 use futures::{sync::oneshot, Future, Sink, Stream};
 use rogcat::record::*;
+use rogcat::parser;
 use std::{process::exit, str::FromStr};
 use tokio::runtime::Runtime;
 use tokio_signal::ctrl_c;
@@ -30,7 +31,6 @@ mod cli;
 mod filewriter;
 mod filter;
 mod lossy_lines;
-mod parser;
 mod profiles;
 mod reader;
 mod subcommands;
@@ -93,7 +93,7 @@ fn run() -> Result<(), Error> {
         .map(|v| usize::from_str(v).expect("Invalid head arguement"));
 
     let filter = filter::from_args_profile(&args, &profile)?;
-    let mut parser = parser::Parser::new();
+    let mut parser = parser::Parser::with_default_rules();
 
     let mut runtime = Runtime::new()?;
 

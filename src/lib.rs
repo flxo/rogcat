@@ -19,3 +19,4 @@
 // SOFTWARE.
 
 pub mod record;
+pub mod parser;
