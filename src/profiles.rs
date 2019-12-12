@@ -21,7 +21,7 @@
 use crate::utils;
 use clap::{value_t, ArgMatches};
 use failure::{format_err, Error};
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap, convert::Into, env::var, fs::File, io::Read, ops::AddAssign,
     path::PathBuf,

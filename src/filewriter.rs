@@ -344,7 +344,7 @@ mod html {
         RenderError,
     };
     use rogcat::record::{Format, Record};
-    use serde_derive::Serialize;
+    use serde::Serialize;
     use serde_json::value::{Map, Value as Json};
     use std::{
         fs::File,
