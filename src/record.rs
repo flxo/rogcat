@@ -21,11 +21,11 @@
 use csv::WriterBuilder;
 use failure::{format_err, Error};
 use serde::{
-    de::{Deserialize, Deserializer, Visitor},
+    de::{Deserializer, Visitor},
     ser::Serializer,
     Serialize,
+    Deserialize
 };
-use serde_derive::{Deserialize, Serialize};
 use std::{
     fmt::{Display, Formatter},
     ops::Deref,
