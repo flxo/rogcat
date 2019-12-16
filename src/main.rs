@@ -20,8 +20,7 @@
 
 use failure::Error;
 use futures::{sync::oneshot, Future, Sink, Stream};
-use rogcat::parser;
-use rogcat::record::Record;
+use rogcat::{parser, record::Record};
 use std::{process::exit, str::FromStr};
 use tokio::runtime::Runtime;
 use tokio_signal::ctrl_c;

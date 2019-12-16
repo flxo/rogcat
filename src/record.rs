@@ -23,8 +23,7 @@ use failure::{format_err, Error};
 use serde::{
     de::{Deserializer, Visitor},
     ser::Serializer,
-    Serialize,
-    Deserialize
+    Deserialize, Serialize,
 };
 use std::{
     fmt::{Display, Formatter},
