@@ -234,7 +234,7 @@ impl FormatParser for CsvParser {
         if let Some(result) = rdr.deserialize().next() {
             result.map_err(|e| ParserError(format!("{}", e)))
         } else {
-            Err(ParserError(format!("Failed to parse csv")))
+            Err(ParserError("Failed to parse csv".to_string()))
         }
     }
 }

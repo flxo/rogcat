@@ -110,7 +110,7 @@ impl<'a, T: Writer> FileWriter<T> {
     pub fn from_args(args: &ArgMatches<'a>, format: Format) -> Result<Self, Error> {
         let filename = args
             .value_of("output")
-            .and_then(|f| Some(PathBuf::from(f)))
+            .map(PathBuf::from)
             .ok_or_else(|| err_msg("Invalid output filename!"))?;
 
         let records_per_file = args.value_of("records_per_file").and_then(|l| {
