@@ -20,8 +20,8 @@
 
 use failure::Error;
 use futures::{sync::oneshot, Future, Sink, Stream};
-use rogcat::record::*;
 use rogcat::parser;
+use rogcat::record::Record;
 use std::{process::exit, str::FromStr};
 use tokio::runtime::Runtime;
 use tokio_signal::ctrl_c;
@@ -93,7 +93,7 @@ fn run() -> Result<(), Error> {
         .map(|v| usize::from_str(v).expect("Invalid head arguement"));
 
     let filter = filter::from_args_profile(&args, &profile)?;
-    let mut parser: parser::Parser = Default::default();
+    let mut parser = parser::Parser::default();
 
     let mut runtime = Runtime::new()?;
 
