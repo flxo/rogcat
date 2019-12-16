@@ -93,13 +93,13 @@ fn run() -> Result<(), Error> {
         .map(|v| usize::from_str(v).expect("Invalid head arguement"));
 
     let filter = filter::from_args_profile(&args, &profile)?;
-    let mut parser = parser::Parser::with_default_rules();
+    let mut parser: parser::Parser = Default::default();
 
     let mut runtime = Runtime::new()?;
 
     let f = source
         .map(move |a| match a {
-            StreamData::Line(l) => parser.parse(l),
+            StreamData::Line(l) => parser.parse(&l),
             StreamData::Record(r) => r,
         })
         .filter(move |r| filter.filter(r))

@@ -28,6 +28,22 @@ pub struct Parser {
     last: Option<usize>,
 }
 
+impl Default for Parser {
+    fn default() -> Self {
+        Parser {
+            parsers: vec![
+                Box::new(formats::DefaultParser),
+                Box::new(formats::MindroidParser),
+                Box::new(formats::CsvParser),
+                Box::new(formats::JsonParser),
+                Box::new(formats::GTestParser),
+                Box::new(formats::BugReportParser),
+            ],
+            last: None,
+        }
+    }
+}
+
 impl Parser {
     pub fn new() -> Self {
         Parser {
@@ -36,21 +52,7 @@ impl Parser {
         }
     }
 
-    pub fn with_default_rules() -> Self {
-        Parser {
-            parsers: vec![
-                Box::new(formats::DefaultParser {}),
-                Box::new(formats::MindroidParser {}),
-                Box::new(formats::CsvParser {}),
-                Box::new(formats::JsonParser {}),
-                Box::new(formats::GTestParser {}),
-                Box::new(formats::BugReportParser {}),
-            ],
-            last: None,
-        }
-    }
-
-    pub fn parse(&mut self, line: String) -> Record {
+    pub fn parse(&mut self, line: &str) -> Record {
         if let Some(last) = self.last {
             let p = &self.parsers[last];
             if let Ok(r) = p.try_parse_str(&line) {
@@ -68,8 +70,8 @@ impl Parser {
         // Seems that we cannot parse this record
         // Treat the raw input as message
         Record {
-            raw: line.clone(),
-            message: line,
+            raw: String::from(line),
+            message: String::from(line),
             ..Default::default()
         }
     }
@@ -77,11 +79,11 @@ impl Parser {
 
 #[test]
 fn test_parsing() {
-    let mut parse_engine = Parser::with_default_rules();
+    let mut parse_engine: Parser = Default::default();
 
     let t = "03-01 02:19:45.207     1     2 I EXT4-fs (mmcblk3p8): mounted filesystem with \
              ordered data mode. Opts: (null)";
-    let r = parse_engine.parse(t.to_string());
+    let r = parse_engine.parse(t);
     assert_eq!(r.level, super::record::Level::Info);
     assert_eq!(r.tag, "EXT4-fs (mmcblk3p8)");
     assert_eq!(r.process, "1");
