@@ -101,7 +101,7 @@ impl FilterGroup {
             if ignore_case {
                 f.to_lowercase()
             } else {
-                f.to_string()
+                (*f).to_string()
             }
         }) {
             if r.starts_with('!') {
