@@ -120,7 +120,7 @@ fn report_filename() -> Result<String, Error> {
     Ok(format!("{}-bugreport.txt", strftime(&format, &now())?))
 }
 
-/// Performs a dumpstate and write to fs. Note: The Android 7+ dumpstate is not supported.
+/// Performs a dumpstate and write to fs.
 pub fn bugreport(args: &ArgMatches) {
     let filename = value_t!(args.value_of("file"), String)
         .unwrap_or_else(|_| report_filename().expect("Failed to generate filename"));
@@ -131,6 +131,7 @@ pub fn bugreport(args: &ArgMatches) {
     }
 
     let mut child = Command::new(adb().expect("Failed to find adb"))
+        .arg("shell")
         .arg("bugreport")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
