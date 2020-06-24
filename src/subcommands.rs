@@ -141,15 +141,16 @@ pub fn bugreport(args: &ArgMatches) {
         .for_each(|l| {
             eprintln!("bugreportz: |{}|", l);
             
-            let ver1 = l.split('.').into_iter().try_fold(vec![], |mut v, s| {
-                let r = s.trim().parse::<u32>();
-                match r {
-                    Ok(x) => Ok({ v.push(x); v }),
-                    Err(e) => Err(e),
-                }
-            });
-            
             if ver.is_empty() {
+            
+                let ver1 = l.split('.').into_iter().try_fold(vec![], |mut v, s| {
+                    let r = s.trim().parse::<u32>();
+                    match r {
+                        Ok(x) => Ok({ v.push(x); v }),
+                        Err(e) => Err(e),
+                    }
+                });
+                
                 match ver1 {
                     Ok(v) => ver = v,
                     Err(_) => {},
@@ -175,6 +176,33 @@ pub fn bugreport(args: &ArgMatches) {
     if have_bugreportz {
         
         eprintln!("Running bugreportz");
+        
+        let mut child = Command::new(adb().expect("Failed to find adb"))
+            .arg("shell")
+            .arg("bugreportz")
+            .arg("-p")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn_async()
+            .expect("Failed to launch adb");
+        let stdout = BufReader::new(child.stdout().take().unwrap());
+        
+        
+        let output = tokio::io::lines(stdout)
+            .for_each(|l| {
+                eprintln!("bugreportz: |{}|", l);
+                ok(())
+            })
+            .then(|r| {
+                eprintln!("bugreportz end: |{:?}|", r);
+                r
+            })
+            .map_err(|e| {
+                eprintln!("Failed to create bugreport: {}", e);
+                exit(1);
+            });
+
+        tokio::runtime::current_thread::block_on_all(output).expect("Runtime error");
         
         exit(0);
     }
