@@ -122,6 +122,64 @@ fn report_filename() -> Result<String, Error> {
 
 /// Performs a dumpstate and write to fs.
 pub fn bugreport(args: &ArgMatches) {
+    
+    eprintln!("Test bugreportz");
+    
+    let mut child = Command::new(adb().expect("Failed to find adb"))
+        .arg("shell")
+        .arg("bugreportz")
+        .arg("-v")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn_async()
+        .expect("Failed to launch adb");
+    
+    let mut ver = vec![];
+    
+    let reader = BufReader::new(child.stderr().take().unwrap());
+    let out = lines(reader)
+        .for_each(|l| {
+            eprintln!("bugreportz: |{}|", l);
+            
+            let ver1 = l.split('.').into_iter().try_fold(vec![], |mut v, s| {
+                let r = s.trim().parse::<u32>();
+                match r {
+                    Ok(x) => Ok({ v.push(x); v }),
+                    Err(e) => Err(e),
+                }
+            });
+            
+            if ver.is_empty() {
+                match ver1 {
+                    Ok(v) => ver = v,
+                    Err(_) => {},
+                }
+            }
+            
+            Ok(())
+        })
+        .map_err(|e| {
+            eprintln!("Failed to run adb: {}", e);
+            exit(1)
+        });
+    
+    eprintln!("Test bugreportz tokio");
+    
+    tokio::runtime::current_thread::block_on_all(out).expect("Runtime error");
+    
+    
+    let have_bugreportz = !ver.is_empty();
+    
+    eprintln!("Test bugreportz done {:?} {:?}", have_bugreportz, ver);
+    
+    if have_bugreportz {
+        
+        eprintln!("Running bugreportz");
+        
+        exit(0);
+    }
+    
+    
     let filename = value_t!(args.value_of("file"), String)
         .unwrap_or_else(|_| report_filename().expect("Failed to generate filename"));
     let filename_path = PathBuf::from(&filename);
