@@ -164,8 +164,6 @@ pub fn bugreport(args: &ArgMatches) {
             exit(1)
         });
     
-    eprintln!("Test bugreportz tokio");
-    
     tokio::runtime::current_thread::block_on_all(out).expect("Runtime error");
     
     
@@ -187,10 +185,59 @@ pub fn bugreport(args: &ArgMatches) {
             .expect("Failed to launch adb");
         let stdout = BufReader::new(child.stdout().take().unwrap());
         
+        let progress = ProgressBar::new(100);
+        progress.set_style(
+            ProgressStyle::default_bar()
+                .template("{spinner:.yellow} {msg:.dim.bold} {pos:>7.dim} {elapsed_precise:.dim}")
+                .progress_chars(" • "),
+        );
+        progress.set_message("Connecting");
+        
         
         let output = tokio::io::lines(stdout)
             .for_each(|l| {
-                eprintln!("bugreportz: |{}|", l);
+                // eprintln!("bugreportz: |{}|", l);
+                
+                let v: Vec<&str> = l.split(':').collect();
+                
+                if v.len() < 2 {
+                    progress.set_message(&l);
+                } else {
+                    match v[0] {
+                        "BEGIN" => {
+                            progress.set_message("Bugreport");
+                        },
+                        "OK" => {
+                            progress.finish();
+                        },
+                        "PROGRESS" => {
+                            let nums: Vec<&str> = v[1].split('/').collect();
+                            
+                            if nums.len() != 2 {
+                                progress.set_message(&l);
+                            } else {
+                                let cur = nums[0].trim().parse::<u32>();
+                                let tot = nums[1].trim().parse::<u32>();
+                                
+                                if cur.is_err() || tot.is_err() {
+                                    progress.set_message(&l);
+                                } else {
+                                    let cur = cur.unwrap_or(0);
+                                    let tot = tot.unwrap_or(0);
+                                    
+                                    let pr = 100.0 * (cur  as f64) / (tot  as f64);
+                                    
+                                    progress.set_position(pr.round() as u64);
+                                }
+                            }
+                            
+                        },
+                        _ => {
+                            progress.set_message(&l);
+                        }
+                    }
+                }
+                
                 ok(())
             })
             .then(|r| {
