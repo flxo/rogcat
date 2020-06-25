@@ -123,8 +123,6 @@ fn report_filename() -> Result<String, Error> {
 /// Performs a dumpstate and write to fs.
 pub fn bugreport(args: &ArgMatches) {
     
-    eprintln!("Test bugreportz");
-    
     let mut child = Command::new(adb().expect("Failed to find adb"))
         .arg("shell")
         .arg("bugreportz")
@@ -139,7 +137,7 @@ pub fn bugreport(args: &ArgMatches) {
     let reader = BufReader::new(child.stderr().take().unwrap());
     let out = lines(reader)
         .for_each(|l| {
-            eprintln!("bugreportz: |{}|", l);
+            // eprintln!("bugreportz: |{}|", l);
             
             if ver.is_empty() {
             
@@ -168,12 +166,28 @@ pub fn bugreport(args: &ArgMatches) {
     
     
     let have_bugreportz = !ver.is_empty();
+    // eprintln!("Test bugreportz done {:?} {:?}", have_bugreportz, ver);
     
-    eprintln!("Test bugreportz done {:?} {:?}", have_bugreportz, ver);
+    
+    let filename = value_t!(args.value_of("file"), String)
+        .unwrap_or_else(|_| report_filename().expect("Failed to generate filename"));
+    let filename_path = PathBuf::from(&filename);
+    if !args.is_present("overwrite") && filename_path.exists() {
+        eprintln!("File {} already exists", filename);
+        exit(1);
+    }
+    
     
     if have_bugreportz {
         
-        eprintln!("Running bugreportz");
+        let parts: Vec<&str> = filename.rsplitn(2, '.').collect();
+        
+        let dst_file_name = if parts.len() == 2 && parts[0] != "zip" {
+            parts[1].to_string() + ".zip"
+        } else {
+            filename
+        };
+        
         
         let mut child = Command::new(adb().expect("Failed to find adb"))
             .arg("shell")
@@ -208,7 +222,23 @@ pub fn bugreport(args: &ArgMatches) {
                             progress.set_message("Bugreport");
                         },
                         "OK" => {
+                            
+                            let src_file_name = v[1];
+                            
+                            
                             progress.finish();
+                            
+                            // eprintln!("src file: |{}| -> |{}|", src_file_name, dst_file_name);
+                            Command::new(adb().expect("Failed to find adb"))
+                                .arg("pull")
+                                .arg(src_file_name.to_string())
+                                .arg(dst_file_name.to_string())
+                                .stdout(Stdio::piped())
+                                .stderr(Stdio::piped())
+                                .spawn()
+                                .expect("Failed to launch adb");
+                            
+                            progress.set_message(&dst_file_name);
                         },
                         "PROGRESS" => {
                             let nums: Vec<&str> = v[1].split('/').collect();
@@ -240,10 +270,6 @@ pub fn bugreport(args: &ArgMatches) {
                 
                 ok(())
             })
-            .then(|r| {
-                eprintln!("bugreportz end: |{:?}|", r);
-                r
-            })
             .map_err(|e| {
                 eprintln!("Failed to create bugreport: {}", e);
                 exit(1);
@@ -254,14 +280,6 @@ pub fn bugreport(args: &ArgMatches) {
         exit(0);
     }
     
-    
-    let filename = value_t!(args.value_of("file"), String)
-        .unwrap_or_else(|_| report_filename().expect("Failed to generate filename"));
-    let filename_path = PathBuf::from(&filename);
-    if !args.is_present("overwrite") && filename_path.exists() {
-        eprintln!("File {} already exists", filename);
-        exit(1);
-    }
 
     let mut child = Command::new(adb().expect("Failed to find adb"))
         .arg("shell")
