@@ -242,15 +242,15 @@ pub fn bugreport(args: &ArgMatches) {
                                 let cur = nums[0].trim().parse::<u32>();
                                 let tot = nums[1].trim().parse::<u32>();
 
-                                if cur.is_err() || tot.is_err() {
-                                    progress.set_message(&l);
-                                } else {
-                                    let cur = cur.unwrap_or(0);
-                                    let tot = tot.unwrap_or(0);
+                                match (cur, tot) {
+                                    (Ok(cur), Ok(tot)) => {
+                                        let pr = 100.0 * (cur as f64) / (tot as f64);
+                                        progress.set_position(pr.round() as u64);
+                                    },
 
-                                    let pr = 100.0 * (cur as f64) / (tot as f64);
-
-                                    progress.set_position(pr.round() as u64);
+                                    _ => {
+                                        progress.set_message(&l);
+                                    },
                                 }
                             }
                         }
