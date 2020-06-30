@@ -136,23 +136,15 @@ pub fn bugreport(args: &ArgMatches) {
     let reader = BufReader::new(child.stderr().take().unwrap());
     let out = lines(reader)
         .for_each(|l| {
-            // eprintln!("bugreportz: |{}|", l);
 
             if ver.is_empty() {
-                let ver1 = l.split('.').into_iter().try_fold(vec![], |mut v, s| {
-                    let r = s.trim().parse::<u32>();
-                    match r {
-                        Ok(x) => Ok({
-                            v.push(x);
-                            v
-                        }),
-                        Err(e) => Err(e),
-                    }
-                });
 
-                match ver1 {
-                    Ok(v) => ver = v,
-                    Err(_) => {}
+                let ver1: Vec<u32> =  l.split('.').into_iter().filter_map(|s| {
+                    s.trim().parse::<u32>().ok()
+                }).collect();
+
+                if !ver1.is_empty() {
+                    ver = ver1;
                 }
             }
 
@@ -160,13 +152,12 @@ pub fn bugreport(args: &ArgMatches) {
         })
         .map_err(|e| {
             eprintln!("Failed to run adb: {}", e);
-            exit(1)
+            e
         });
 
     tokio::runtime::current_thread::block_on_all(out).expect("Runtime error");
 
     let have_bugreportz = !ver.is_empty();
-    // eprintln!("Test bugreportz done {:?} {:?}", have_bugreportz, ver);
 
     let filename = value_t!(args.value_of("file"), String)
         .unwrap_or_else(|_| report_filename().expect("Failed to generate filename"));
@@ -205,7 +196,6 @@ pub fn bugreport(args: &ArgMatches) {
 
         let output = tokio::io::lines(stdout)
             .for_each(|l| {
-                // eprintln!("bugreportz: |{}|", l);
 
                 let v: Vec<&str> = l.split(':').collect();
 
@@ -221,7 +211,6 @@ pub fn bugreport(args: &ArgMatches) {
 
                             progress.finish();
 
-                            // eprintln!("src file: |{}| -> |{}|", src_file_name, dst_file_name);
                             Command::new(adb().expect("Failed to find adb"))
                                 .arg("pull")
                                 .arg(src_file_name.to_string())
