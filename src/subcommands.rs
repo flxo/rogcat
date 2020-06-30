@@ -139,11 +139,15 @@ pub fn bugreport(args: &ArgMatches) {
 
             if ver.is_empty() {
 
+                let mut is_err = false;
+
                 let ver1: Vec<u32> =  l.split('.').into_iter().filter_map(|s| {
-                    s.trim().parse::<u32>().ok()
+                    let r = s.trim().parse::<u32>();
+                    if r.is_err() { is_err = true }
+                    r.ok()
                 }).collect();
 
-                if !ver1.is_empty() {
+                if !is_err && !ver1.is_empty() {
                     ver = ver1;
                 }
             }
