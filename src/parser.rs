@@ -38,7 +38,7 @@ use time::Tm;
 pub struct ParserError(String);
 
 pub trait FormatParser: Send + Sync {
-    fn try_parse_str<'a>(&self, line: &'a str) -> Result<Record, ParserError>;
+    fn try_parse_str(&self, line: &str) -> Result<Record, ParserError>;
 }
 
 named!(
@@ -202,7 +202,7 @@ named!(
 pub struct DefaultParser;
 
 impl FormatParser for DefaultParser {
-    fn try_parse_str<'a>(&self, line: &'a str) -> Result<Record, ParserError> {
+    fn try_parse_str(&self, line: &str) -> Result<Record, ParserError> {
         printable(CompleteStr(line))
             .map(|(_, mut v)| {
                 v.raw = line.into();
@@ -215,7 +215,7 @@ impl FormatParser for DefaultParser {
 pub struct MindroidParser;
 
 impl FormatParser for MindroidParser {
-    fn try_parse_str<'a>(&self, line: &'a str) -> Result<Record, ParserError> {
+    fn try_parse_str(&self, line: &str) -> Result<Record, ParserError> {
         mindroid(CompleteStr(line))
             .map(|(_, mut v)| {
                 v.raw = line.into();
@@ -228,7 +228,7 @@ impl FormatParser for MindroidParser {
 pub struct CsvParser;
 
 impl FormatParser for CsvParser {
-    fn try_parse_str<'a>(&self, line: &'a str) -> Result<Record, ParserError> {
+    fn try_parse_str(&self, line: &str) -> Result<Record, ParserError> {
         let reader = Cursor::new(line).chain(Cursor::new([b'\n']));
         let mut rdr = ReaderBuilder::new().has_headers(false).from_reader(reader);
         if let Some(result) = rdr.deserialize().next() {
@@ -242,7 +242,7 @@ impl FormatParser for CsvParser {
 pub struct JsonParser;
 
 impl FormatParser for JsonParser {
-    fn try_parse_str<'a>(&self, line: &'a str) -> Result<Record, ParserError> {
+    fn try_parse_str(&self, line: &str) -> Result<Record, ParserError> {
         from_str(line).map_err(|e| ParserError(format!("Failed to deserialize json: {}", e)))
     }
 }
@@ -250,7 +250,7 @@ impl FormatParser for JsonParser {
 pub struct GTestParser;
 
 impl FormatParser for GTestParser {
-    fn try_parse_str<'a>(&self, line: &'a str) -> Result<Record, ParserError> {
+    fn try_parse_str(&self, line: &str) -> Result<Record, ParserError> {
         if line.len() >= 12 {
             let mut chars = line.chars();
             if let Some('[') = chars.next() {
@@ -293,7 +293,7 @@ impl FormatParser for GTestParser {
 pub struct BugReportParser;
 
 impl FormatParser for BugReportParser {
-    fn try_parse_str<'a>(&self, line: &'a str) -> Result<Record, ParserError> {
+    fn try_parse_str(&self, line: &str) -> Result<Record, ParserError> {
         if line.starts_with('=')
             || line.starts_with('-')
             || (line.starts_with('[') && line.ends_with(']'))
@@ -305,12 +305,12 @@ impl FormatParser for BugReportParser {
                     raw: line.to_owned(),
                     ..Default::default()
                 })
-            } else if line.starts_with("== ") {
+            } else if let Some(line) = line.strip_prefix("== ") {
                 Ok(Record {
                     level: Level::Info,
-                    message: line[3..].to_owned(),
+                    message: line.to_owned(),
                     raw: line.to_owned(),
-                    tag: line[3..].to_owned(),
+                    tag: line.to_owned(),
                     ..Default::default()
                 })
             } else if line.is_empty() {

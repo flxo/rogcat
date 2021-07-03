@@ -82,17 +82,18 @@ impl Human {
         let color = {
             match args
                 .value_of("color")
-                .unwrap_or_else(|| config_get("terminal_color").unwrap_or_else(|| "auto"))
+                .unwrap_or_else(|| config_get("terminal_color").unwrap_or("auto"))
             {
                 "always" => ColorChoice::Always,
                 "never" => ColorChoice::Never,
-                "auto" | _ => {
+                "auto" => {
                     if atty::is(atty::Stream::Stdout) {
                         ColorChoice::Auto
                     } else {
                         ColorChoice::Never
                     }
                 }
+                _ => ColorChoice::Auto,
             }
         };
         let no_dimm = args.is_present("no_dimm") || config_get("terminal_no_dimm").unwrap_or(false);

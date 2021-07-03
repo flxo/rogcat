@@ -104,8 +104,8 @@ impl FilterGroup {
                 (*f).to_string()
             }
         }) {
-            if r.starts_with('!') {
-                let r = Regex::new(&r[1..])
+            if let Some(r) = r.strip_prefix('!') {
+                let r = Regex::new(&r)
                     .map_err(|e| format_err!("Invalid regex string: {}: {}", r, e))?;
                 negative.push(r);
             } else {

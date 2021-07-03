@@ -54,7 +54,7 @@ struct Process {
 }
 
 /// Open a file and provide a stream of lines
-pub fn files<'a>(args: &ArgMatches<'a>) -> Result<LogStream, Error> {
+pub fn files(args: &ArgMatches) -> Result<LogStream, Error> {
     let files = args
         .values_of("input")
         .ok_or_else(|| err_msg("Missing input argument"))?
@@ -83,7 +83,7 @@ pub fn stdin() -> LogStream {
 }
 
 /// Open a serial port and provide a stream of lines
-pub fn serial<'a>(_args: &ArgMatches<'a>) -> LogStream {
+pub fn serial(_args: &ArgMatches) -> LogStream {
     unimplemented!()
 }
 
@@ -138,7 +138,7 @@ pub fn tcp(addr: &Url) -> Result<LogStream, Error> {
 }
 
 /// Start a process and stream it stdout
-pub fn logcat<'a>(args: &ArgMatches<'a>) -> Result<LogStream, Error> {
+pub fn logcat(args: &ArgMatches) -> Result<LogStream, Error> {
     let mut cmd = vec![adb()?.display().to_string()];
     cmd.push("logcat".into());
     let mut respawn = args.is_present("restart") | config_get::<bool>("restart").unwrap_or(true);
@@ -169,7 +169,7 @@ pub fn logcat<'a>(args: &ArgMatches<'a>) -> Result<LogStream, Error> {
 }
 
 /// Start a process and stream it stdout
-pub fn process<'a>(args: &ArgMatches<'a>) -> Result<LogStream, Error> {
+pub fn process(args: &ArgMatches) -> Result<LogStream, Error> {
     let respawn = args.is_present("restart");
     let cmd = value_t!(args, "COMMAND", String)?
         .split_whitespace()

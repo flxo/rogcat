@@ -38,7 +38,7 @@ fn help() {
             .iter()
             .map(|s| (*s).to_string())
             .collect::<Vec<String>>();
-        let result = run_rogcat(&cmd, None).unwrap_or_else(|_| panic!(cmd.join(" ")));
+        let result = run_rogcat(&cmd, None).unwrap_or_else(|_| panic!("{}", cmd.join(" ")));
         assert!(result.0);
         assert!(!result.1.is_empty());
     }
