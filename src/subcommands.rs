@@ -120,8 +120,49 @@ fn report_filename() -> Result<String, Error> {
     Ok(format!("{}-bugreport.txt", strftime(&format, &now())?))
 }
 
-/// Performs a dumpstate and write to fs. Note: The Android 7+ dumpstate is not supported.
+/// Performs a dumpstate and write to fs.
 pub fn bugreport(args: &ArgMatches) {
+    let mut child = Command::new(adb().expect("Failed to find adb"))
+        .arg("shell")
+        .arg("bugreportz")
+        .arg("-v")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn_async()
+        .expect("Failed to launch adb");
+
+    let mut ver = vec![];
+
+    let reader = BufReader::new(child.stderr().take().unwrap());
+    let out = lines(reader)
+        .for_each(|l| {
+
+            if ver.is_empty() {
+
+                let mut is_err = false;
+
+                let ver1: Vec<u32> =  l.split('.').into_iter().filter_map(|s| {
+                    let r = s.trim().parse::<u32>();
+                    if r.is_err() { is_err = true }
+                    r.ok()
+                }).collect();
+
+                if !is_err && !ver1.is_empty() {
+                    ver = ver1;
+                }
+            }
+
+            Ok(())
+        })
+        .map_err(|e| {
+            eprintln!("Failed to run adb: {}", e);
+            e
+        });
+
+    tokio::runtime::current_thread::block_on_all(out).expect("Runtime error");
+
+    let have_bugreportz = !ver.is_empty();
+
     let filename = value_t!(args.value_of("file"), String)
         .unwrap_or_else(|_| report_filename().expect("Failed to generate filename"));
     let filename_path = PathBuf::from(&filename);
@@ -130,7 +171,102 @@ pub fn bugreport(args: &ArgMatches) {
         exit(1);
     }
 
+    if have_bugreportz {
+        let parts: Vec<&str> = filename.rsplitn(2, '.').collect();
+
+        let dst_file_name = if parts.len() == 2 && parts[0] != "zip" {
+            parts[1].to_string() + ".zip"
+        } else {
+            filename
+        };
+
+        let mut child = Command::new(adb().expect("Failed to find adb"))
+            .arg("shell")
+            .arg("bugreportz")
+            .arg("-p")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn_async()
+            .expect("Failed to launch adb");
+        let stdout = BufReader::new(child.stdout().take().unwrap());
+
+        let progress = ProgressBar::new(100);
+        progress.set_style(
+            ProgressStyle::default_bar()
+                .template("{spinner:.yellow} {msg:.dim.bold} {pos:>7.dim} {elapsed_precise:.dim}")
+                .progress_chars(" • "),
+        );
+        progress.set_message("Connecting");
+
+        let output = tokio::io::lines(stdout)
+            .for_each(|l| {
+
+                let v: Vec<&str> = l.split(':').collect();
+
+                if v.len() < 2 {
+                    progress.set_message(&l);
+                } else {
+                    match v[0] {
+                        "BEGIN" => {
+                            progress.set_message("Bugreport");
+                        }
+                        "OK" => {
+                            let src_file_name = v[1];
+
+                            progress.finish();
+
+                            Command::new(adb().expect("Failed to find adb"))
+                                .arg("pull")
+                                .arg(src_file_name.to_string())
+                                .arg(dst_file_name.to_string())
+                                .stdout(Stdio::piped())
+                                .stderr(Stdio::piped())
+                                .spawn()
+                                .expect("Failed to launch adb");
+
+                            progress.set_message(&dst_file_name);
+                        }
+                        "PROGRESS" => {
+                            let nums: Vec<&str> = v[1].split('/').collect();
+
+                            if nums.len() != 2 {
+                                progress.set_message(&l);
+                            } else {
+                                let cur = nums[0].trim().parse::<u32>();
+                                let tot = nums[1].trim().parse::<u32>();
+
+                                match (cur, tot) {
+                                    (Ok(cur), Ok(tot)) => {
+                                        let pr = 100.0 * (cur as f64) / (tot as f64);
+                                        progress.set_position(pr.round() as u64);
+                                    },
+
+                                    _ => {
+                                        progress.set_message(&l);
+                                    },
+                                }
+                            }
+                        }
+                        _ => {
+                            progress.set_message(&l);
+                        }
+                    }
+                }
+
+                ok(())
+            })
+            .map_err(|e| {
+                eprintln!("Failed to create bugreport: {}", e);
+                exit(1);
+            });
+
+        tokio::runtime::current_thread::block_on_all(output).expect("Runtime error");
+
+        exit(0);
+    }
+
     let mut child = Command::new(adb().expect("Failed to find adb"))
+        .arg("shell")
         .arg("bugreport")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
