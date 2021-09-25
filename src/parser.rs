@@ -64,11 +64,11 @@ named!(
             >> char!('-')
             >> day: flat_map!(take!(2), parse_to!(i32))
             >> space
-            >> hour: flat_map!(take!(2), parse_to!(i32))
+            >> hour: flat_map!(take_until!(":"), parse_to!(i32))
             >> char!(':')
-            >> minute: flat_map!(take!(2), parse_to!(i32))
+            >> minute: flat_map!(take_until!(":"), parse_to!(i32))
             >> char!(':')
-            >> second: flat_map!(take!(2), parse_to!(i32))
+            >> second: flat_map!(take_until!("."), parse_to!(i32))
             >> char!('.')
             >> millisecond: flat_map!(take!(3), parse_to!(i32))
             >> utcoff:
@@ -415,6 +415,9 @@ fn parse_unparseable() {
 #[test]
 fn parse_timestamp() {
     let t = "03-25 19:11:19.052";
+    timestamp(CompleteStr(t)).unwrap();
+
+    let t = "03-25 7:11:19.052";
     timestamp(CompleteStr(t)).unwrap();
 
     let t = "2017-03-25 19:11:19.052";
