@@ -1,0 +1,50 @@
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - v*
+
+name: Release
+
+jobs:
+  check:
+    name: Release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    steps:
+      - name: Install Dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get install -y pkg-config libudev-dev
+      - name: Checkout sources
+        uses: actions/checkout@v2
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: Cache
+        uses: Swatinem/rust-cache@v1
+
+      - name: Run cargo build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release
+      - name: Copy x86_64-unknown-linux-gnu
+        if: matrix.os == 'ubuntu-latest'
+        run: cp target/release/rogcat rogcat-x86-64-unknown-linux-gnu
+      - name: Copy x86_64-apple-darwin
+        if: matrix.os == 'macos-latest'
+        run: cp target/release/rogcat rogcat-x86_64-apple-darwin
+      - name: Copy x86_64-pc-windows-msvc.exe
+        if: matrix.os == 'windows-latest'
+        run: cp target/release/rogcat.exe rogcat-x86_64-pc-windows-msvc.exe
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            rogcat-*

@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/flxo/rogcat.svg)](https://travis-ci.org/flxo/rogcat)
+[![CI](https://img.shields.io/github/workflow/status/flxo/rogcat/CI)](https://github.com/esrlabs/northstar/actions)
 [![crates.io](https://img.shields.io/crates/v/rogcat.svg)](https://crates.io/crates/rogcat)
 [![Release](https://img.shields.io/github/release/flxo/rogcat.svg)](https://github.com/flxo/rogcat/releases)
 [![License](https://img.shields.io/github/license/flxo/rogcat.svg)](https://github.com/flxo/rogcat/blob/master/LICENSE)
