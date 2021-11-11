@@ -136,12 +136,6 @@ Building `rogcat` requires Rust 2018 edition:
 cargo install --path .
 ```
 
-or use Homebrew by running
-
-```
-brew install flxo/tap/rogcat
-```
-
 or grab one of the [binary releases](https://github.com/flxo/rogcat/releases) on the GitHub page.
 
 ## Configuration
