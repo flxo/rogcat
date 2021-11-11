@@ -169,7 +169,7 @@ impl Human {
     fn print(&mut self, record: &Record) -> Result<(), Error> {
         let timestamp = if let Some((format, len)) = self.date_format {
             if let Some(ref ts) = record.timestamp {
-                let mut ts = time::strftime(format, &ts).expect("Date format error");
+                let mut ts = time::strftime(format, ts).expect("Date format error");
                 ts.truncate(len);
                 ts
             } else {
