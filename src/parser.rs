@@ -373,13 +373,13 @@ impl Parser {
     pub fn parse(&mut self, line: &str) -> Record {
         if let Some(last) = self.last {
             let p = &self.parsers[last];
-            if let Ok(r) = p.try_parse_str(&line) {
+            if let Ok(r) = p.try_parse_str(line) {
                 return r;
             }
         }
 
         for (i, p) in self.parsers.iter().map(Box::as_ref).enumerate() {
-            if let Ok(r) = p.try_parse_str(&line) {
+            if let Ok(r) = p.try_parse_str(line) {
                 self.last = Some(i);
                 return r;
             }

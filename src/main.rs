@@ -34,8 +34,6 @@ mod profiles;
 mod reader;
 mod subcommands;
 mod terminal;
-#[cfg(all(test, not(target_os = "windows")))]
-mod tests;
 mod utils;
 
 const DEFAULT_BUFFER: [&str; 4] = ["main", "events", "crash", "kernel"];
@@ -65,7 +63,7 @@ fn run() -> Result<(), Error> {
                     } else if let Ok(url) = Url::parse(c) {
                         match url.scheme() {
                             #[cfg(target_os = "linux")]
-                            "can" => reader::can(&url.host_str().expect("Invalid can device"))?,
+                            "can" => reader::can(url.host_str().expect("Invalid can device"))?,
                             "tcp" => reader::tcp(&url)?,
                             "serial" => reader::serial(&args),
                             _ => reader::process(&args)?,

@@ -105,8 +105,8 @@ impl FilterGroup {
             }
         }) {
             if let Some(r) = r.strip_prefix('!') {
-                let r = Regex::new(&r)
-                    .map_err(|e| format_err!("Invalid regex string: {}: {}", r, e))?;
+                let r =
+                    Regex::new(r).map_err(|e| format_err!("Invalid regex string: {}: {}", r, e))?;
                 negative.push(r);
             } else {
                 let r = Regex::new(&r)
@@ -129,7 +129,7 @@ impl FilterGroup {
                 if !self.positive.iter().any(|m| m.is_match(&item)) {
                     return false;
                 }
-            } else if !self.positive.iter().any(|m| m.is_match(&item)) {
+            } else if !self.positive.iter().any(|m| m.is_match(item)) {
                 return false;
             }
         }
@@ -139,7 +139,7 @@ impl FilterGroup {
                 let item = item.to_lowercase();
                 return !self.negative.iter().any(|m| m.is_match(&item));
             } else {
-                return !self.negative.iter().any(|m| m.is_match(&item));
+                return !self.negative.iter().any(|m| m.is_match(item));
             }
         }
 
