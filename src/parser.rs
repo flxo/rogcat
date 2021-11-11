@@ -376,12 +376,12 @@ impl Parser {
             if let Ok(r) = p.try_parse_str(&line) {
                 return r;
             }
-        } else {
-            for (i, p) in self.parsers.iter().enumerate() {
-                if let Ok(r) = p.try_parse_str(&line) {
-                    self.last = Some(i);
-                    return r;
-                }
+        }
+
+        for (i, p) in self.parsers.iter().map(Box::as_ref).enumerate() {
+            if let Ok(r) = p.try_parse_str(&line) {
+                self.last = Some(i);
+                return r;
             }
         }
 
@@ -565,4 +565,20 @@ fn test_parse_gtest() {
     //     r.raw,
     //     "07-01 14:13:14.446   225   295 I ThermalEngine: Sensor:batt_therm:29000 mC"
     // );
+}
+
+#[test]
+fn test_parse_section() {
+    let mut p = Parser::default();
+    p.parse("------ EVENT LOG (logcat -d -b all) ------");
+    let r = p.parse("07-01 14:13:14.446000000,Sensor:batt_therm:29000 mC,Info,ThermalEngine,225,295,07-01 14:13:14.446   225   295 I ThermalEngine: Sensor:batt_therm:29000 mC");
+    assert_eq!(r.level, Level::Info);
+    assert_eq!(r.tag, "ThermalEngine");
+    assert_eq!(r.process, "225");
+    assert_eq!(r.thread, "295");
+    assert_eq!(r.message, "Sensor:batt_therm:29000 mC");
+    assert_eq!(
+        r.raw,
+        "07-01 14:13:14.446   225   295 I ThermalEngine: Sensor:batt_therm:29000 mC"
+    );
 }
