@@ -42,6 +42,18 @@ pub trait FormatParser: Send + Sync {
 }
 
 named!(
+    boost_level<CompleteStr, Level>,
+    alt!(
+            tag!("TRACE") => { |_| Level::Verbose }
+          | tag!("DEBUG") => { |_| Level::Debug }
+          | tag!("INFO") => { |_| Level::Info }
+          | tag!("WARNING") => { |_| Level::Warn }
+          | tag!("ERROR") => { |_| Level::Error }
+          | tag!("FATAL") => { |_| Level::Fatal }
+      )
+);
+
+named!(
     level<CompleteStr, Level>,
     alt!(
             char!('V') => { |_| Level::Verbose }
@@ -71,6 +83,7 @@ named!(
             >> second: flat_map!(take_until!("."), parse_to!(i32))
             >> char!('.')
             >> millisecond: flat_map!(take!(3), parse_to!(i32))
+            >> _microsecond: opt!(flat_map!(take!(3), parse_to!(i32)))
             >> utcoff:
                 opt!(complete!(do_parse!(
                     space
@@ -184,6 +197,36 @@ named!(
             >> msg: take_until!(")")
             >> char!(')')
             >> ((tag.to_string(), msg.to_string()))
+    )
+);
+
+named!(
+    boost<CompleteStr, Record>,
+    do_parse!(
+        timestamp: timestamp
+            >> many1!(space)
+            >> opt!(tag!("0x"))
+            >> process: hex_digit
+            >> many1!(space)
+            >> opt!(tag!("0x"))
+            >> thread: hex_digit
+            >> many1!(space)
+            >> tag: take_until!(":")
+            >> char!(':')
+            >> space
+            >> char!('[')
+            >> level: boost_level
+            >> char!(']')
+            >> message: opt!(rest)
+            >> (Record {
+                timestamp: Some(Timestamp::new(timestamp)),
+                level,
+                tag: tag.trim().to_owned(),
+                process: process.trim().to_owned(),
+                thread: thread.trim().to_owned(),
+                message: message.unwrap_or(CompleteStr("")).trim().to_owned(),
+                ..Default::default()
+            })
     )
 );
 
@@ -341,6 +384,19 @@ impl FormatParser for BugReportParser {
     }
 }
 
+pub struct BoostParser;
+
+impl FormatParser for BoostParser {
+    fn try_parse_str(&self, line: &str) -> Result<Record, ParserError> {
+        boost(CompleteStr(line))
+            .map(|(_, mut v)| {
+                v.raw = line.into();
+                v
+            })
+            .map_err(|e| ParserError(format!("{}", e)))
+    }
+}
+
 pub struct Parser {
     parsers: Vec<Box<dyn FormatParser>>,
     last: Option<usize>,
@@ -356,6 +412,7 @@ impl Default for Parser {
                 Box::new(JsonParser),
                 Box::new(GTestParser),
                 Box::new(BugReportParser),
+                Box::new(BoostParser),
             ],
             last: None,
         }
@@ -581,4 +638,16 @@ fn test_parse_section() {
         r.raw,
         "07-01 14:13:14.446   225   295 I ThermalEngine: Sensor:batt_therm:29000 mC"
     );
+}
+
+#[test]
+fn test_parse_boost() {
+    let t = "2021-11-14 22:32:46.424843 0x0024cade 0x00007f78fd24e740 TestTag: [DEBUG] TestLog 123";
+    let p = BoostParser {};
+    let r = p.try_parse_str(t).unwrap();
+    assert_eq!(r.level, Level::Debug);
+    assert_eq!(r.tag, "TestTag");
+    assert_eq!(r.process, "0024cade");
+    assert_eq!(r.thread, "00007f78fd24e740");
+    assert_eq!(r.message, "TestLog 123");
 }
