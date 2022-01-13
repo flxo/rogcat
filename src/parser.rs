@@ -250,100 +250,6 @@ impl FormatParser for JsonParser {
     }
 }
 
-pub struct GTestParser;
-
-impl FormatParser for GTestParser {
-    fn try_parse_str(&self, line: &str) -> Result<Record, ParserError> {
-        if line.len() >= 12 {
-            let mut chars = line.chars();
-            if let Some('[') = chars.next() {
-                if let Some(']') = chars.nth(10) {
-                    let process = line[1..=10]
-                        .trim()
-                        .trim_matches('-')
-                        .trim_matches('=')
-                        .to_owned();
-                    Ok(Record {
-                        timestamp: None,
-                        level: if process == "FAILED" {
-                            Level::Error
-                        } else {
-                            Level::Info
-                        },
-                        tag: "googletest".to_owned(),
-                        process,
-                        message: line[12..].trim().to_owned(),
-                        ..Default::default()
-                    })
-                } else {
-                    Err(ParserError(String::from(
-                        "Failed to parse gtest: Missing closing bracket",
-                    )))
-                }
-            } else {
-                Err(ParserError(String::from(
-                    "Failed to parse gtest: Missing opening bracket",
-                )))
-            }
-        } else {
-            Err(ParserError(String::from(
-                "Failed to parse gtest: Message is too short",
-            )))
-        }
-    }
-}
-
-pub struct BugReportParser;
-
-impl FormatParser for BugReportParser {
-    fn try_parse_str(&self, line: &str) -> Result<Record, ParserError> {
-        if line.starts_with('=')
-            || line.starts_with('-')
-            || (line.starts_with('[') && line.ends_with(']'))
-        {
-            if line.chars().all(|c| c == '=') {
-                Ok(Record {
-                    level: Level::Info,
-                    message: line.to_owned(),
-                    raw: line.to_owned(),
-                    ..Default::default()
-                })
-            } else if let Some(line) = line.strip_prefix("== ") {
-                Ok(Record {
-                    level: Level::Info,
-                    message: line.to_owned(),
-                    raw: line.to_owned(),
-                    tag: line.to_owned(),
-                    ..Default::default()
-                })
-            } else if line.is_empty() {
-                Err(ParserError(String::from("Unparseable")))
-            } else if let Ok((_, (tag, value))) = property(CompleteStr(line)) {
-                Ok(Record {
-                    message: value,
-                    tag,
-                    raw: line.to_owned(),
-                    ..Default::default()
-                })
-            } else {
-                let line = line.trim_matches('=').trim_matches('-').trim();
-                match bugreport_section(CompleteStr(line)) {
-                    Ok((_, (tag, message))) => Ok(Record {
-                        level: Level::Info,
-                        message,
-                        raw: line.to_owned(),
-                        tag,
-                        ..Default::default()
-                    }),
-                    Err(e) => Err(ParserError(format!("{}", e))),
-                }
-            }
-        } else {
-            Err(ParserError(String::from("Unparseable")))
-        }
-    }
-}
-
 pub struct Parser {
     parsers: Vec<Box<dyn FormatParser>>,
     last: Option<usize>,
@@ -357,8 +263,6 @@ impl Default for Parser {
                 Box::new(MindroidParser),
                 Box::new(CsvParser),
                 Box::new(JsonParser),
-                Box::new(GTestParser),
-                Box::new(BugReportParser),
             ],
             last: None,
         }
@@ -548,22 +452,6 @@ fn parse_property() {
         property(CompleteStr(t)).unwrap().1,
         ("ro.build.tags".to_owned(), "release-keys".to_owned())
     );
-}
-
-#[test]
-fn test_parse_gtest() {
-    let t = "[       OK ] TestName.Test (115 ms)";
-    let p = GTestParser {};
-    let _r = p.try_parse_str(t).unwrap();
-    // assert_eq!(r.level, Level::Info);
-    // assert_eq!(r.tag, "ThermalEngine");
-    // assert_eq!(r.process, "225");
-    // assert_eq!(r.thread, "295");
-    // assert_eq!(r.message, "Sensor:batt_therm:29000 mC");
-    // assert_eq!(
-    //     r.raw,
-    //     "07-01 14:13:14.446   225   295 I ThermalEngine: Sensor:batt_therm:29000 mC"
-    // );
 }
 
 #[test]
