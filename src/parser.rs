@@ -22,8 +22,9 @@ use crate::record::{Level, Record, Timestamp};
 use csv::ReaderBuilder;
 use failure::Fail;
 use nom::{
-    alt, char, complete, do_parse, flat_map, hex_digit, many0, many1, map, named, opt, parse_to,
-    peek, rest, space, tag, take, take_until, take_until_either, types::CompleteStr,
+    alt, char, complete, do_parse, flat_map, hex_digit, is_digit, many0, many1, map, named, opt,
+    parse_to, peek, rest, space, tag, take, take_until, take_until_either, take_while,
+    types::CompleteStr,
 };
 use serde_json::from_str;
 use std::{
@@ -55,6 +56,8 @@ named!(
 );
 
 // 2017-03-25 19:11:19.052
+// or
+// 2017-03-25 19:11:19.052321
 named!(
     timestamp<CompleteStr, Tm>,
     do_parse!(
@@ -70,7 +73,7 @@ named!(
             >> char!(':')
             >> second: flat_map!(take_until!("."), parse_to!(i32))
             >> char!('.')
-            >> millisecond: flat_map!(take!(3), parse_to!(i32))
+            >> nanosecond: flat_map!(take_while!(|c| is_digit(c as u8)), parse_to!(i32))
             >> utcoff:
                 opt!(complete!(do_parse!(
                     space
@@ -94,7 +97,7 @@ named!(
                 tm_yday: 0,
                 tm_isdst: 0,
                 tm_utcoff: utcoff.unwrap_or(0),
-                tm_nsec: millisecond * 1_000_000,
+                tm_nsec: nanosecond,
             })
     )
 );
@@ -414,14 +417,10 @@ fn parse_unparseable() {
 
 #[test]
 fn parse_timestamp() {
-    let t = "03-25 19:11:19.052";
-    timestamp(CompleteStr(t)).unwrap();
-
-    let t = "03-25 7:11:19.052";
-    timestamp(CompleteStr(t)).unwrap();
-
-    let t = "2017-03-25 19:11:19.052";
-    timestamp(CompleteStr(t)).unwrap();
+    timestamp(CompleteStr("03-25 19:11:19.052")).unwrap();
+    timestamp(CompleteStr("03-25 7:11:19.052")).unwrap();
+    timestamp(CompleteStr("2017-03-25 19:11:19.052")).unwrap();
+    timestamp(CompleteStr("2017-03-25 19:11:19.052123")).unwrap();
 }
 
 #[test]
