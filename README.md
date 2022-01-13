@@ -229,7 +229,7 @@ You can create a special profile named `default` which will be used when no othe
 ## Usage
 
 ```
-rogcat 0.4.0-alpha.0
+rogcat 0.4.3-alpha.0
 Felix Obenhuber <felix@obenhuber.de>
 A 'adb logcat' wrapper and log processor. Your config directory is "/Users/felix/Library/Preferences/rogcat".
 
