@@ -118,16 +118,6 @@ ARGS:
     <MESSAGE>    Log message. Pass "-" to capture from stdin'
 ```
 
-### Profiles
-
-List available profiles (see Profiles chapter):
-
-`rogcat profiles --list`
-
-Live trace with profile `app`:
-
-`rogcat -p app`
-
 ## Installation
 
 Building `rogcat` requires Rust 2018 edition:
