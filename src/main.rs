@@ -19,10 +19,11 @@
 // SOFTWARE.
 
 use failure::Error;
-use futures::{Future, Sink, Stream};
+use futures::{sync::oneshot, Future, Sink, Stream};
 use rogcat::{parser, record::Record};
 use std::{process::exit, str::FromStr};
-use tokio::runtime::current_thread::Runtime;
+use tokio::runtime::Runtime;
+use tokio_signal::ctrl_c;
 use url::Url;
 
 mod cli;
@@ -91,26 +92,36 @@ fn run() -> Result<(), Error> {
     let filter = filter::from_args_profile(&args, &profile)?;
     let mut parser = parser::Parser::default();
 
-    Runtime::new()?.block_on(
-        source
-            .map(move |a| match a {
-                StreamData::Line(l) => parser.parse(&l),
-                StreamData::Record(r) => r,
+    let mut runtime = Runtime::new()?;
+
+    let f = source
+        .map(move |a| match a {
+            StreamData::Line(l) => parser.parse(&l),
+            StreamData::Record(r) => r,
+        })
+        .filter(move |r| filter.filter(r))
+        .take_while(move |_| {
+            Ok(match head {
+                Some(0) => false,
+                Some(n) => {
+                    head = Some(n - 1);
+                    true
+                }
+                None => true,
             })
-            .filter(move |r| filter.filter(r))
-            .take_while(move |_| {
-                Ok(match head {
-                    Some(0) => false,
-                    Some(n) => {
-                        head = Some(n - 1);
-                        true
-                    }
-                    None => true,
-                })
-            })
-            .forward(sink)
-            .map(|_| exit(0)),
-    )
+        })
+        .forward(sink)
+        .map(|_| exit(0))
+        .map_err(|e| eprintln!("{}", e));
+    let mut f = Some(oneshot::spawn(f, &runtime.executor()));
+
+    // Cancel stream processing on ctrl-c
+    runtime.block_on(ctrl_c().flatten_stream().take(1).for_each(move |()| {
+        f.take();
+        Ok(())
+    }))?;
+
+    Ok(())
 }
 
 fn main() {

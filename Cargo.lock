@@ -1086,6 +1086,7 @@ dependencies = [
  "tokio",
  "tokio-process",
  "tokio-serial",
+ "tokio-signal",
  "tokio-socketcan",
  "toml 0.5.8",
  "url",
