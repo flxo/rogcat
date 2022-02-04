@@ -18,52 +18,31 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-use crate::{
-    profiles::Profile,
-    utils::{config_get, terminal_width},
-    LogSink,
-};
-use clap::{values_t, ArgMatches};
-use failure::{err_msg, format_err, Error};
-use futures::{Async, AsyncSink, Poll, Sink, StartSend};
+use crate::record::{Level, Record};
+use anyhow::Result;
 use regex::Regex;
-use rogcat::record::{Format, Level, Record};
 use std::{
     cmp::{max, min},
     convert::Into,
-    io::{stdout, BufWriter, Write},
-    str::FromStr,
+    env,
+    io::Write,
 };
 use termcolor::{Buffer, BufferWriter, Color, ColorChoice, ColorSpec, WriteColor};
 
 const DIMM_COLOR: Color = Color::Ansi256(243);
 
-/// Construct a terminal sink for format from args with give profile
-pub fn try_from<'a>(args: &ArgMatches<'a>, profile: &Profile) -> Result<LogSink, Error> {
-    let format = args
-        .value_of("format")
-        .ok_or_else(|| format_err!("Missing format argument"))
-        .and_then(|f| Format::from_str(f).map_err(err_msg))
-        .unwrap_or(Format::Human);
-
-    if format == Format::Html {
-        return Err(format_err!("HTML format is only valid for file output"));
+fn terminal_width() -> Option<usize> {
+    match term_size::dimensions() {
+        Some((width, _)) => Some(width),
+        None => env::var("COLUMNS")
+            .ok()
+            .and_then(|e| e.parse::<usize>().ok()),
     }
-
-    let sink = match format {
-        Format::Human => Box::new(Human::from(args, profile, format)) as LogSink,
-        format => Box::new(FormatSink::new(format, stdout())) as LogSink,
-    };
-
-    Ok(Box::new(sink.sink_map_err(|e| {
-        failure::format_err!("Terminal error: {}", e)
-    })))
 }
 
 /// Human readable terminal output
-struct Human {
+pub struct Terminal {
     writer: BufferWriter,
-    date_format: Option<(&'static str, usize)>,
     highlight: Vec<Regex>,
     process_width: usize,
     tag_width: Option<usize>,
@@ -72,57 +51,18 @@ struct Human {
     bright_colors: bool,
 }
 
-impl Human {
-    pub fn from<'a>(args: &ArgMatches<'a>, profile: &Profile, _: Format) -> Human {
-        let mut hl = profile.highlight.clone();
-        if args.is_present("highlight") {
-            hl.extend(values_t!(args.values_of("highlight"), String).unwrap());
-        }
-        let highlight = hl.iter().flat_map(|h| Regex::new(h)).collect();
+impl Terminal {
+    pub fn new() -> Terminal {
+        let highlight = Vec::new();
+        let color = ColorChoice::Always;
+        let no_dimm = false;
+        let tag_width = None;
+        let bright_colors = false;
 
-        let color = {
-            match args
-                .value_of("color")
-                .unwrap_or_else(|| config_get("terminal_color").unwrap_or("auto"))
-            {
-                "always" => ColorChoice::Always,
-                "never" => ColorChoice::Never,
-                "auto" => {
-                    if atty::is(atty::Stream::Stdout) {
-                        ColorChoice::Auto
-                    } else {
-                        ColorChoice::Never
-                    }
-                }
-                _ => ColorChoice::Auto,
-            }
-        };
-        let no_dimm = args.is_present("no_dimm") || config_get("terminal_no_dimm").unwrap_or(false);
-        let tag_width = config_get("terminal_tag_width");
-        let hide_timestamp = args.is_present("hide_timestamp")
-            || config_get("terminal_hide_timestamp").unwrap_or(false);
-        let show_date =
-            args.is_present("show_date") || config_get("terminal_show_date").unwrap_or(false);
-        let date_format = if show_date {
-            if hide_timestamp {
-                Some(("%m-%d", 5))
-            } else {
-                Some(("%m-%d %H:%M:%S.%f", 12 + 1 + 5))
-            }
-        } else if hide_timestamp {
-            None
-        } else {
-            Some(("%H:%M:%S.%f", 12))
-        };
-
-        let bright_colors = args.is_present("bright_colors")
-            || config_get("terminal_bright_colors").unwrap_or(false);
-
-        Human {
+        Terminal {
             writer: BufferWriter::stdout(color),
             dimm_color: if no_dimm { None } else { Some(DIMM_COLOR) },
             highlight,
-            date_format,
             tag_width,
             process_width: 0,
             thread_width: 0,
@@ -171,19 +111,8 @@ impl Human {
         })
     }
 
-    fn print(&mut self, record: &Record) -> Result<(), Error> {
-        let timestamp = if let Some((format, len)) = self.date_format {
-            if let Some(ref ts) = record.timestamp {
-                let mut ts = time::strftime(format, ts).expect("Date format error");
-                ts.truncate(len);
-                ts
-            } else {
-                " ".repeat(len)
-            }
-        } else {
-            String::new()
-        };
-
+    pub fn print(&mut self, record: &Record) -> Result<()> {
+        let timestamp = record.timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
         let tag_width = self.tag_width();
         let tag_chars = record.tag.chars().count();
         let tag = format!(
@@ -196,24 +125,16 @@ impl Human {
             width = tag_width
         );
 
-        self.process_width = max(self.process_width, record.process.chars().count());
-        let pid = if record.process.is_empty() {
-            " ".repeat(self.process_width)
-        } else {
-            format!("{:<width$}", record.process, width = self.process_width)
-        };
-        self.thread_width = max(self.thread_width, record.thread.chars().count());
-        let tid = if !record.thread.is_empty() {
-            format!(" {:>width$}", record.thread, width = self.thread_width)
-        } else if self.thread_width != 0 {
-            " ".repeat(self.thread_width + 1)
-        } else {
-            String::new()
-        };
+        let process = record.process.to_string();
+        self.process_width = max(self.process_width, process.chars().count());
+        let pid = format!("{:<width$}", record.process, width = self.process_width);
+        let thread = record.thread.to_string();
+        self.thread_width = max(self.thread_width, thread.chars().count());
+        let tid = format!(" {:>width$}", record.thread, width = self.thread_width);
 
         let highlight = !self.highlight.is_empty()
-            && (self.highlight.iter().any(|r| r.is_match(&record.tag))
-                || self.highlight.iter().any(|r| r.is_match(&record.message)));
+            && (self.highlight.iter().any(|r| r.is_match(record.tag))
+                || self.highlight.iter().any(|r| r.is_match(record.message)));
 
         let preamble_width = timestamp.chars().count()
             + 1 // " "
@@ -228,7 +149,7 @@ impl Human {
         } else {
             self.dimm_color
         };
-        let tag_color = Self::hashed_color(&record.tag);
+        let tag_color = Self::hashed_color(record.tag);
         let pid_color = Self::hashed_color(&pid);
         let tid_color = Self::hashed_color(&tid);
         let level_color = match record.level {
@@ -238,7 +159,7 @@ impl Human {
             _ => self.dimm_color,
         };
 
-        let write_preamble = |buffer: &mut Buffer| -> Result<(), Error> {
+        let write_preamble = |buffer: &mut Buffer| -> Result<()> {
             let mut spec = ColorSpec::new();
             buffer.set_color(spec.set_fg(timestamp_color))?;
             buffer.write_all(timestamp.as_bytes())?;
@@ -308,52 +229,9 @@ impl Human {
     }
 }
 
-impl Drop for Human {
+impl Drop for Terminal {
     fn drop(&mut self) {
         let mut buffer = self.writer.buffer();
         buffer.reset().and_then(|_| self.writer.print(&buffer)).ok();
-    }
-}
-
-struct FormatSink<T: Write> {
-    format: Format,
-    sink: BufWriter<T>,
-}
-
-impl<T: Write> FormatSink<T> {
-    fn new(format: Format, sink: T) -> FormatSink<T> {
-        FormatSink {
-            format,
-            sink: BufWriter::new(sink),
-        }
-    }
-}
-
-impl<T: Write> Sink for FormatSink<T> {
-    type SinkItem = Record;
-    type SinkError = Error;
-
-    fn start_send(&mut self, record: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
-        self.sink
-            .write_all(self.format.fmt_record(&record)?.as_bytes())?;
-        self.sink.write_all(&[b'\n'])?;
-        Ok(AsyncSink::Ready)
-    }
-
-    fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
-        Ok(Async::Ready(()))
-    }
-}
-
-impl Sink for Human {
-    type SinkItem = Record;
-    type SinkError = Error;
-
-    fn start_send(&mut self, record: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
-        self.print(&record).map(|_| AsyncSink::Ready)
-    }
-
-    fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
-        Ok(Async::Ready(()))
     }
 }

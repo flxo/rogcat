@@ -18,86 +18,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-use csv::WriterBuilder;
-use failure::{format_err, Error};
-use serde::{
-    de::{Deserializer, Visitor},
-    ser::Serializer,
-    Deserialize, Serialize,
-};
-use std::{
-    fmt::{Display, Formatter},
-    ops::Deref,
-    str::FromStr,
-};
-use time::{strftime, strptime, Tm};
+use chrono::NaiveDateTime;
+use std::fmt::Display;
 
-type StdResult<T, E> = std::result::Result<T, E>;
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum Format {
-    Csv,
-    Html,
-    Human,
-    Json,
-    Raw,
-}
-
-impl Format {
-    pub fn fmt_record(&self, record: &Record) -> Result<String, Error> {
-        match self {
-            Format::Csv => {
-                let mut wtr = WriterBuilder::new().has_headers(false).from_writer(vec![]);
-                wtr.serialize(record)?;
-                wtr.flush()?;
-                Ok(String::from_utf8(wtr.into_inner().unwrap())?
-                    .trim_end_matches('\n')
-                    .to_owned())
-            }
-            Format::Html => unimplemented!(),
-            Format::Human => unimplemented!(),
-            Format::Json => serde_json::to_string(record)
-                .map_err(|e| format_err!("Json serialization error: {}", e)),
-            Format::Raw => Ok(record.raw.clone()),
-        }
-    }
-}
-
-impl FromStr for Format {
-    type Err = &'static str;
-    fn from_str(s: &str) -> StdResult<Self, Self::Err> {
-        match s {
-            "csv" => Ok(Format::Csv),
-            "html" => Ok(Format::Html),
-            "human" => Ok(Format::Human),
-            "json" => Ok(Format::Json),
-            "raw" => Ok(Format::Raw),
-            _ => Err("Format parsing error"),
-        }
-    }
-}
-
-impl Display for Format {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match *self {
-                Format::Csv => "csv",
-                Format::Html => "html",
-                Format::Human => "human",
-                Format::Json => "json",
-                Format::Raw => "raw",
-            }
-        )
-    }
-}
-
-const LEVEL_VALUES: &[&str] = &[
-    "trace", "debug", "info", "warn", "error", "fatal", "assert", "T", "D", "I", "W", "E", "F", "A",
-];
-
-#[derive(Clone, Debug, Deserialize, PartialOrd, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialOrd, PartialEq)]
 pub enum Level {
     None,
     Trace,
@@ -152,85 +76,13 @@ impl<'a> From<&'a str> for Level {
     }
 }
 
-impl Level {
-    pub fn values() -> &'static [&'static str] {
-        LEVEL_VALUES
-    }
-}
-
 #[derive(Clone, Debug, PartialEq)]
-pub struct Timestamp {
-    pub tm: Tm,
-}
-
-impl Deref for Timestamp {
-    type Target = Tm;
-
-    fn deref(&self) -> &Tm {
-        &self.tm
-    }
-}
-
-impl Timestamp {
-    pub fn new(t: Tm) -> Timestamp {
-        Timestamp { tm: t }
-    }
-
-    pub fn now() -> Timestamp {
-        Timestamp { tm: time::now() }
-    }
-}
-
-impl Serialize for Timestamp {
-    fn serialize<S>(&self, serializer: S) -> StdResult<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        strftime("%m-%d %H:%M:%S.%f", &self.tm)
-            .map_err(|e| ::serde::ser::Error::custom(e.to_string()))?
-            .serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for Timestamp {
-    fn deserialize<D>(deserializer: D) -> StdResult<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct TimeVisitor;
-
-        impl<'de> Visitor<'de> for TimeVisitor {
-            type Value = Timestamp;
-            fn visit_str<E>(self, str_data: &str) -> StdResult<Timestamp, E>
-            where
-                E: ::serde::de::Error,
-            {
-                strptime(str_data, "%m-%d %H:%M:%S.%f")
-                    .map(Timestamp::new)
-                    .map_err(|_| {
-                        ::serde::de::Error::invalid_value(
-                            ::serde::de::Unexpected::Str(str_data),
-                            &self,
-                        )
-                    })
-            }
-
-            fn expecting(&self, formatter: &mut Formatter) -> ::std::fmt::Result {
-                formatter.write_str("string %m-%d %H:%M:%S.%f")
-            }
-        }
-
-        deserializer.deserialize_str(TimeVisitor)
-    }
-}
-
-#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
-pub struct Record {
-    pub timestamp: Option<Timestamp>,
-    pub message: String,
+pub struct Record<'a> {
+    pub timestamp: NaiveDateTime,
+    pub message: &'a str,
     pub level: Level,
-    pub tag: String,
-    pub process: String,
-    pub thread: String,
-    pub raw: String,
+    pub tag: &'a str,
+    pub process: u32,
+    pub thread: u32,
+    pub raw: &'a str,
 }

@@ -1,4 +1,3 @@
 {
-    "editor.formatOnSave": true,
-    "rust.cfg_test": true,
+    "editor.formatOnSave": true
 }
