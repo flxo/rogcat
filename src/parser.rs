@@ -113,8 +113,8 @@ named!(
             >> many1!(space)
             >> level: level
             >> space
-            >> tag: take_until!(":")
-            >> char!(':')
+            >> tag: take_until!(": ")
+            >> tag!(": ")
             >> message: opt!(rest)
             >> (Record {
                 timestamp: Some(Timestamp::new(timestamp)),
@@ -140,7 +140,7 @@ named!(
             opt!(tag!("0x")) >>
             process: opt!(hex_digit) >>
             opt!(tag!(")")) >>
-            tag!(":") >>
+            tag!(": ") >>
             message: opt!(rest) >>
             (
                 Record {
@@ -162,8 +162,8 @@ named!(
             many1!(space) >>
             level: level >>
             space >>
-            tag: take_until!(":") >>
-            tag!(":") >>
+            tag: take_until!(": ") >>
+            tag!(": ") >>
             message: opt!(rest) >>
             (
                 Record {
