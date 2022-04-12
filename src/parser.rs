@@ -367,7 +367,7 @@ fn parse_printable() {
     assert_eq!(r.thread, "31420");
     assert_eq!(r.message, "0:00:00.326067533 0xb8ef2a00");
 
-    let t = "03-26 13:17:38.345     0     0 I [114416.534450,0] mdss_dsi_off-:";
+    let t = "03-26 13:17:38.345     0     0 I [114416.534450,0] mdss_dsi_off-: ";
     let r = p.try_parse_str(t).unwrap();
     assert_eq!(r.level, Level::Info);
     assert_eq!(r.tag, "[114416.534450,0] mdss_dsi_off-");
@@ -417,7 +417,7 @@ fn test_parse_mindroid() {
     assert_eq!(r.thread, "");
     assert_eq!(r.message, "Parsing IPV6 address fd53:7cb8:383:4:0:0:0:68");
 
-    let t = "2017-03-25 19:11:19.052  0x3b7fe700  D SomeThing:";
+    let t = "2017-03-25 19:11:19.052  0x3b7fe700  D SomeThing: ";
     let r = p.try_parse_str(t).unwrap();
     assert_eq!(r.message, "");
 }
