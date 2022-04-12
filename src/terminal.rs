@@ -133,7 +133,7 @@ impl Human {
     // Dynamic tag width estimation according to terminal width
     fn tag_width(&self) -> usize {
         let terminal_width = terminal_width();
-        self.tag_width.unwrap_or_else(|| match terminal_width {
+        self.tag_width.unwrap_or(match terminal_width {
             Some(n) if n <= 80 => 15,
             Some(n) if n <= 90 => 20,
             Some(n) if n <= 100 => 25,
@@ -269,7 +269,7 @@ impl Human {
         };
 
         let payload_len = terminal_width().unwrap_or(std::usize::MAX) - preamble_width - 3;
-        let message = record.message.replace("\t", "");
+        let message = record.message.replace('\t', "");
         let message_len = message.chars().count();
         let chunks = message_len / payload_len + 1;
 
