@@ -128,6 +128,8 @@ cargo install --path .
 
 or grab one of the [binary releases](https://github.com/flxo/rogcat/releases) on the GitHub page.
 
+On Debian based systems the package `libudev-dev` (and it's dependencies) is required for building.
+
 ## Configuration
 
 When `rogcat` runs without any command supplied it defaults to running `adb logcat -b all`. The following options
