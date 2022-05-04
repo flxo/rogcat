@@ -23,7 +23,7 @@ use csv::ReaderBuilder;
 use failure::Fail;
 use nom::{
     alt, char, complete, do_parse, flat_map, hex_digit, is_digit, many0, many1, map, named, opt,
-    parse_to, peek, rest, space, tag, take, take_until, take_until_either, take_while,
+    parse_to, peek, rest, space, tag, take, take_until, take_until_either, take_while_m_n,
     types::CompleteStr,
 };
 use serde_json::from_str;
@@ -73,7 +73,8 @@ named!(
             >> char!(':')
             >> second: flat_map!(take_until!("."), parse_to!(i32))
             >> char!('.')
-            >> nanosecond: flat_map!(take_while!(|c| is_digit(c as u8)), parse_to!(i32))
+            >> millisecond: flat_map!(take_while_m_n!(3, 3, |c| is_digit(c as u8)), parse_to!(i32))
+            >> microsecond: opt!(flat_map!(take_while_m_n!(3, 3, |c| is_digit(c as u8)), parse_to!(i32)))
             >> utcoff:
                 opt!(complete!(do_parse!(
                     space
@@ -97,7 +98,7 @@ named!(
                 tm_yday: 0,
                 tm_isdst: 0,
                 tm_utcoff: utcoff.unwrap_or(0),
-                tm_nsec: nanosecond,
+                tm_nsec: millisecond * 1_000_000 + microsecond.unwrap_or(0) * 1000,
             })
     )
 );
@@ -353,6 +354,24 @@ fn parse_printable() {
 
     let t = "11-06 13:58:53.582 31359 31420 I GStreamer+amc: 0:00:00.326067533 0xb8ef2a00";
     let r = p.try_parse_str(t).unwrap();
+    assert_eq!(
+        r.timestamp,
+        Some(Timestamp {
+            tm: Tm {
+                tm_year: 0,
+                tm_mon: 10,
+                tm_mday: 6,
+                tm_hour: 13,
+                tm_min: 58,
+                tm_sec: 53,
+                tm_nsec: 582000000,
+                tm_wday: 0,
+                tm_yday: 0,
+                tm_isdst: 0,
+                tm_utcoff: 0,
+            }
+        })
+    );
     assert_eq!(r.level, Level::Info);
     assert_eq!(r.tag, "GStreamer+amc");
     assert_eq!(r.process, "31359");

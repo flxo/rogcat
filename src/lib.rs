@@ -18,5 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#[allow(clippy::double_comparisons)]
 pub mod parser;
 pub mod record;
