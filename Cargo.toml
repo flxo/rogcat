@@ -59,6 +59,3 @@ tokio-signal = "0.2.7"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 tokio-socketcan = "0.1.3"
-
-[features]
-default = []
