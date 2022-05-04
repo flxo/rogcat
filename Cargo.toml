@@ -17,7 +17,7 @@ license = "MIT"
 name = "rogcat"
 readme = "README.md"
 repository = "https://github.com/flxo/rogcat"
-version = "0.4.4"
+version = "0.4.5"
 edition = "2018"
 
 [lib]
