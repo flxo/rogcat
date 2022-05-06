@@ -154,13 +154,13 @@ impl<'a, T: Writer> FileWriter<T> {
                 (
                     ProgressBar::new(n as u64),
                     "•• ",
-                    "{spinner:.yellow} Writing {msg:.dim.bold} {pos:>7.dim}/{len:.dim} {elapsed_precise:.dim} [{bar:40.yellow/green}] ({eta:.dim})",
+                    "{spinner:.yellow} {msg:.dim.bold} {pos:>7.dim}/{len:.dim} {elapsed_precise:.dim} [{bar:40.yellow/green}] ({eta:.dim})",
                 )
             } else {
                 (
                     ProgressBar::new(std::u64::MAX),
                     " • ",
-                    "{spinner:.yellow} Writing {msg:.dim.bold} {pos:>7.dim} {elapsed_precise:.dim}",
+                    "{spinner:.yellow} {msg:.dim.bold} {pos:>7.dim} {elapsed_precise:.dim}",
                 )
             };
             pb.set_style(
