@@ -39,7 +39,7 @@ use termcolor::{Buffer, BufferWriter, Color, ColorChoice, ColorSpec, WriteColor}
 const DIMM_COLOR: Color = Color::Ansi256(243);
 
 /// Construct a terminal sink for format from args with give profile
-pub fn try_from<'a>(args: &ArgMatches<'a>, profile: &Profile) -> Result<LogSink, Error> {
+pub fn try_from(args: &ArgMatches<'_>, profile: &Profile) -> Result<LogSink, Error> {
     let format = args
         .value_of("format")
         .ok_or_else(|| format_err!("Missing format argument"))
@@ -73,7 +73,7 @@ struct Human {
 }
 
 impl Human {
-    pub fn from<'a>(args: &ArgMatches<'a>, profile: &Profile, _: Format) -> Human {
+    pub fn from(args: &ArgMatches<'_>, profile: &Profile, _: Format) -> Human {
         let mut hl = profile.highlight.clone();
         if args.is_present("highlight") {
             hl.extend(values_t!(args.values_of("highlight"), String).unwrap());

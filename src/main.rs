@@ -112,7 +112,7 @@ fn run() -> Result<(), Error> {
         })
         .forward(sink)
         .map(|_| exit(0))
-        .map_err(|e| eprintln!("{}", e));
+        .map_err(|e| eprintln!("{e}"));
     let mut f = Some(oneshot::spawn(f, &runtime.executor()));
 
     // Cancel stream processing on ctrl-c
@@ -127,7 +127,7 @@ fn run() -> Result<(), Error> {
 fn main() {
     match run() {
         Err(e) => {
-            eprintln!("{}", e);
+            eprintln!("{e}");
             exit(1)
         }
         Ok(_) => exit(0),

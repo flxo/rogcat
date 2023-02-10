@@ -212,7 +212,7 @@ impl FormatParser for DefaultParser {
                 v.raw = line.into();
                 v
             })
-            .map_err(|e| ParserError(format!("{}", e)))
+            .map_err(|e| ParserError(format!("{e}")))
     }
 }
 
@@ -225,7 +225,7 @@ impl FormatParser for MindroidParser {
                 v.raw = line.into();
                 v
             })
-            .map_err(|e| ParserError(format!("{}", e)))
+            .map_err(|e| ParserError(format!("{e}")))
     }
 }
 
@@ -236,7 +236,7 @@ impl FormatParser for CsvParser {
         let reader = Cursor::new(line).chain(Cursor::new([b'\n']));
         let mut rdr = ReaderBuilder::new().has_headers(false).from_reader(reader);
         if let Some(result) = rdr.deserialize().next() {
-            result.map_err(|e| ParserError(format!("{}", e)))
+            result.map_err(|e| ParserError(format!("{e}")))
         } else {
             Err(ParserError("Failed to parse csv".to_string()))
         }
@@ -247,7 +247,7 @@ pub struct JsonParser;
 
 impl FormatParser for JsonParser {
     fn try_parse_str(&self, line: &str) -> Result<Record, ParserError> {
-        from_str(line).map_err(|e| ParserError(format!("Failed to deserialize json: {}", e)))
+        from_str(line).map_err(|e| ParserError(format!("Failed to deserialize json: {e}")))
     }
 }
 

@@ -255,7 +255,7 @@ impl<'a, T: Writer> FileWriter<T> {
 
                     let now = strftime("%F-%H_%M_%S", &now())?;
                     let enumeration = e
-                        .map(|a| format!("-{:03}", a))
+                        .map(|a| format!("-{a:03}"))
                         .unwrap_or_else(|| "".to_owned());
                     let filename = self
                         .filename
@@ -263,7 +263,7 @@ impl<'a, T: Writer> FileWriter<T> {
                         .ok_or_else(|| err_msg("Invalid path"))?
                         .to_str()
                         .ok_or_else(|| err_msg("Invalid path"))?;
-                    let candidate = PathBuf::from(format!("{}{}_{}", now, enumeration, filename));
+                    let candidate = PathBuf::from(format!("{now}{enumeration}_{filename}"));
                     let candidate = dir.join(candidate);
                     if !overwrite && candidate.exists() {
                         e = Some(e.unwrap_or(0) + 1);
@@ -373,7 +373,7 @@ mod html {
             let r = h & 0xFF;
             let g = (h & 0xFF00) >> 8;
             let b = (h & 0xFF_0000) >> 16;
-            format!("#{:02x}{:02x}{:02x}", r, g, b)
+            format!("#{r:02x}{g:02x}{b:02x}")
         }
         fn color_helper(
             h: &Helper,
@@ -387,7 +387,7 @@ mod html {
                 .ok_or_else(|| RenderError::new("Param 0 is required for format helper."))?;
             let value = param.value().render();
             let rendered = if value.is_empty() || value == "0" {
-                format!("<span style=\"color:grey\">{}</span>", value)
+                format!("<span style=\"color:grey\">{value}</span>")
             } else {
                 format!(
                     "<span style=\"color:{}\">{}</span>",

@@ -63,7 +63,7 @@ pub fn completions(args: &ArgMatches) {
             cli().gen_completions_to(crate_name!(), s.unwrap(), &mut std::io::stdout());
         })
     {
-        eprintln!("Failed to get shell argument: {}", e);
+        eprintln!("Failed to get shell argument: {e}");
         exit(1);
     } else {
         exit(0);
@@ -76,7 +76,7 @@ struct ZipFile {
 
 impl ZipFile {
     fn create(filename: &str) -> Result<Self, Error> {
-        let file = File::create(&format!("{}.zip", filename))?;
+        let file = File::create(format!("{filename}.zip"))?;
         let options = FileOptions::default()
             .compression_method(CompressionMethod::Deflated)
             .unix_permissions(0o644);
@@ -116,7 +116,7 @@ fn report_filename() -> Result<String, Error> {
     #[cfg(windows)]
     let sep = "_";
 
-    let format = format!("%m-%d_%H{}%M{}%S", sep, sep);
+    let format = format!("%m-%d_%H{sep}%M{sep}%S");
     Ok(format!("{}-bugreport.txt", strftime(&format, &now())?))
 }
 
@@ -126,7 +126,7 @@ pub fn bugreport(args: &ArgMatches) {
         .unwrap_or_else(|_| report_filename().expect("Failed to generate filename"));
     let filename_path = PathBuf::from(&filename);
     if !args.is_present("overwrite") && filename_path.exists() {
-        eprintln!("File {} already exists", filename);
+        eprintln!("File {filename} already exists");
         exit(1);
     }
 
@@ -176,7 +176,7 @@ pub fn bugreport(args: &ArgMatches) {
             r
         })
         .map_err(|e| {
-            eprintln!("Failed to create bugreport: {}", e);
+            eprintln!("Failed to create bugreport: {e}");
             exit(1);
         });
 
@@ -199,14 +199,14 @@ pub fn devices() {
             let mut s = l.split_whitespace();
             let id: &str = s.next().unwrap_or("unknown");
             let name: &str = s.next().unwrap_or("unknown");
-            println!("{} {}", id, name);
+            println!("{id} {name}");
             Ok(())
         });
 
     tokio::run(
         result
             .map_err(|e| {
-                eprintln!("Failed to run adb devices: {}", e);
+                eprintln!("Failed to run adb devices: {e}");
                 exit(1)
             })
             .map(|_| exit(0)),
@@ -279,10 +279,10 @@ pub fn log(args: &ArgMatches) {
                 .arg("shell")
                 .arg("log")
                 .arg("-p")
-                .arg(&Logger::level(&level))
+                .arg(Logger::level(&level))
                 .arg("-t")
                 .arg(&tag)
-                .arg(format!("\"{}\"", message))
+                .arg(format!("\"{message}\""))
                 .stdout(Stdio::piped())
                 .output_async()
                 .map(|_| ())

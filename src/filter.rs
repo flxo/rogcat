@@ -35,7 +35,7 @@ pub struct Filter {
     regex: FilterGroup,
 }
 
-pub fn from_args_profile<'a>(args: &ArgMatches<'a>, profile: &Profile) -> Result<Filter, Error> {
+pub fn from_args_profile(args: &ArgMatches<'_>, profile: &Profile) -> Result<Filter, Error> {
     let tag = profile.tag.iter().map(String::as_str);
     let tag_ignorecase = profile.tag_ignore_case.iter().map(String::as_str);
     let message = profile.message.iter().map(String::as_str);
