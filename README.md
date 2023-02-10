@@ -1,4 +1,4 @@
-[![CI](https://img.shields.io/github/workflow/status/flxo/rogcat/CI)](https://github.com/esrlabs/northstar/actions)
+[![CI](https://img.shields.io/github/actions/workflow/status/flxo/rogcat/ci.yml?branch=main)](https://github.com/flxo/rogcat/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/rogcat.svg)](https://crates.io/crates/rogcat)
 [![Release](https://img.shields.io/github/release/flxo/rogcat.svg)](https://github.com/flxo/rogcat/releases)
 [![License](https://img.shields.io/github/license/flxo/rogcat.svg)](https://github.com/flxo/rogcat/blob/master/LICENSE)
