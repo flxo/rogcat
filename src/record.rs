@@ -97,8 +97,9 @@ const LEVEL_VALUES: &[&str] = &[
     "trace", "debug", "info", "warn", "error", "fatal", "assert", "T", "D", "I", "W", "E", "F", "A",
 ];
 
-#[derive(Clone, Debug, Deserialize, PartialOrd, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialOrd, PartialEq, Serialize, Default)]
 pub enum Level {
+    #[default]
     None,
     Trace,
     Verbose,
@@ -127,12 +128,6 @@ impl Display for Level {
                 Level::Assert => "A",
             }
         )
-    }
-}
-
-impl Default for Level {
-    fn default() -> Level {
-        Level::None
     }
 }
 
