@@ -155,6 +155,11 @@ pub fn logcat(args: &ArgMatches) -> Result<LogStream, Error> {
         respawn = false;
     }
 
+    if args.is_present("last") {
+        cmd.push("--last".into());
+        respawn = false;
+    }
+
     for buffer in args
         .values_of("buffer")
         .map(|m| m.map(ToOwned::to_owned).collect::<Vec<String>>())
