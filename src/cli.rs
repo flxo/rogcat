@@ -174,7 +174,7 @@ pub fn cli() -> App<'static, 'static> {
      //         .help( "Show the time difference between the occurence of equal tags in terminal output"))
         .arg(Arg::with_name("dev")
               .short("-s")
-              .long("dev")
+              .long("serial")
               .takes_value(true)
               .multiple(false)
               .help("Forwards the device selector to adb"))
