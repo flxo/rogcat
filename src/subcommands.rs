@@ -129,8 +129,15 @@ pub fn bugreport(args: &ArgMatches) {
         eprintln!("File {filename} already exists");
         exit(1);
     }
+    let mut adb = adb().expect("Failed to find adb");
 
-    let mut child = Command::new(adb().expect("Failed to find adb"))
+    if args.is_present("dev") {
+        let device = value_t!(args, "dev", String).unwrap_or_else(|e| e.exit());
+        adb.push::<String>("-s".into());
+        adb.push(device);
+    }
+
+    let mut child = Command::new(adb)
         .arg("bugreport")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
