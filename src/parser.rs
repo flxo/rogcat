@@ -208,16 +208,16 @@ fn parse_mindroid(line: &str) -> IResult<&str, Record> {
     Ok(mindroid)
 }
 
-fn bugreport_section(line: &str) -> IResult<&str, (String, String)> {
+pub fn bugreport_section(line: &str) -> IResult<&str, (String, String)> {
     let (line, logtag) = take_until("(")(line)?;
     let (line, _) = char('(')(line)?;
     let (line, msg) = take_until(")")(line)?;
     let (line, _) = char(')')(line)?;
 
-    Ok((line, (msg.to_owned(), logtag.to_owned())))
+    Ok((line, (logtag.to_string(), msg.to_string())))
 }
 
-fn property(line: &str) -> IResult<&str, (String, String)> {
+pub fn property(line: &str) -> IResult<&str, (String, String)> {
     let (line, _) = char('[')(line)?;
     let (line, prop) = take_until("]")(line)?;
     let (line, _) = tag("]: [")(line)?;
