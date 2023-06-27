@@ -140,6 +140,13 @@ pub fn tcp(addr: &Url) -> Result<LogStream, Error> {
 /// Start a process and stream it stdout
 pub fn logcat(args: &ArgMatches) -> Result<LogStream, Error> {
     let mut cmd = vec![adb()?.display().to_string()];
+
+    if args.is_present("dev") {
+        let device = value_t!(args, "dev", String).unwrap_or_else(|e| e.exit());
+        cmd.push("-s".into());
+        cmd.push(device);
+    }
+
     cmd.push("logcat".into());
     let mut respawn = args.is_present("restart") | config_get::<bool>("restart").unwrap_or(true);
 
