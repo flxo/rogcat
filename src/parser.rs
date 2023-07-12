@@ -481,7 +481,6 @@ fn test_parse_mindroid() {
     assert_eq!(r.message, "");
 }
 
-/*
 #[test]
 fn parse_csv_unparseable() {
     let p = CsvParser {};
@@ -506,17 +505,15 @@ fn test_parse_csv() {
 }
 
 #[test]
-#[ignore]
 fn parse_property() {
     let t = "[ro.build.tags]: [release-keys]";
     assert_eq!(
-        property(CompleteStr(t)).unwrap().1,
+        property(t).unwrap().1,
         ("ro.build.tags".to_owned(), "release-keys".to_owned())
     );
 }
 
 #[test]
-#[ignore]
 fn test_parse_section() {
     let mut p = Parser::default();
     p.parse("------ EVENT LOG (logcat -d -b all) ------");
@@ -530,4 +527,4 @@ fn test_parse_section() {
         r.raw,
         "07-01 14:13:14.446   225   295 I ThermalEngine: Sensor:batt_therm:29000 mC"
     );
-}*/
+}
