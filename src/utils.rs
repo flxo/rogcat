@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-use config::Config;
+use config::{Config, File};
 use failure::Error;
 use lazy_static::lazy_static;
 use serde::Deserialize;
@@ -59,9 +59,11 @@ pub fn config_get<'a, T: Deserialize<'a>>(key: &'a str) -> Option<T> {
 
 pub fn config_init() {
     let config_file = config_dir().join("config.toml");
+
+    #[allow(deprecated)]
     CONFIG
         .write()
         .expect("Failed to get config lock")
-        .merge(config::File::from(config_file))
+        .merge(File::from(config_file))
         .ok();
 }
