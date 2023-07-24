@@ -26,7 +26,12 @@ use std::{convert::Into, env, path::PathBuf, sync::RwLock};
 use which::which_in;
 
 lazy_static! {
-    static ref CONFIG: RwLock<Config> = RwLock::new(Config::default());
+    static ref CONFIG: RwLock<Config> = RwLock::new({
+        Config::builder()
+            .add_source(File::from(config_dir().join("config.toml")).required(false))
+            .build()
+            .unwrap_or_default()
+    });
 }
 
 /// Find adb binary
@@ -58,12 +63,5 @@ pub fn config_get<'a, T: Deserialize<'a>>(key: &'a str) -> Option<T> {
 }
 
 pub fn config_init() {
-    let config_file = config_dir().join("config.toml");
-
-    #[allow(deprecated)]
-    CONFIG
-        .write()
-        .expect("Failed to get config lock")
-        .merge(File::from(config_file))
-        .ok();
+    drop(CONFIG.read().expect("Failed to get config lock"));
 }
