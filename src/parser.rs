@@ -21,11 +21,20 @@
 use crate::record::{Level, Record, Timestamp};
 use csv::ReaderBuilder;
 use failure::Fail;
+
 use nom::{
-    alt, char, complete, do_parse, flat_map, hex_digit, is_digit, many0, many1, map, named, opt,
-    parse_to, peek, rest, space, tag, take, take_until, take_until_either, take_while_m_n,
-    types::CompleteStr,
+    branch::alt,
+    bytes::complete::{tag, take, take_till1, take_until, take_until1, take_while_m_n},
+    character::{
+        complete::{char, hex_digit1, i32, space0, space1},
+        is_digit,
+    },
+    combinator::{map, opt, peek, rest},
+    error::Error,
+    multi::{many0, many1},
+    IResult,
 };
+
 use serde_json::from_str;
 use std::{
     convert::Into,
@@ -42,172 +51,186 @@ pub trait FormatParser: Send + Sync {
     fn try_parse_str(&self, line: &str) -> Result<Record, ParserError>;
 }
 
-named!(
-    level<CompleteStr, Level>,
-    alt!(
-            char!('V') => { |_| Level::Verbose }
-          | char!('D') => { |_| Level::Debug }
-          | char!('I') => { |_| Level::Info }
-          | char!('W') => { |_| Level::Warn }
-          | char!('E') => { |_| Level::Error }
-          | char!('F') => { |_| Level::Fatal }
-          | char!('A') => { |_| Level::Assert }
-      )
-);
+fn parse_year(line: &str) -> IResult<&str, i32> {
+    //let (line, year) = map(take(4usize), |s: &str| s.parse::<i32>())(line)?;
+    let (line, year) = peek_and_parse_i32(line, 4)?;
+    let (line, _) = take(4usize)(line)?;
+    let (line, _) = char('-')(line)?;
+    Ok((line, year))
+}
+
+fn peek_and_parse_i32(line: &str, n: usize) -> IResult<&str, i32> {
+    let (line, value) = peek(take::<usize, &str, Error<_>>(n))(line)?;
+    let value = i32(value)?;
+    Ok((line, value.1))
+}
+
+fn take_and_parse_i32(line: &str, n: usize) -> IResult<&str, i32> {
+    let (line, value) = take::<usize, &str, Error<_>>(n)(line)?;
+    let value = i32(value)?;
+    Ok((line, value.1))
+}
 
 // 2017-03-25 19:11:19.052
 // or
 // 2017-03-25 19:11:19.052321
-named!(
-    timestamp<CompleteStr, Tm>,
-    do_parse!(
-        year: opt!(do_parse!(
-            y: flat_map!(peek!(take!(4)), parse_to!(i32)) >> take!(4) >> char!('-') >> (y)
-        )) >> month: flat_map!(take!(2), parse_to!(i32))
-            >> char!('-')
-            >> day: flat_map!(take!(2), parse_to!(i32))
-            >> space
-            >> hour: flat_map!(take_until!(":"), parse_to!(i32))
-            >> char!(':')
-            >> minute: flat_map!(take_until!(":"), parse_to!(i32))
-            >> char!(':')
-            >> second: flat_map!(take_until!("."), parse_to!(i32))
-            >> char!('.')
-            >> millisecond: flat_map!(take_while_m_n!(3, 3, |c| is_digit(c as u8)), parse_to!(i32))
-            >> microsecond: opt!(flat_map!(take_while_m_n!(3, 3, |c| is_digit(c as u8)), parse_to!(i32)))
-            >> utcoff:
-                opt!(complete!(do_parse!(
-                    space
-                        >> sign: map!(alt!(char!('-') | char!('+')), |c| if c == '-' {
-                            -1
-                        } else {
-                            1
-                        })
-                        >> utc_off_hours: flat_map!(take!(2), parse_to!(i32))
-                        >> utc_off_minutes: flat_map!(take!(2), parse_to!(i32))
-                        >> (sign * (utc_off_hours * 60 * 60 + utc_off_minutes * 60))
-                )))
-            >> (Tm {
-                tm_sec: second,
-                tm_min: minute,
-                tm_hour: hour,
-                tm_mday: day,
-                tm_mon: month - 1,
-                tm_year: year.unwrap_or(0),
-                tm_wday: 0,
-                tm_yday: 0,
-                tm_isdst: 0,
-                tm_utcoff: utcoff.unwrap_or(0),
-                tm_nsec: millisecond * 1_000_000 + microsecond.unwrap_or(0) * 1000,
-            })
-    )
-);
+fn timestamp(line: &str) -> IResult<&str, Tm> {
+    let (line, year) = opt(parse_year)(line)?;
+    let (line, month) = take_and_parse_i32(line, 2)?;
+    let (line, _) = char('-')(line)?;
+    let (line, day) = take_and_parse_i32(line, 2)?;
+    let (line, _) = space0(line)?;
+    let (line, hour) = take_until1(":")(line)?;
+    let hour = i32(hour)?.1;
+    let (line, _) = char(':')(line)?;
+    let (line, minute) = take_until1(":")(line)?;
+    let minute = take_and_parse_i32(minute, 2)?.1;
+    let (line, _) = char(':')(line)?;
+    let (line, second) = map(take_until1("."), |s: &str| s.parse::<i32>().unwrap_or(0))(line)?;
+    let (line, _) = char('.')(line)?;
+    let (line, millis) = map(take_while_m_n(3, 3, |c| is_digit(c as u8)), |s| {
+        take_and_parse_i32(s, 3).unwrap().1
+    })(line)?;
+    let (line, micros) = opt(map(take_while_m_n(3, 3, |c| is_digit(c as u8)), |s| {
+        take_and_parse_i32(s, 3).unwrap().1
+    }))(line)?;
+    let (line, sign) = opt(alt((map(char('-'), |_| -1), map(char('+'), |_| 1))))(line)?;
+    let utcoff = match sign {
+        Some(sign) => {
+            let (line, utc_off_hrs) = map(take(2usize), |s: &str| s.parse::<i32>())(line)?;
+            let (_line, utc_off_mins) = map(take(2usize), |s: &str| s.parse::<i32>())(line)?;
+            sign * (utc_off_hrs.unwrap_or(0) * 60 * 60 + utc_off_mins.unwrap_or(0) * 60)
+        }
+        None => 0,
+    };
 
-named!(
-    printable<CompleteStr, Record>,
-    do_parse!(
-        timestamp: timestamp
-            >> many1!(space)
-            >> process: hex_digit
-            >> many1!(space)
-            >> thread: hex_digit
-            >> many1!(space)
-            >> level: level
-            >> space
-            >> tag: take_until!(": ")
-            >> tag!(": ")
-            >> message: opt!(rest)
-            >> (Record {
-                timestamp: Some(Timestamp::new(timestamp)),
-                level,
-                tag: tag.trim().to_owned(),
-                process: process.trim().to_owned(),
-                thread: thread.trim().to_owned(),
-                message: message.unwrap_or(CompleteStr("")).trim().to_owned(),
-                ..Default::default()
-            })
-    )
-);
+    Ok((
+        line,
+        Tm {
+            tm_sec: second,
+            tm_min: minute,
+            tm_hour: hour,
+            tm_mday: day,
+            tm_mon: month,
+            tm_year: year.unwrap_or(0),
+            tm_wday: 0,
+            tm_yday: 0,
+            tm_isdst: 0,
+            tm_utcoff: utcoff,
+            tm_nsec: millis * 1_000_000 + micros.unwrap_or(0) * 1000,
+        },
+    ))
+}
 
-named!(
-    mindroid<CompleteStr, Record>,
-    alt!(
-        // Short format without timestamp
-        do_parse!(
-            level: level >>
-            char!('/') >>
-            tag: take_until_either!("(:") >>
-            opt!(tag!("(")) >>
-            opt!(tag!("0x")) >>
-            process: opt!(hex_digit) >>
-            opt!(tag!(")")) >>
-            tag!(": ") >>
-            message: opt!(rest) >>
-            (
-                Record {
-                    timestamp: None,
-                    level,
-                    tag: tag.trim().to_owned(),
-                    process: process.map(|s| s.trim()).unwrap_or("").to_owned(),
-                    message: message.unwrap_or(CompleteStr("")).trim().to_owned(),
-                    ..Default::default()
-                }
-            )
-        ) |
-        // Long format with timestamp
-        do_parse!(
-            timestamp: timestamp >>
-            many0!(space) >>
-            opt!(tag!("0x")) >>
-            process: hex_digit >>
-            many1!(space) >>
-            level: level >>
-            space >>
-            tag: take_until!(": ") >>
-            tag!(": ") >>
-            message: opt!(rest) >>
-            (
-                Record {
-                    timestamp: Some(Timestamp::new(timestamp)),
-                    level,
-                    tag: tag.trim().to_owned(),
-                    process: process.trim().to_owned(),
-                    message: message.unwrap_or(CompleteStr("")).trim().to_string(),
-                    ..Default::default()
-                }
-            )
-        )
-    )
-);
+fn level(line: &str) -> IResult<&str, Level> {
+    alt((
+        map(char('V'), |_| Level::Verbose),
+        map(char('D'), |_| Level::Debug),
+        map(char('I'), |_| Level::Info),
+        map(char('W'), |_| Level::Warn),
+        map(char('E'), |_| Level::Error),
+        map(char('F'), |_| Level::Fatal),
+        map(char('A'), |_| Level::Assert),
+    ))(line)
+}
 
-named!(
-    bugreport_section<CompleteStr, (String, String)>,
-    do_parse!(
-        tag: take_until!("(")
-            >> char!('(')
-            >> msg: take_until!(")")
-            >> char!(')')
-            >> ((tag.to_string(), msg.to_string()))
-    )
-);
+fn printable(line: &str) -> IResult<&str, Record> {
+    let (line, timestamp) = timestamp(line)?;
+    let (line, _) = many0(space1)(line)?;
+    let (line, process) = hex_digit1(line)?;
+    let (line, _) = many0(space1)(line)?;
+    let (line, thread) = hex_digit1(line)?;
+    let (line, _) = many0(space1)(line)?;
+    let (line, level) = level(line)?;
+    let (line, _) = space0(line)?;
+    let (line, logtag) = take_until(": ")(line)?;
+    let (line, _) = tag(": ")(line)?;
+    let (line, message) = opt(rest)(line)?;
 
-named!(
-    property<CompleteStr, (String, String)>,
-    do_parse!(
-        char!('[')
-            >> prop: take_until!("]")
-            >> tag!("]: [")
-            >> value: take_until!("]")
-            >> char!(']')
-            >> ((prop.to_string(), value.to_string()))
-    )
-);
+    let rec = Record {
+        timestamp: Some(Timestamp::new(timestamp)),
+        message: message.unwrap_or("").trim().to_owned(),
+        level,
+        tag: logtag.trim().to_owned(),
+        process: process.trim().to_owned(),
+        thread: thread.trim().to_owned(),
+        ..Default::default()
+    };
+
+    Ok((line, rec))
+}
+
+fn parse_mindroid_short(line: &str) -> IResult<&str, Record> {
+    let (line, level) = level(line)?;
+    let (line, _) = char('/')(line)?;
+    let (line, logtag) = take_till1(|c| c == '(' || c == ':')(line)?;
+    let (line, _) = opt(tag("("))(line)?;
+    let (line, _) = opt(tag("0x"))(line)?;
+    let (line, process) = opt(hex_digit1)(line)?;
+    let (line, _) = opt(tag(")"))(line)?;
+    let (line, _) = opt(tag(": "))(line)?;
+    let (line, message) = opt(rest)(line)?;
+    let rec = Record {
+        process: process.unwrap_or("").trim().to_owned(),
+        timestamp: None,
+        message: message.unwrap_or("").trim().to_owned(),
+        level,
+        tag: logtag.trim().to_owned(),
+        ..Default::default()
+    };
+    Ok((line, rec))
+}
+
+fn parse_mindroid_long(line: &str) -> IResult<&str, Record> {
+    let (line, timestamp) = timestamp(line)?;
+    let (line, _) = many1(space1)(line)?;
+    let (line, _) = opt(tag("0x"))(line)?;
+    let (line, process) = hex_digit1(line)?;
+    let (line, _) = many1(space1)(line)?;
+    let (line, level) = level(line)?;
+    let (line, _) = space0(line)?;
+    let (line, logtag) = take_until(": ")(line)?;
+    let (line, _) = tag(": ")(line)?;
+    let (line, message) = opt(rest)(line)?;
+    let rec = Record {
+        process: process.trim().to_owned(),
+        timestamp: Some(Timestamp::new(timestamp)),
+        message: message.unwrap_or("").trim().to_owned(),
+        level,
+        tag: logtag.trim().to_owned(),
+        ..Default::default()
+    };
+    Ok((line, rec))
+}
+
+fn parse_mindroid(line: &str) -> IResult<&str, Record> {
+    let mindroid = alt((parse_mindroid_short, parse_mindroid_long))(line)?;
+    Ok(mindroid)
+}
+
+pub fn bugreport_section(line: &str) -> IResult<&str, (String, String)> {
+    let (line, logtag) = take_until("(")(line)?;
+    let (line, _) = char('(')(line)?;
+    let (line, msg) = take_until(")")(line)?;
+    let (line, _) = char(')')(line)?;
+
+    Ok((line, (logtag.to_string(), msg.to_string())))
+}
+
+pub fn property(line: &str) -> IResult<&str, (String, String)> {
+    let (line, _) = char('[')(line)?;
+    let (line, prop) = take_until("]")(line)?;
+    let (line, _) = tag("]: [")(line)?;
+    let (line, val) = take_until("]")(line)?;
+    let (line, _) = char(']')(line)?;
+    Ok((line, (prop.to_string(), val.to_string())))
+}
 
 pub struct DefaultParser;
 
 impl FormatParser for DefaultParser {
     fn try_parse_str(&self, line: &str) -> Result<Record, ParserError> {
-        printable(CompleteStr(line))
+        printable(line)
             .map(|(_, mut v)| {
                 v.raw = line.into();
                 v
@@ -220,7 +243,7 @@ pub struct MindroidParser;
 
 impl FormatParser for MindroidParser {
     fn try_parse_str(&self, line: &str) -> Result<Record, ParserError> {
-        mindroid(CompleteStr(line))
+        parse_mindroid(line)
             .map(|(_, mut v)| {
                 v.raw = line.into();
                 v
@@ -305,27 +328,44 @@ impl Parser {
 
 #[test]
 fn parse_level() {
-    assert_eq!(level(CompleteStr("V")).unwrap().1, Level::Verbose);
-    assert_eq!(level(CompleteStr("D")).unwrap().1, Level::Debug);
-    assert_eq!(level(CompleteStr("I")).unwrap().1, Level::Info);
-    assert_eq!(level(CompleteStr("W")).unwrap().1, Level::Warn);
-    assert_eq!(level(CompleteStr("E")).unwrap().1, Level::Error);
-    assert_eq!(level(CompleteStr("F")).unwrap().1, Level::Fatal);
-    assert_eq!(level(CompleteStr("A")).unwrap().1, Level::Assert);
+    assert_eq!(level("V").unwrap().1, Level::Verbose);
+    assert_eq!(level("D").unwrap().1, Level::Debug);
+    assert_eq!(level("I").unwrap().1, Level::Info);
+    assert_eq!(level("W").unwrap().1, Level::Warn);
+    assert_eq!(level("E").unwrap().1, Level::Error);
+    assert_eq!(level("F").unwrap().1, Level::Fatal);
+    assert_eq!(level("A").unwrap().1, Level::Assert);
 }
-
 #[test]
-fn parse_unparseable() {
-    let p = DefaultParser {};
-    assert!(p.try_parse_str("").is_err());
+fn parser_year() {
+    let date_wrong = "00";
+    let just_date = "2000";
+    let date_with_month = "2000-03";
+    let val = opt(parse_year)(date_wrong);
+    let val2 = opt(parse_year)(date_with_month);
+    let val3 = opt(parse_year)(just_date);
+    assert_eq!(Ok(("00", None)), val);
+    assert_eq!(Ok(("2000", None)), val3);
+    assert_eq!(Ok(("03", Some(2000))), val2);
 }
 
 #[test]
 fn parse_timestamp() {
-    timestamp(CompleteStr("03-25 19:11:19.052")).unwrap();
-    timestamp(CompleteStr("03-25 7:11:19.052")).unwrap();
-    timestamp(CompleteStr("2017-03-25 19:11:19.052")).unwrap();
-    timestamp(CompleteStr("2017-03-25 19:11:19.052123")).unwrap();
+    let ts = timestamp("03-25 19:11:19.054211").unwrap();
+    assert_eq!(00, ts.1.tm_year);
+    assert_eq!(3, ts.1.tm_mon);
+    assert_eq!(25, ts.1.tm_mday);
+    assert_eq!(19, ts.1.tm_hour);
+    assert_eq!(11, ts.1.tm_min);
+    assert_eq!(19, ts.1.tm_sec);
+    timestamp("03-25 7:11:19.052").unwrap();
+    timestamp("2017-03-25 19:11:19.052").unwrap();
+    timestamp("2017-03-25 19:11:19.052123").unwrap();
+}
+#[test]
+fn parse_unparseable() {
+    let p = DefaultParser {};
+    assert!(p.try_parse_str("").is_err());
 }
 
 #[test]
@@ -359,7 +399,7 @@ fn parse_printable() {
         Some(Timestamp {
             tm: Tm {
                 tm_year: 0,
-                tm_mon: 10,
+                tm_mon: 11,
                 tm_mday: 6,
                 tm_hour: 13,
                 tm_min: 58,
@@ -468,7 +508,7 @@ fn test_parse_csv() {
 fn parse_property() {
     let t = "[ro.build.tags]: [release-keys]";
     assert_eq!(
-        property(CompleteStr(t)).unwrap().1,
+        property(t).unwrap().1,
         ("ro.build.tags".to_owned(), "release-keys".to_owned())
     );
 }
