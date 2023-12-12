@@ -337,6 +337,7 @@ impl<T: Write> Sink for FormatSink<T> {
         self.sink
             .write_all(self.format.fmt_record(&record)?.as_bytes())?;
         self.sink.write_all(&[b'\n'])?;
+        self.sink.flush()?;
         Ok(AsyncSink::Ready)
     }
 
