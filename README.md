@@ -118,6 +118,13 @@ ARGS:
     <MESSAGE>    Log message. Pass "-" to capture from stdin'
 ```
 
+## Fuchsia
+
+`rogcat` can be used to read logs from a `Fuchsia` device. Use the `--ffx` switch to run `ffx` instead of `adb logcat`.
+The default `ffx` command is `ffx log --no-color`.
+
+Of course `ffx` can be invoked manually with eg. `ffx log --no-color | rogcat -` or `rogcat "ffx log --no-color"`.
+
 ## Installation
 
 Building `rogcat` requires Rust 2018 edition:

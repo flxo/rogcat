@@ -39,6 +39,7 @@ use serde_json::from_str;
 use std::{
     convert::Into,
     io::{Cursor, Read},
+    iter::once,
 };
 
 use time::Tm;
@@ -274,6 +275,95 @@ impl FormatParser for JsonParser {
     }
 }
 
+// [seconds][pid][tid][tags] LEVEL: message
+// [01086.023158][boot-drivers:dev][driver,platform_bus] INFO: [platform-bus.cc(292)] Boot Item ZBI_TYPE_SERIAL_NUMBER not found
+fn parse_fuchsia(line: &str) -> IResult<&str, Record> {
+    fn trim_str<const N: usize>(s: &str) -> String {
+        if s.len() > N {
+            s.chars()
+                .take(N - 1)
+                .chain(once('…'))
+                .take(N)
+                .collect::<String>()
+        } else {
+            s.to_string()
+        }
+    }
+
+    // Timestamp
+    let (rest, _) = char('[')(line)?;
+    let (rest, timestamp) = take_until1("]")(rest)?;
+    let (rest, _) = char(']')(rest)?;
+    let timestamp = timestamp.parse::<f64>().map(Timestamp::from_secs).ok();
+
+    // Process
+    let (rest, _) = char('[')(rest)?;
+    let (rest, process) = take_until1("]")(rest)?;
+    let process = trim_str::<16>(process);
+    let (rest, _) = char(']')(rest)?;
+
+    // Tid
+    let (rest, thread) = if rest.starts_with('[') {
+        let (rest, _) = char('[')(rest)?;
+        let (rest, thread) = take_until1("]")(rest)?;
+        let (rest, _) = char(']')(rest)?;
+        let thread = trim_str::<16>(thread);
+        (rest, thread)
+    } else {
+        (rest, String::new())
+    };
+
+    // Tags
+    let (rest, tag) = if rest.starts_with('[') {
+        let (rest, _) = char('[')(rest)?;
+        let (rest, tag) = take_until1("]")(rest)?;
+        let (rest, _) = char(']')(rest)?;
+        (rest, tag.to_string())
+    } else {
+        (rest, String::new())
+    };
+
+    let (rest, _) = char(' ')(rest)?;
+
+    // Level
+    let (rest, level) = take_until1(":")(rest)?;
+    let (rest, _) = char(':')(rest)?;
+    let level = match level {
+        "TRACE" => Level::Trace,
+        "DEBUG" => Level::Debug,
+        "INFO" => Level::Info,
+        "WARN" => Level::Warn,
+        "ERROR" => Level::Error,
+        "FATAL" => Level::Fatal,
+        _ => unreachable!("unimplemented level: {}", level),
+    };
+
+    let (_, message) = nom::combinator::rest(rest)?;
+
+    let record = Record {
+        timestamp,
+        message: message.trim().to_owned(),
+        level,
+        tag,
+        process,
+        thread,
+        raw: line.to_owned(),
+    };
+
+    Ok(("", record))
+}
+
+#[derive(Default)]
+pub struct FuchsiaParser;
+
+impl FormatParser for FuchsiaParser {
+    fn try_parse_str(&self, line: &str) -> Result<Record, ParserError> {
+        parse_fuchsia(line)
+            .map(|(_, record)| record)
+            .map_err(|e| ParserError(format!("{e}")))
+    }
+}
+
 pub struct Parser {
     parsers: Vec<Box<dyn FormatParser>>,
     last: Option<usize>,
@@ -287,6 +377,7 @@ impl Default for Parser {
                 Box::new(MindroidParser),
                 Box::new(CsvParser),
                 Box::new(JsonParser),
+                Box::new(FuchsiaParser),
             ],
             last: None,
         }
@@ -301,26 +392,26 @@ impl Parser {
         }
     }
 
-    pub fn parse(&mut self, line: &str) -> Record {
+    pub fn parse(&mut self, raw: &str) -> Record {
         if let Some(last) = self.last {
-            let p = &self.parsers[last];
-            if let Ok(r) = p.try_parse_str(line) {
-                return r;
+            let parser = &self.parsers[last];
+            if let Ok(record) = parser.try_parse_str(raw) {
+                return record;
             }
         }
 
-        for (i, p) in self.parsers.iter().map(Box::as_ref).enumerate() {
-            if let Ok(r) = p.try_parse_str(line) {
-                self.last = Some(i);
-                return r;
+        for (index, parser) in self.parsers.iter().map(Box::as_ref).enumerate() {
+            if let Ok(record) = parser.try_parse_str(raw) {
+                self.last = Some(index);
+                return record;
             }
         }
 
         // Seems that we cannot parse this record
         // Treat the raw input as message
         Record {
-            raw: String::from(line),
-            message: String::from(line),
+            raw: raw.to_string(),
+            message: raw.to_string(),
             ..Default::default()
         }
     }
@@ -526,5 +617,39 @@ fn test_parse_section() {
     assert_eq!(
         r.raw,
         "07-01 14:13:14.446   225   295 I ThermalEngine: Sensor:batt_therm:29000 mC"
+    );
+}
+
+// [01086.023158][boot-drivers:dev][driver,platform_bus] INFO: [platform-bus.cc(292)] Boot Item ZBI_TYPE_SERIAL_NUMBER not found
+// [01086.062890][remote-control] WARN: Failed to get serial from SysInfo status=NOT_FOUND
+#[test]
+fn test_parse_fuchsia() {
+    let p = FuchsiaParser {};
+    let r = p.try_parse_str("[01086.023158][boot-drivers:dev][driver,platform_bus] INFO: [platform-bus.cc(292)] Boot Item ZBI_TYPE_SERIAL_NUMBER not found").unwrap();
+    assert_eq!(r.level, Level::Info);
+    assert_eq!(r.process, "boot-drivers:dev");
+    assert_eq!(r.thread, "driver,platform…");
+    assert_eq!(
+        r.message,
+        "[platform-bus.cc(292)] Boot Item ZBI_TYPE_SERIAL_NUMBER not found"
+    );
+
+    let r = p
+        .try_parse_str("[01086.023158][klog] INFO: [foo] blah")
+        .unwrap();
+    assert_eq!(r.level, Level::Info);
+    assert_eq!(r.process, "klog");
+    assert_eq!(r.tag, "");
+    assert_eq!(r.message, "[foo] blah");
+
+    let r = p
+        .try_parse_str("[01067.896485][dhcpv6-client] WARN: ignoring Reply to Information-Request: missing Server Id option")
+        .unwrap();
+    assert_eq!(r.level, Level::Warn);
+    assert_eq!(r.process, "dhcpv6-client");
+    assert_eq!(r.tag, "");
+    assert_eq!(
+        r.message,
+        "ignoring Reply to Information-Request: missing Server Id option"
     );
 }

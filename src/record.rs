@@ -171,6 +171,13 @@ impl Timestamp {
         Timestamp { tm: t }
     }
 
+    pub fn from_secs(secs: f64) -> Timestamp {
+        Timestamp {
+            tm: time::empty_tm()
+                + time::Duration::from_std(std::time::Duration::from_secs_f64(secs)).unwrap(),
+        }
+    }
+
     pub fn now() -> Timestamp {
         Timestamp { tm: time::now() }
     }
