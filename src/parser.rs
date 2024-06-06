@@ -47,7 +47,7 @@ use time::Tm;
 #[fail(display = "{}", _0)]
 pub struct ParserError(String);
 
-pub trait FormatParser: Send + Sync {
+trait FormatParser: Send + Sync {
     fn try_parse_str(&self, line: &str) -> Result<Record, ParserError>;
 }
 
@@ -357,46 +357,27 @@ impl FormatParser for FuchsiaParser {
     }
 }
 
-pub struct Parser {
-    parsers: Vec<Box<dyn FormatParser>>,
-    last: Option<usize>,
-}
+pub struct Parser(Vec<Box<dyn FormatParser>>);
 
 impl Default for Parser {
     fn default() -> Self {
-        Parser {
-            parsers: vec![
-                Box::new(DefaultParser),
-                Box::new(MindroidParser),
-                Box::new(CsvParser),
-                Box::new(JsonParser),
-                Box::new(FuchsiaParser),
-            ],
-            last: None,
-        }
+        Parser(vec![
+            Box::new(DefaultParser),
+            Box::new(MindroidParser),
+            Box::new(CsvParser),
+            Box::new(JsonParser),
+            Box::new(FuchsiaParser),
+        ])
     }
 }
 
 impl Parser {
-    pub fn new() -> Self {
-        Parser {
-            parsers: Vec::new(),
-            last: None,
-        }
-    }
-
     pub fn parse(&mut self, raw: String) -> Record {
-        if let Some(last) = self.last {
-            let parser = &self.parsers[last];
+        for (index, parser) in self.0.iter().map(Box::as_ref).enumerate() {
             if let Ok(mut record) = parser.try_parse_str(raw.as_str()) {
-                record.raw = raw;
-                return record;
-            }
-        }
-
-        for (index, parser) in self.parsers.iter().map(Box::as_ref).enumerate() {
-            if let Ok(mut record) = parser.try_parse_str(raw.as_str()) {
-                self.last = Some(index);
+                if index > 0 {
+                    self.0.swap(index, index - 1);
+                }
                 record.raw = raw;
                 return record;
             }
