@@ -66,8 +66,10 @@ struct Human {
     date_format: Option<(&'static str, usize)>,
     highlight: Vec<Regex>,
     process_width: usize,
+    max_process_width: usize,
     tag_width: Option<usize>,
     thread_width: usize,
+    max_thread_width: usize,
     dimm_color: Option<Color>,
     bright_colors: bool,
 }
@@ -125,7 +127,9 @@ impl Human {
             date_format,
             tag_width,
             process_width: 0,
+            max_process_width: 16,
             thread_width: 0,
+            max_thread_width: 16,
             bright_colors,
         }
     }
@@ -196,13 +200,19 @@ impl Human {
             width = tag_width
         );
 
-        self.process_width = max(self.process_width, record.process.chars().count());
+        self.process_width = min(
+            max(self.process_width, record.process.chars().count()),
+            self.max_process_width,
+        );
         let pid = if record.process.is_empty() {
             " ".repeat(self.process_width)
         } else {
             format!("{:<width$}", record.process, width = self.process_width)
         };
-        self.thread_width = max(self.thread_width, record.thread.chars().count());
+        self.thread_width = min(
+            max(self.thread_width, record.thread.chars().count()),
+            self.max_thread_width,
+        );
         let tid = if !record.thread.is_empty() {
             format!(" {:>width$}", record.thread, width = self.thread_width)
         } else if self.thread_width != 0 {

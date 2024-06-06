@@ -36,10 +36,7 @@ use nom::{
 };
 
 use serde_json::from_str;
-use std::{
-    io::{Cursor, Read},
-    iter::once,
-};
+use std::io::{Cursor, Read};
 
 use time::Tm;
 
@@ -271,18 +268,6 @@ impl FormatParser for JsonParser {
 // [seconds][pid][tid][tags] LEVEL: message
 // [01086.023158][boot-drivers:dev][driver,platform_bus] INFO: [platform-bus.cc(292)] Boot Item ZBI_TYPE_SERIAL_NUMBER not found
 fn parse_fuchsia(line: &str) -> IResult<&str, Record> {
-    fn trim_str<const N: usize>(s: &str) -> String {
-        if s.len() > N {
-            s.chars()
-                .take(N - 1)
-                .chain(once('…'))
-                .take(N)
-                .collect::<String>()
-        } else {
-            s.to_string()
-        }
-    }
-
     // Timestamp
     let (rest, _) = char('[')(line)?;
     let (rest, timestamp) = take_until1("]")(rest)?;
@@ -292,7 +277,7 @@ fn parse_fuchsia(line: &str) -> IResult<&str, Record> {
     // Process
     let (rest, _) = char('[')(rest)?;
     let (rest, process) = take_until1("]")(rest)?;
-    let process = trim_str::<16>(process);
+    let process = process.to_string();
     let (rest, _) = char(']')(rest)?;
 
     // Tid
@@ -300,8 +285,7 @@ fn parse_fuchsia(line: &str) -> IResult<&str, Record> {
         let (rest, _) = char('[')(rest)?;
         let (rest, thread) = take_until1("]")(rest)?;
         let (rest, _) = char(']')(rest)?;
-        let thread = trim_str::<16>(thread);
-        (rest, thread)
+        (rest, thread.to_string())
     } else {
         (rest, String::new())
     };
