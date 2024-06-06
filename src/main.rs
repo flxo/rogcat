@@ -98,8 +98,8 @@ fn run() -> Result<(), Error> {
 
     let f = source
         .map(move |a| match a {
-            StreamData::Line(l) => parser.parse(&l),
-            StreamData::Record(r) => r,
+            StreamData::Line(line) => parser.parse(line),
+            StreamData::Record(record) => record,
         })
         .filter(move |r| filter.filter(r))
         .take_while(move |_| {

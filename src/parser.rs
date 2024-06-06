@@ -37,7 +37,6 @@ use nom::{
 
 use serde_json::from_str;
 use std::{
-    convert::Into,
     io::{Cursor, Read},
     iter::once,
 };
@@ -232,10 +231,7 @@ pub struct DefaultParser;
 impl FormatParser for DefaultParser {
     fn try_parse_str(&self, line: &str) -> Result<Record, ParserError> {
         printable(line)
-            .map(|(_, mut v)| {
-                v.raw = line.into();
-                v
-            })
+            .map(|(_, record)| record)
             .map_err(|e| ParserError(format!("{e}")))
     }
 }
@@ -245,10 +241,7 @@ pub struct MindroidParser;
 impl FormatParser for MindroidParser {
     fn try_parse_str(&self, line: &str) -> Result<Record, ParserError> {
         parse_mindroid(line)
-            .map(|(_, mut v)| {
-                v.raw = line.into();
-                v
-            })
+            .map(|(_, record)| record)
             .map_err(|e| ParserError(format!("{e}")))
     }
 }
@@ -347,7 +340,7 @@ fn parse_fuchsia(line: &str) -> IResult<&str, Record> {
         tag,
         process,
         thread,
-        raw: line.to_owned(),
+        ..Default::default()
     };
 
     Ok(("", record))
@@ -392,17 +385,19 @@ impl Parser {
         }
     }
 
-    pub fn parse(&mut self, raw: &str) -> Record {
+    pub fn parse(&mut self, raw: String) -> Record {
         if let Some(last) = self.last {
             let parser = &self.parsers[last];
-            if let Ok(record) = parser.try_parse_str(raw) {
+            if let Ok(mut record) = parser.try_parse_str(raw.as_str()) {
+                record.raw = raw;
                 return record;
             }
         }
 
         for (index, parser) in self.parsers.iter().map(Box::as_ref).enumerate() {
-            if let Ok(record) = parser.try_parse_str(raw) {
+            if let Ok(mut record) = parser.try_parse_str(raw.as_str()) {
                 self.last = Some(index);
+                record.raw = raw;
                 return record;
             }
         }
@@ -410,8 +405,8 @@ impl Parser {
         // Seems that we cannot parse this record
         // Treat the raw input as message
         Record {
-            raw: raw.to_string(),
-            message: raw.to_string(),
+            message: raw.clone(),
+            raw,
             ..Default::default()
         }
     }
@@ -607,8 +602,8 @@ fn parse_property() {
 #[test]
 fn test_parse_section() {
     let mut p = Parser::default();
-    p.parse("------ EVENT LOG (logcat -d -b all) ------");
-    let r = p.parse("07-01 14:13:14.446000000,Sensor:batt_therm:29000 mC,Info,ThermalEngine,225,295,07-01 14:13:14.446   225   295 I ThermalEngine: Sensor:batt_therm:29000 mC");
+    p.parse("------ EVENT LOG (logcat -d -b all) ------".into());
+    let r = p.parse("07-01 14:13:14.446000000,Sensor:batt_therm:29000 mC,Info,ThermalEngine,225,295,07-01 14:13:14.446   225   295 I ThermalEngine: Sensor:batt_therm:29000 mC".into());
     assert_eq!(r.level, Level::Info);
     assert_eq!(r.tag, "ThermalEngine");
     assert_eq!(r.process, "225");
@@ -616,7 +611,7 @@ fn test_parse_section() {
     assert_eq!(r.message, "Sensor:batt_therm:29000 mC");
     assert_eq!(
         r.raw,
-        "07-01 14:13:14.446   225   295 I ThermalEngine: Sensor:batt_therm:29000 mC"
+        "07-01 14:13:14.446000000,Sensor:batt_therm:29000 mC,Info,ThermalEngine,225,295,07-01 14:13:14.446   225   295 I ThermalEngine: Sensor:batt_therm:29000 mC"
     );
 }
 
