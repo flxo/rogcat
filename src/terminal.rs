@@ -66,10 +66,10 @@ struct Human {
     date_format: Option<(&'static str, usize)>,
     highlight: Vec<Regex>,
     process_width: usize,
-    max_process_width: usize,
+    process_width_max: usize,
     tag_width: Option<usize>,
     thread_width: usize,
-    max_thread_width: usize,
+    thread_width_max: usize,
     dimm_color: Option<Color>,
     bright_colors: bool,
 }
@@ -119,6 +119,8 @@ impl Human {
 
         let bright_colors = args.is_present("bright_colors")
             || config_get("terminal_bright_colors").unwrap_or(false);
+        let thread_width_max = config_get("terminal_thread_width_max").unwrap_or(16);
+        let process_width_max = config_get("terminal_process_width_max").unwrap_or(16);
 
         Human {
             writer: BufferWriter::stdout(color),
@@ -127,9 +129,9 @@ impl Human {
             date_format,
             tag_width,
             process_width: 0,
-            max_process_width: 16,
+            process_width_max,
             thread_width: 0,
-            max_thread_width: 16,
+            thread_width_max,
             bright_colors,
         }
     }
@@ -202,19 +204,30 @@ impl Human {
 
         self.process_width = min(
             max(self.process_width, record.process.chars().count()),
-            self.max_process_width,
+            self.process_width_max,
         );
         let pid = if record.process.is_empty() {
             " ".repeat(self.process_width)
         } else {
-            format!("{:<width$}", record.process, width = self.process_width)
+            let process = if record.process.chars().count() > self.process_width {
+                &record.process[..self.process_width]
+            } else {
+                record.process.as_str()
+            };
+            format!("{:<width$}", process, width = self.process_width)
         };
+
         self.thread_width = min(
             max(self.thread_width, record.thread.chars().count()),
-            self.max_thread_width,
+            self.thread_width_max,
         );
         let tid = if !record.thread.is_empty() {
-            format!(" {:>width$}", record.thread, width = self.thread_width)
+            let thread = if record.thread.chars().count() > self.thread_width {
+                &record.thread[..self.thread_width]
+            } else {
+                record.thread.as_str()
+            };
+            format!(" {:>width$}", thread, width = self.thread_width)
         } else if self.thread_width != 0 {
             " ".repeat(self.thread_width + 1)
         } else {

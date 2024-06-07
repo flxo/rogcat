@@ -10,21 +10,21 @@ device during development. The `logcat` subcommand of `adb` allows access to `An
 tries to give access to those logs in a convenient way including post processing capabilities. The main feature probably
 is a painted and reformatted view. `rogcat` can read logs from
 
-* running `adb logcat` (default)
-* a custom command (`stdout`, `stderr`)
-* one or multiple files
-* `stdin`
-* connect to TCP port
-* A SocketCAN CAN device (Linux only)
+- running `adb logcat` (default)
+- a custom command (`stdout`, `stderr`)
+- one or multiple files
+- `stdin`
+- connect to TCP port
+- A SocketCAN CAN device (Linux only)
 
 The processing steps within a `rogcat` run include parsing of the input stream and applying filters (if provided).
 `rogcat` comes with a set of implemented in and output formats:
 
-* `csv:` Comma separated values
-* `raw:` Record (line) as captured
-* `html:` A static single page html with a static table. This option cannot be used as input format. The page layout needs some love...
-* `human:` A human friendly colored column based format. See screenshot
-* `json:` Single line JSON
+- `csv:` Comma separated values
+- `raw:` Record (line) as captured
+- `html:` A static single page html with a static table. This option cannot be used as input format. The page layout needs some love...
+- `human:` A human friendly colored column based format. See screenshot
+- `json:` Single line JSON
 
 Except the `human` and `html` format the output of `rogcat` is parseable by `rogcat`.
 
@@ -32,7 +32,7 @@ Except the `human` and `html` format the output of `rogcat` is parseable by `rog
 
 ## Examples
 
-The following examples show a subset of `rogcat's` features. *Please read `--help`!*
+The following examples show a subset of `rogcat's` features. _Please read `--help`!_
 
 ### Live
 
@@ -57,7 +57,7 @@ Process `stdout` and `stderr` of `command`:
 
 ### Filter
 
-Display logs from `adb logcat` and filter on records where the tag matches `^ABC.*` along with *not* `X` and the message includes `pattern`:
+Display logs from `adb logcat` and filter on records where the tag matches `^ABC.*` along with _not_ `X` and the message includes `pattern`:
 
 `rogcat -t "^ADB.*" -t \!X -m pattern`
 
@@ -142,14 +142,14 @@ On Debian based systems the package `libudev-dev` (and it's dependencies) is req
 When `rogcat` runs without any command supplied it defaults to running `adb logcat -b all`. The following options
 can be overwritten in the `rogcat` config file `config.toml`. The location of the config file is platform specific:
 
-* MacOS: `$HOME/Library/Preferences/rogcat/config.toml`
-* Linux: `$HOME/.config/rogcat/config.toml`
-* Windows: `%HOME%/AppData/Roaming/rogcat/config.toml`
+- MacOS: `$HOME/Library/Preferences/rogcat/config.toml`
+- Linux: `$HOME/.config/rogcat/config.toml`
+- Windows: `%HOME%/AppData/Roaming/rogcat/config.toml`
 
 ### Restart
 
 By default `rogcat` restarts `adb logcat` when that one exits. This is intentional behavior to make `rogcat` reconnect
-on device power cycles or disconnect/reconnects. A `Windows 7` bug prevents `rogcat` from restarting `adb`.  Place
+on device power cycles or disconnect/reconnects. A `Windows 7` bug prevents `rogcat` from restarting `adb`. Place
 `restart = false` in the configuration file mentioned above to make `rogcat` exit when `adb` exits.
 
 ### Buffer
@@ -166,12 +166,14 @@ buffer = ["main", "events"]
 Some parameters of the `human` format are adjustable via the config file:
 
 ```
-terminal_tag_width = 20
-terminal_show_date = false
-terminal_hide_timestamp = true
-terminal_color = never
-terminal_no_dimm = true
 terminal_bright_colors = false
+terminal_color = never
+terminal_hide_timestamp = true
+terminal_process_width_max = 16
+terminal_thread_width_max = 16
+terminal_no_dimm = true
+terminal_show_date = false
+terminal_tag_width = 20
 ```
 
 ## Profiles
@@ -180,9 +182,9 @@ Optionally `rogcat` reads a (`toml` formated) configuration file if present. Thi
 ('-p') and settings. The possible options in the configuration file are a subset of the command line options. The configuration
 file is read from the location set in the environment variable `ROGCAT_PROFILES` or a fixed pathes depending on your OS:
 
-* MacOS: `$HOME/Library/Preferences/rogcat/profiles.toml`
-* Linux: `$HOME/.config/rogcat/profiles.toml`
-* Windows: `%HOME%/AppData/Roaming/rogcat/profiles.toml`
+- MacOS: `$HOME/Library/Preferences/rogcat/profiles.toml`
+- Linux: `$HOME/.config/rogcat/profiles.toml`
+- Windows: `%HOME%/AppData/Roaming/rogcat/profiles.toml`
 
 The environment variable overrules the default path. See `rogcat profiles --help` or `rogcat profiles --examples`.
 
