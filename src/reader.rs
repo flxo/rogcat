@@ -181,7 +181,7 @@ pub fn logcat(args: &ArgMatches) -> Result<LogStream, Error> {
 }
 
 /// Start ffx log
-pub fn ffx(args: &ArgMatches) -> Result<LogStream, Error> {
+pub fn fuchsia(args: &ArgMatches) -> Result<LogStream, Error> {
     let mut cmd = vec!["ffx", "log", "--no-color"];
 
     if args.is_present("dump") {

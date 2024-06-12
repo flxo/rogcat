@@ -55,8 +55,8 @@ fn run() -> Result<(), Error> {
     let source = {
         if args.is_present("input") {
             reader::files(&args)?
-        } else if args.is_present("ffx") {
-            reader::ffx(&args)?
+        } else if args.subcommand().0 == "fx" {
+            reader::fuchsia(&args)?
         } else {
             match args.value_of("COMMAND") {
                 Some(c) => {
