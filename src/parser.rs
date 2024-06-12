@@ -588,7 +588,7 @@ fn test_parse_fuchsia() {
     let r = p.try_parse_str("[01086.023158][boot-drivers:dev][driver,platform_bus] INFO: [platform-bus.cc(292)] Boot Item ZBI_TYPE_SERIAL_NUMBER not found").unwrap();
     assert_eq!(r.level, Level::Info);
     assert_eq!(r.process, "boot-drivers:dev");
-    assert_eq!(r.thread, "driver,platform…");
+    assert_eq!(r.thread, "driver,platform_bus");
     assert_eq!(
         r.message,
         "[platform-bus.cc(292)] Boot Item ZBI_TYPE_SERIAL_NUMBER not found"
