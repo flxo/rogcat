@@ -280,15 +280,15 @@ fn parse_fuchsia(line: &str) -> IResult<&str, Record> {
     let process = process.to_string();
     let (rest, _) = char(']')(rest)?;
 
-    // Tid
-    let (rest, thread) = if rest.starts_with('[') {
-        let (rest, _) = char('[')(rest)?;
-        let (rest, thread) = take_until1("]")(rest)?;
-        let (rest, _) = char(']')(rest)?;
-        (rest, thread.to_string())
-    } else {
-        (rest, String::new())
-    };
+    // // Tid
+    // let (rest, thread) = if rest.starts_with('[') {
+    //     let (rest, _) = char('[')(rest)?;
+    //     let (rest, thread) = take_until1("]")(rest)?;
+    //     let (rest, _) = char(']')(rest)?;
+    //     (rest, thread.to_string())
+    // } else {
+    //     (rest, String::new())
+    // };
 
     // Tags
     let (rest, tag) = if rest.starts_with('[') {
@@ -323,7 +323,6 @@ fn parse_fuchsia(line: &str) -> IResult<&str, Record> {
         level,
         tag,
         process,
-        thread,
         ..Default::default()
     };
 
@@ -588,7 +587,7 @@ fn test_parse_fuchsia() {
     let r = p.try_parse_str("[01086.023158][boot-drivers:dev][driver,platform_bus] INFO: [platform-bus.cc(292)] Boot Item ZBI_TYPE_SERIAL_NUMBER not found").unwrap();
     assert_eq!(r.level, Level::Info);
     assert_eq!(r.process, "boot-drivers:dev");
-    assert_eq!(r.thread, "driver,platform_bus");
+    assert_eq!(r.tag, "driver,platform_bus");
     assert_eq!(
         r.message,
         "[platform-bus.cc(292)] Boot Item ZBI_TYPE_SERIAL_NUMBER not found"
