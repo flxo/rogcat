@@ -32,6 +32,7 @@ use std::{
     cmp::{max, min},
     convert::Into,
     io::{stdout, BufWriter, Write},
+    iter::{once, repeat},
     str::FromStr,
 };
 use termcolor::{Buffer, BufferWriter, Color, ColorChoice, ColorSpec, WriteColor};
@@ -119,8 +120,8 @@ impl Human {
 
         let bright_colors = args.is_present("bright_colors")
             || config_get("terminal_bright_colors").unwrap_or(false);
-        let thread_width_max = config_get("terminal_thread_width_max").unwrap_or(16);
-        let process_width_max = config_get("terminal_process_width_max").unwrap_or(16);
+        let thread_width_max = max(1, config_get("terminal_thread_width_max").unwrap_or(16));
+        let process_width_max = max(1, config_get("terminal_process_width_max").unwrap_or(16));
 
         Human {
             writer: BufferWriter::stdout(color),
@@ -190,49 +191,38 @@ impl Human {
             String::new()
         };
 
-        let tag_width = self.tag_width();
-        let tag_chars = record.tag.chars().count();
-        let tag = format!(
-            "{:>width$}",
-            record
-                .tag
-                .chars()
-                .take(min(tag_width, tag_chars))
-                .collect::<String>(),
-            width = tag_width
-        );
+        /// Truncate `s` to width characters, adding "…" if necessary
+        fn format_trim(s: &str, width: usize) -> String {
+            let chars = s.chars();
+            if s.chars().count() > width {
+                s.chars()
+                    .take(width - 1)
+                    .chain(once('…'))
+                    .chain(repeat(' '))
+                    .take(width)
+                    .collect()
+            } else {
+                chars.chain(repeat(' ')).take(width).collect()
+            }
+        }
 
+        // Tag
+        let tag_width = self.tag_width();
+        let tag = format_trim(&record.tag, tag_width);
+
+        // Process
         self.process_width = min(
             max(self.process_width, record.process.chars().count()),
             self.process_width_max,
         );
-        let pid = if record.process.is_empty() {
-            " ".repeat(self.process_width)
-        } else {
-            let process = if record.process.chars().count() > self.process_width {
-                &record.process[..self.process_width]
-            } else {
-                record.process.as_str()
-            };
-            format!("{:<width$}", process, width = self.process_width)
-        };
+        let process = format_trim(&record.process, self.process_width);
 
+        // Thread
         self.thread_width = min(
             max(self.thread_width, record.thread.chars().count()),
             self.thread_width_max,
         );
-        let tid = if !record.thread.is_empty() {
-            let thread = if record.thread.chars().count() > self.thread_width {
-                &record.thread[..self.thread_width]
-            } else {
-                record.thread.as_str()
-            };
-            format!(" {:>width$}", thread, width = self.thread_width)
-        } else if self.thread_width != 0 {
-            " ".repeat(self.thread_width + 1)
-        } else {
-            String::new()
-        };
+        let thread = format_trim(&record.thread, self.thread_width);
 
         let highlight = !self.highlight.is_empty()
             && (self.highlight.iter().any(|r| r.is_match(&record.tag))
@@ -242,7 +232,7 @@ impl Human {
             + 1 // " "
             + tag.chars().count()
             + 2 // " ("
-            + pid.chars().count() + tid.chars().count()
+            + self.process_width + self.thread_width
             + 2 // ") "
             + 3; // level
 
@@ -252,8 +242,8 @@ impl Human {
             self.dimm_color
         };
         let tag_color = Self::hashed_color(&record.tag);
-        let pid_color = Self::hashed_color(&pid);
-        let tid_color = Self::hashed_color(&tid);
+        let process_color = Self::hashed_color(&record.process);
+        let thread_color = Self::hashed_color(&record.thread);
         let level_color = match record.level {
             Level::Info => Some(Color::Green),
             Level::Warn => Some(Color::Yellow),
@@ -272,11 +262,11 @@ impl Human {
             buffer.set_color(spec.set_fg(None))?;
 
             buffer.write_all(b" (")?;
-            buffer.set_color(spec.set_fg(Some(pid_color)))?;
-            buffer.write_all(pid.as_bytes())?;
-            if !tid.is_empty() {
-                buffer.set_color(spec.set_fg(Some(tid_color)))?;
-                buffer.write_all(tid.as_bytes())?;
+            buffer.set_color(spec.set_fg(Some(process_color)))?;
+            buffer.write_all(process.as_bytes())?;
+            if !thread.is_empty() {
+                buffer.set_color(spec.set_fg(Some(thread_color)))?;
+                buffer.write_all(thread.as_bytes())?;
             }
             buffer.set_color(spec.set_fg(None))?;
             buffer.write_all(b") ")?;
