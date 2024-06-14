@@ -32,7 +32,6 @@ use std::{
     cmp::{max, min},
     convert::Into,
     io::{stdout, BufWriter, Write},
-    iter::{once, repeat},
     str::FromStr,
 };
 use termcolor::{Buffer, BufferWriter, Color, ColorChoice, ColorSpec, WriteColor};
@@ -178,7 +177,7 @@ impl Human {
         })
     }
 
-    fn print(&mut self, record: &Record) -> Result<(), Error> {
+    fn print(&mut self, mut record: Record) -> Result<(), Error> {
         let timestamp = if let Some((format, len)) = self.date_format {
             if let Some(ref ts) = record.timestamp {
                 let mut ts = time::strftime(format, ts).expect("Date format error");
@@ -191,38 +190,45 @@ impl Human {
             String::new()
         };
 
+        // Calculate colors before truncation
+        let tag_color = Self::hashed_color(&record.tag);
+        let process_color = Self::hashed_color(&record.process);
+        let thread_color = Self::hashed_color(&record.thread);
+
         /// Truncate `s` to width characters, adding "…" if necessary
-        fn format_trim(s: &str, width: usize) -> String {
-            let chars = s.chars();
-            if s.chars().count() > width {
-                s.chars()
-                    .take(width - 1)
-                    .chain(once('…'))
-                    .chain(repeat(' '))
-                    .take(width)
-                    .collect()
-            } else {
-                chars.chain(repeat(' ')).take(width).collect()
+        fn format_trim(s: &mut String, width: usize) {
+            let len = s.chars().count();
+            if len > width {
+                s.truncate(width);
+                s.pop();
+                s.push('…');
+            }
+
+            if len < width {
+                s.reserve(width - len);
+                for _ in 0..(width - len) {
+                    s.push(' ')
+                }
             }
         }
 
         // Tag
         let tag_width = self.tag_width();
-        let tag = format_trim(&record.tag, tag_width);
+        format_trim(&mut record.tag, tag_width);
 
         // Process
         self.process_width = min(
             max(self.process_width, record.process.chars().count()),
             self.process_width_max,
         );
-        let process = format_trim(&record.process, self.process_width);
+        format_trim(&mut record.process, self.process_width);
 
         // Thread
         self.thread_width = min(
             max(self.thread_width, record.thread.chars().count()),
             self.thread_width_max,
         );
-        let thread = format_trim(&record.thread, self.thread_width);
+        format_trim(&mut record.thread, self.thread_width);
 
         let highlight = !self.highlight.is_empty()
             && (self.highlight.iter().any(|r| r.is_match(&record.tag))
@@ -230,7 +236,7 @@ impl Human {
 
         let preamble_width = timestamp.chars().count()
             + 1 // " "
-            + tag.chars().count()
+            + record.tag.chars().count()
             + 2 // " ("
             + self.process_width + self.thread_width
             + 2 // ") "
@@ -241,9 +247,6 @@ impl Human {
         } else {
             self.dimm_color
         };
-        let tag_color = Self::hashed_color(&record.tag);
-        let process_color = Self::hashed_color(&record.process);
-        let thread_color = Self::hashed_color(&record.thread);
         let level_color = match record.level {
             Level::Info => Some(Color::Green),
             Level::Warn => Some(Color::Yellow),
@@ -258,15 +261,15 @@ impl Human {
             buffer.write_all(b" ")?;
 
             buffer.set_color(spec.set_fg(Some(tag_color)))?;
-            buffer.write_all(tag.as_bytes())?;
+            buffer.write_all(record.tag.as_bytes())?;
             buffer.set_color(spec.set_fg(None))?;
 
             buffer.write_all(b" (")?;
             buffer.set_color(spec.set_fg(Some(process_color)))?;
-            buffer.write_all(process.as_bytes())?;
-            if !thread.is_empty() {
+            buffer.write_all(record.process.as_bytes())?;
+            if !record.thread.is_empty() {
                 buffer.set_color(spec.set_fg(Some(thread_color)))?;
-                buffer.write_all(thread.as_bytes())?;
+                buffer.write_all(record.thread.as_bytes())?;
             }
             buffer.set_color(spec.set_fg(None))?;
             buffer.write_all(b") ")?;
@@ -364,7 +367,7 @@ impl Sink for Human {
     type SinkError = Error;
 
     fn start_send(&mut self, record: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
-        self.print(&record).map(|_| AsyncSink::Ready)
+        self.print(record).map(|_| AsyncSink::Ready)
     }
 
     fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
