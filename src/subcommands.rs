@@ -153,7 +153,7 @@ pub fn bugreport(args: &ArgMatches) {
             .expect("Failed to create outfile parent directory");
     }
 
-    let progress = ProgressBar::new(::std::u64::MAX);
+    let progress = ProgressBar::new(u64::MAX);
     progress.set_style(
         ProgressStyle::default_bar()
             .template("{spinner:.yellow} {msg:.dim.bold} {pos:>7.dim} {elapsed_precise:.dim}")

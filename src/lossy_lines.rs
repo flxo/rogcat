@@ -5,7 +5,6 @@ use futures::{Poll, Stream};
 use std::{
     cmp,
     io::{self, BufRead},
-    usize,
 };
 use tokio::{
     codec::{Decoder, Encoder},

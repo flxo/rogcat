@@ -284,7 +284,7 @@ impl Human {
             Ok(())
         };
 
-        let payload_len = terminal_width().unwrap_or(std::usize::MAX) - preamble_width - 3;
+        let payload_len = terminal_width().unwrap_or(usize::MAX) - preamble_width - 3;
         let message = record.message.replace('\t', "");
         let message_len = message.chars().count();
         let chunks = message_len / payload_len + 1;
