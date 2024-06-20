@@ -103,7 +103,7 @@ pub fn can(dev: &str) -> Result<LogStream, Error> {
             StreamData::Record(Record {
                 timestamp: Some(Timestamp::new(now)),
                 message: format!("{} {} ", extended, data.join(" ")),
-                tag: format!("0x{:x}", s.id()),
+                tags: vec![format!("0x{:x}", s.id())],
                 raw: format!(
                     "({}) {} {}#{}",
                     now.strftime("%s.%f").unwrap(),

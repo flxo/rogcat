@@ -35,6 +35,7 @@ use nom::{
     IResult,
 };
 
+use serde::{Deserialize, Serialize};
 use serde_json::from_str;
 use std::io::{Cursor, Read};
 
@@ -148,7 +149,7 @@ fn printable(line: &str) -> IResult<&str, Record> {
         timestamp: Some(Timestamp::new(timestamp)),
         message: message.unwrap_or("").trim().to_owned(),
         level,
-        tag: logtag.trim().to_owned(),
+        tags: vec![logtag.trim().to_owned()],
         process: process.trim().to_owned(),
         thread: thread.trim().to_owned(),
         ..Default::default()
@@ -172,7 +173,7 @@ fn parse_mindroid_short(line: &str) -> IResult<&str, Record> {
         timestamp: None,
         message: message.unwrap_or("").trim().to_owned(),
         level,
-        tag: logtag.trim().to_owned(),
+        tags: vec![logtag.trim().to_owned()],
         ..Default::default()
     };
     Ok((line, rec))
@@ -194,7 +195,7 @@ fn parse_mindroid_long(line: &str) -> IResult<&str, Record> {
         timestamp: Some(Timestamp::new(timestamp)),
         message: message.unwrap_or("").trim().to_owned(),
         level,
-        tag: logtag.trim().to_owned(),
+        tags: vec![logtag.trim().to_owned()],
         ..Default::default()
     };
     Ok((line, rec))
@@ -247,10 +248,40 @@ pub struct CsvParser;
 
 impl FormatParser for CsvParser {
     fn try_parse_str(&self, line: &str) -> Result<Record, ParserError> {
+        // Shadow struct with non separate tag
+        #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+        pub struct CsvRecord {
+            timestamp: Option<Timestamp>,
+            message: String,
+            level: Level,
+            tag: String,
+            process: String,
+            thread: String,
+            raw: String,
+        }
         let reader = Cursor::new(line).chain(Cursor::new([b'\n']));
         let mut rdr = ReaderBuilder::new().has_headers(false).from_reader(reader);
-        if let Some(result) = rdr.deserialize().next() {
-            result.map_err(|e| ParserError(format!("{e}")))
+        if let Some(result) = rdr.deserialize::<CsvRecord>().next() {
+            let record = result.map_err(|e| ParserError(format!("{e}")))?;
+            let CsvRecord {
+                timestamp,
+                message,
+                level,
+                tag,
+                process,
+                thread,
+                raw,
+            } = record;
+            let record = Record {
+                timestamp,
+                message,
+                level,
+                tags: tag.split(',').map(|s| s.trim().to_owned()).collect(),
+                process,
+                thread,
+                raw,
+            };
+            Ok(record)
         } else {
             Err(ParserError("Failed to parse csv".to_string()))
         }
@@ -291,13 +322,18 @@ fn parse_fuchsia(line: &str) -> IResult<&str, Record> {
     // };
 
     // Tags
-    let (rest, tag) = if rest.starts_with('[') {
+    let (rest, tags) = if rest.starts_with('[') {
         let (rest, _) = char('[')(rest)?;
-        let (rest, tag) = take_until1("]")(rest)?;
+        let (rest, tags) = take_until1("]")(rest)?;
         let (rest, _) = char(']')(rest)?;
-        (rest, tag.to_string())
+        let mut tags = tags
+            .split(',')
+            .map(|s| s.trim().to_owned())
+            .collect::<Vec<_>>();
+        tags.sort();
+        (rest, tags)
     } else {
-        (rest, String::new())
+        (rest, vec![])
     };
 
     let (rest, _) = char(' ')(rest)?;
@@ -321,7 +357,7 @@ fn parse_fuchsia(line: &str) -> IResult<&str, Record> {
         timestamp,
         message: message.trim().to_owned(),
         level,
-        tag,
+        tags,
         process,
         ..Default::default()
     };
@@ -425,7 +461,7 @@ fn parse_printable() {
     let p = DefaultParser {};
     let r = p.try_parse_str(t).unwrap();
     assert_eq!(r.level, Level::Info);
-    assert_eq!(r.tag, "EXT4-fs (mmcblk3p8)");
+    assert_eq!(r.tags, vec!("EXT4-fs (mmcblk3p8)"));
     assert_eq!(r.process, "1");
     assert_eq!(r.thread, "2");
     assert_eq!(
@@ -437,7 +473,7 @@ fn parse_printable() {
              voltage-ranges unspecified";
     let r = p.try_parse_str(t).unwrap();
     assert_eq!(r.level, Level::Debug);
-    assert_eq!(r.tag, "/soc/aips-bus@02100000/usdhc@0219c000");
+    assert_eq!(r.tags, vec!("/soc/aips-bus@02100000/usdhc@0219c000"));
     assert_eq!(r.process, "0");
     assert_eq!(r.thread, "0");
     assert_eq!(r.message, "voltage-ranges unspecified");
@@ -463,7 +499,7 @@ fn parse_printable() {
         })
     );
     assert_eq!(r.level, Level::Info);
-    assert_eq!(r.tag, "GStreamer+amc");
+    assert_eq!(r.tags, vec!("GStreamer+amc"));
     assert_eq!(r.process, "31359");
     assert_eq!(r.thread, "31420");
     assert_eq!(r.message, "0:00:00.326067533 0xb8ef2a00");
@@ -471,7 +507,7 @@ fn parse_printable() {
     let t = "11-06 13:58:53.582 31359 31420 A GStreamer+amc: 0:00:00.326067533 0xb8ef2a00";
     let r = p.try_parse_str(t).unwrap();
     assert_eq!(r.level, Level::Assert);
-    assert_eq!(r.tag, "GStreamer+amc");
+    assert_eq!(r.tags, vec!("GStreamer+amc"));
     assert_eq!(r.process, "31359");
     assert_eq!(r.thread, "31420");
     assert_eq!(r.message, "0:00:00.326067533 0xb8ef2a00");
@@ -479,7 +515,7 @@ fn parse_printable() {
     let t = "03-26 13:17:38.345     0     0 I [114416.534450,0] mdss_dsi_off-: ";
     let r = p.try_parse_str(t).unwrap();
     assert_eq!(r.level, Level::Info);
-    assert_eq!(r.tag, "[114416.534450,0] mdss_dsi_off-");
+    assert_eq!(r.tags, vec!("[114416.534450,0] mdss_dsi_off-"));
     assert_eq!(r.message, "");
 }
 
@@ -489,7 +525,7 @@ fn test_parse_mindroid() {
     let p = MindroidParser {};
     let r = p.try_parse_str(t).unwrap();
     assert_eq!(r.level, Level::Info);
-    assert_eq!(r.tag, "Runtime");
+    assert_eq!(r.tags, vec!("Runtime"));
     assert_eq!(r.process, "");
     assert_eq!(r.thread, "");
     assert_eq!(r.message, "Mindroid runtime system node id: 1");
@@ -497,7 +533,7 @@ fn test_parse_mindroid() {
     let t = "D/ServiceManager(000000000000000C): foo bar";
     let r = p.try_parse_str(t).unwrap();
     assert_eq!(r.level, Level::Debug);
-    assert_eq!(r.tag, "ServiceManager");
+    assert_eq!(r.tags, vec!("ServiceManager"));
     assert_eq!(r.process, "000000000000000C");
     assert_eq!(r.thread, "");
     assert_eq!(r.message, "foo bar");
@@ -505,7 +541,7 @@ fn test_parse_mindroid() {
     let t = "D/ServiceManager(0x123): Service MediaPlayer has been created in process main";
     let r = p.try_parse_str(t).unwrap();
     assert_eq!(r.level, Level::Debug);
-    assert_eq!(r.tag, "ServiceManager");
+    assert_eq!(r.tags, vec!("ServiceManager"));
     assert_eq!(r.process, "123");
     assert_eq!(r.thread, "");
     assert_eq!(
@@ -521,7 +557,7 @@ fn test_parse_mindroid() {
              fd53:7cb8:383:4:0:0:0:68";
     let r = p.try_parse_str(t).unwrap();
     assert_eq!(r.level, Level::Debug);
-    assert_eq!(r.tag, "SomeThing");
+    assert_eq!(r.tags, vec!("SomeThing"));
     assert_eq!(r.process, "3b7fe700");
     assert_eq!(r.thread, "");
     assert_eq!(r.message, "Parsing IPV6 address fd53:7cb8:383:4:0:0:0:68");
@@ -541,10 +577,10 @@ fn parse_csv_unparseable() {
 #[test]
 fn test_parse_csv() {
     let t = "07-01 14:13:14.446000000,Sensor:batt_therm:29000 mC,Info,ThermalEngine,225,295,07-01 14:13:14.446   225   295 I ThermalEngine: Sensor:batt_therm:29000 mC";
-    let p = CsvParser {};
+    let p = CsvParser;
     let r = p.try_parse_str(t).unwrap();
     assert_eq!(r.level, Level::Info);
-    assert_eq!(r.tag, "ThermalEngine");
+    assert_eq!(r.tags, vec!("ThermalEngine"));
     assert_eq!(r.process, "225");
     assert_eq!(r.thread, "295");
     assert_eq!(r.message, "Sensor:batt_therm:29000 mC");
@@ -569,7 +605,7 @@ fn test_parse_section() {
     p.parse("------ EVENT LOG (logcat -d -b all) ------".into());
     let r = p.parse("07-01 14:13:14.446000000,Sensor:batt_therm:29000 mC,Info,ThermalEngine,225,295,07-01 14:13:14.446   225   295 I ThermalEngine: Sensor:batt_therm:29000 mC".into());
     assert_eq!(r.level, Level::Info);
-    assert_eq!(r.tag, "ThermalEngine");
+    assert_eq!(r.tags, vec!("ThermalEngine"));
     assert_eq!(r.process, "225");
     assert_eq!(r.thread, "295");
     assert_eq!(r.message, "Sensor:batt_therm:29000 mC");
@@ -587,7 +623,7 @@ fn test_parse_fuchsia() {
     let r = p.try_parse_str("[01086.023158][boot-drivers:dev][driver,platform_bus] INFO: [platform-bus.cc(292)] Boot Item ZBI_TYPE_SERIAL_NUMBER not found").unwrap();
     assert_eq!(r.level, Level::Info);
     assert_eq!(r.process, "boot-drivers:dev");
-    assert_eq!(r.tag, "driver,platform_bus");
+    assert_eq!(r.tags, vec!("driver", "platform_bus"));
     assert_eq!(
         r.message,
         "[platform-bus.cc(292)] Boot Item ZBI_TYPE_SERIAL_NUMBER not found"
@@ -598,7 +634,7 @@ fn test_parse_fuchsia() {
         .unwrap();
     assert_eq!(r.level, Level::Info);
     assert_eq!(r.process, "klog");
-    assert_eq!(r.tag, "");
+    assert!(r.tags.is_empty());
     assert_eq!(r.message, "[foo] blah");
 
     let r = p
@@ -606,7 +642,7 @@ fn test_parse_fuchsia() {
         .unwrap();
     assert_eq!(r.level, Level::Warn);
     assert_eq!(r.process, "dhcpv6-client");
-    assert_eq!(r.tag, "");
+    assert!(r.tags.is_empty());
     assert_eq!(
         r.message,
         "ignoring Reply to Information-Request: missing Server Id option"

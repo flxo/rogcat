@@ -66,11 +66,11 @@ impl Filter {
 
         self.message.filter(&record.message)
             && self.message_ignore_case.filter(&record.message)
-            && self.tag.filter(&record.tag)
-            && self.tag_ignore_case.filter(&record.tag)
+            && self.tag.filter_iter(record.tags.iter())
+            && self.tag_ignore_case.filter_iter(record.tags.iter())
             && (self.regex.filter(&record.process)
                 || self.regex.filter(&record.thread)
-                || self.regex.filter(&record.tag)
+                || self.regex.filter_iter(record.tags.iter())
                 || self.regex.filter(&record.message))
     }
 }
@@ -120,6 +120,16 @@ impl FilterGroup {
             positive,
             negative,
         })
+    }
+
+    fn filter_iter<T: Iterator<Item = A>, A: AsRef<str>>(&self, item: T) -> bool {
+        for i in item {
+            if !self.filter(i.as_ref()) {
+                return false;
+            }
+        }
+
+        true
     }
 
     fn filter(&self, item: &str) -> bool {

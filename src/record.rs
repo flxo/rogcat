@@ -231,7 +231,7 @@ pub struct Record {
     pub timestamp: Option<Timestamp>,
     pub message: String,
     pub level: Level,
-    pub tag: String,
+    pub tags: Vec<String>,
     pub process: String,
     pub thread: String,
     pub raw: String,

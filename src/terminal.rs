@@ -191,7 +191,6 @@ impl Human {
         };
 
         // Calculate colors before truncation
-        let tag_color = Self::hashed_color(&record.tag);
         let process_color = Self::hashed_color(&record.process);
         let thread_color = Self::hashed_color(&record.thread);
 
@@ -214,7 +213,6 @@ impl Human {
 
         // Tag
         let tag_width = self.tag_width();
-        format_trim(&mut record.tag, tag_width);
 
         // Process
         self.process_width = min(
@@ -231,14 +229,17 @@ impl Human {
         format_trim(&mut record.thread, self.thread_width);
 
         let highlight = !self.highlight.is_empty()
-            && (self.highlight.iter().any(|r| r.is_match(&record.tag))
+            && (self
+                .highlight
+                .iter()
+                .any(|r| record.tags.iter().any(|t| r.is_match(t)))
                 || self.highlight.iter().any(|r| r.is_match(&record.message)));
 
         let preamble_width = timestamp.chars().count()
             + 1 // " "
-            + record.tag.chars().count()
+            + tag_width
             + 2 // " ("
-            + self.process_width + self.thread_width
+            + self.process_width + 1 + self.thread_width
             + 2 // ") "
             + 3; // level
 
@@ -258,17 +259,39 @@ impl Human {
             let mut spec = ColorSpec::new();
             buffer.set_color(spec.set_fg(timestamp_color))?;
             buffer.write_all(timestamp.as_bytes())?;
-            buffer.write_all(b" ")?;
 
-            buffer.set_color(spec.set_fg(Some(tag_color)))?;
-            buffer.write_all(record.tag.as_bytes())?;
-            buffer.set_color(spec.set_fg(None))?;
+            if record.tags.is_empty() {
+                // Plust extra space before tags
+                for _ in 0..tag_width {
+                    buffer.write_all(b" ")?;
+                }
+            } else {
+                let mut t = 0;
+                for tag in record.tags.iter() {
+                    let chars = tag.chars().count();
+                    if t + 1 + chars <= tag_width {
+                        let color = Self::hashed_color(tag);
+                        buffer.set_color(spec.set_fg(Some(color)))?;
+                        buffer.write_all(b" ")?;
+                        buffer.write_all(tag.as_bytes())?;
+                    } else {
+                        break;
+                    }
+                    t += chars + 1;
+                }
+                buffer.set_color(spec.set_fg(None))?;
+
+                for _ in 0..(tag_width - t) {
+                    buffer.write_all(b" ")?;
+                }
+            }
 
             buffer.write_all(b" (")?;
             buffer.set_color(spec.set_fg(Some(process_color)))?;
             buffer.write_all(record.process.as_bytes())?;
             if !record.thread.is_empty() {
                 buffer.set_color(spec.set_fg(Some(thread_color)))?;
+                buffer.write_all(b" ")?;
                 buffer.write_all(record.thread.as_bytes())?;
             }
             buffer.set_color(spec.set_fg(None))?;
@@ -285,7 +308,7 @@ impl Human {
         };
 
         let payload_len = terminal_width().unwrap_or(usize::MAX) - preamble_width - 3;
-        let message = record.message.replace('\t', "");
+        let message = record.message.replace('\t', "<TAB>");
         let message_len = message.chars().count();
         let chunks = message_len / payload_len + 1;
 
