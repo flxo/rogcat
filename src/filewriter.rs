@@ -134,7 +134,7 @@ impl<'a, T: Writer> FileWriter<T> {
 
         let overwrite = args.is_present("overwrite");
 
-        let records = records_per_file.unwrap_or(std::usize::MAX);
+        let records = records_per_file.unwrap_or(usize::MAX);
         let filename_format = match args.value_of("filename_format") {
             Some("enumerate") => FilenameFormat::Enumerate(overwrite, records),
             Some("date") => FilenameFormat::Date(overwrite, records),
@@ -158,7 +158,7 @@ impl<'a, T: Writer> FileWriter<T> {
                 )
             } else {
                 (
-                    ProgressBar::new(std::u64::MAX),
+                    ProgressBar::new(u64::MAX),
                     " • ",
                     "{spinner:.yellow} {msg:.dim.bold} {pos:>7.dim} {elapsed_precise:.dim}",
                 )

@@ -223,4 +223,6 @@ pub fn cli() -> App<'static, 'static> {
                         .possible_values(&[ "trace", "debug", "info", "warn", "error", "fatal", "assert", "T", "D", "I", "W", "E", "F", "A" ],)
                         .help("Log on level"))
                 .arg_from_usage("[MESSAGE] 'Log message. Pass \"-\" to read from stdin'."))
+        .subcommand(SubCommand::with_name("fx")
+                .about("Start fx log (fuchsia"))
 }
