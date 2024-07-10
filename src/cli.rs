@@ -189,7 +189,7 @@ pub fn cli() -> App<'static, 'static> {
         .arg(Arg::with_name("fuchsia")
              .long("ffx")
              .takes_value(false)
-             .conflicts_with_all(&["dev", "input", "COMMAND", "restart", "tail"])
+             .conflicts_with_all(&["buffer", "dev", "input", "COMMAND", "restart", "tail"])
              .help("Use ffx log instead of adb logcat"))
         .arg(Arg::with_name("COMMAND")
              .help( "Optional command to run and capture stdout and stdderr from. Pass \"-\" to d capture stdin'. If omitted, rogcat will run \"adb logcat -b all\" and restarts this commmand if 'adb' terminates",))
