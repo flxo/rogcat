@@ -186,6 +186,11 @@ pub fn cli() -> App<'static, 'static> {
              .takes_value(true)
              .conflicts_with_all(&["input", "COMMAND", "restart"])
              .help("Dump only the most recent <COUNT> lines (implies --dump)"))
+        .arg(Arg::with_name("fuchsia")
+             .long("ffx")
+             .takes_value(false)
+             .conflicts_with_all(&["dev", "input", "COMMAND", "restart", "tail"])
+             .help("Use ffx log instead of adb logcat"))
         .arg(Arg::with_name("COMMAND")
              .help( "Optional command to run and capture stdout and stdderr from. Pass \"-\" to d capture stdin'. If omitted, rogcat will run \"adb logcat -b all\" and restarts this commmand if 'adb' terminates",))
         .subcommand(SubCommand::with_name("bugreport")
@@ -223,6 +228,4 @@ pub fn cli() -> App<'static, 'static> {
                         .possible_values(&[ "trace", "debug", "info", "warn", "error", "fatal", "assert", "T", "D", "I", "W", "E", "F", "A" ],)
                         .help("Log on level"))
                 .arg_from_usage("[MESSAGE] 'Log message. Pass \"-\" to read from stdin'."))
-        .subcommand(SubCommand::with_name("fx")
-                .about("Start fx log (fuchsia"))
 }

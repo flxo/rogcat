@@ -99,7 +99,7 @@ Write message "some text" into the device log buffer (e.g annotations during man
 
 Set level and tag or read from `stdin`:
 
-```
+```sh
 rogcat-log
 Add log message(s) log buffer
 
@@ -120,8 +120,8 @@ ARGS:
 
 ## Fuchsia
 
-`rogcat` can be used to read logs from a `Fuchsia` device. Use the `--ffx` switch to run `ffx` instead of `adb logcat`.
-The default `ffx` command is `ffx log --no-color`.
+`rogcat` can be used to read logs from a `Fuchsia` device. Use the `--fx` switch to run `ffx` instead of `adb logcat`.
+The default `ffx` command is `ffx log --no-color --severity debug`.
 
 Of course `ffx` can be invoked manually with eg. `ffx log --no-color | rogcat -` or `rogcat "ffx log --no-color"`.
 
@@ -129,7 +129,7 @@ Of course `ffx` can be invoked manually with eg. `ffx log --no-color | rogcat -`
 
 Building `rogcat` requires Rust 2018 edition:
 
-```
+```sh
 cargo install --path .
 ```
 
@@ -157,7 +157,7 @@ on device power cycles or disconnect/reconnects. A `Windows 7` bug prevents `rog
 The default behavior of `rogcat` is to dump `all` logcat buffers. This can be overwritten by selecting specific buffers in
 the `rogcat` configuration file. e.g:
 
-```
+```toml
 buffer = ["main", "events"]
 ```
 
@@ -165,7 +165,7 @@ buffer = ["main", "events"]
 
 Some parameters of the `human` format are adjustable via the config file:
 
-```
+```sh
 terminal_bright_colors = false
 terminal_color = never
 terminal_hide_timestamp = true
@@ -190,7 +190,7 @@ The environment variable overrules the default path. See `rogcat profiles --help
 
 Example:
 
-```
+```toml
 [profile.a]
 comment = "Messages starting with A or a"
 message_ignore_case = ["^A.*"]
@@ -230,7 +230,7 @@ You can create a special profile named `default` which will be used when no othe
 
 ## Usage
 
-```
+```sh
 rogcat 0.4.3-alpha.0
 Felix Obenhuber <felix@obenhuber.de>
 A 'adb logcat' wrapper and log processor. Your config directory is "/Users/felix/Library/Preferences/rogcat".

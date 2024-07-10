@@ -26,6 +26,7 @@ use crate::{
 use clap::{value_t, ArgMatches};
 use failure::{err_msg, format_err, Error};
 use futures::{stream::iter_ok, Async, Future, Stream};
+use rogcat::record::Level;
 #[cfg(target_os = "linux")]
 use rogcat::record::{Record, Timestamp};
 use std::{
@@ -186,6 +187,28 @@ pub fn fuchsia(args: &ArgMatches) -> Result<LogStream, Error> {
 
     if args.is_present("dump") {
         cmd.push("--dump");
+    }
+
+    if let Some(tags) = args.values_of("tag") {
+        tags.for_each(|tag| {
+            cmd.push("--tag");
+            cmd.push(tag);
+        });
+    }
+
+    if let Some(level) = args.value_of("level") {
+        cmd.push("--severity");
+        let level = Level::from(level);
+        match level {
+            Level::Verbose | Level::Trace => cmd.push("trace"),
+            Level::None | Level::Debug => cmd.push("debug"),
+            Level::Info => cmd.push("info"),
+            Level::Warn => cmd.push("warn"),
+            Level::Error => cmd.push("error"),
+            Level::Fatal | Level::Assert => cmd.push("fatal"),
+        };
+    } else {
+        cmd.extend(["--severity", "debug"]);
     }
 
     let cmd = cmd.iter().map(ToString::to_string).collect();

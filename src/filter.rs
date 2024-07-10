@@ -27,7 +27,7 @@ use rogcat::record::{Level, Record};
 /// Configured filters
 #[derive(Debug)]
 pub struct Filter {
-    level: Level,
+    level: Option<Level>,
     tag: FilterGroup,
     tag_ignore_case: FilterGroup,
     message: FilterGroup,
@@ -41,8 +41,13 @@ pub fn from_args_profile(args: &ArgMatches<'_>, profile: &Profile) -> Result<Fil
     let message = profile.message.iter().map(String::as_str);
     let message_ignorecase = profile.message_ignore_case.iter().map(String::as_str);
     let regex = profile.regex.iter().map(String::as_str);
+    // Level is filtered by ffx in case of fuchsia.
+    let level = (!args.is_present("fuchsia"))
+        .then(|| args.value_of("level").map(Level::from))
+        .flatten();
     let filter = Filter {
-        level: Level::from(args.value_of("level").unwrap_or("")),
+        level,
+        // TODO: Do not filter here on tag which is already done by fx in case of fuchsia.
         tag: FilterGroup::from_args(args, "tag", tag, false)?,
         tag_ignore_case: FilterGroup::from_args(args, "tag-ignore-case", tag_ignorecase, true)?,
         message: FilterGroup::from_args(args, "message", message, false)?,
@@ -60,8 +65,10 @@ pub fn from_args_profile(args: &ArgMatches<'_>, profile: &Profile) -> Result<Fil
 
 impl Filter {
     pub fn filter(&self, record: &Record) -> bool {
-        if record.level < self.level {
-            return false;
+        if let Some(ref level) = self.level {
+            if record.level < *level {
+                return false;
+            }
         }
 
         self.message.filter(&record.message)
