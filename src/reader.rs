@@ -26,6 +26,7 @@ use crate::{
 use clap::{value_t, ArgMatches};
 use failure::{err_msg, format_err, Error};
 use futures::{stream::iter_ok, Async, Future, Stream};
+use rogcat::record::Level;
 #[cfg(target_os = "linux")]
 use rogcat::record::{Record, Timestamp};
 use std::{
@@ -103,7 +104,7 @@ pub fn can(dev: &str) -> Result<LogStream, Error> {
             StreamData::Record(Record {
                 timestamp: Some(Timestamp::new(now)),
                 message: format!("{} {} ", extended, data.join(" ")),
-                tag: format!("0x{:x}", s.id()),
+                tags: vec![format!("0x{:x}", s.id())],
                 raw: format!(
                     "({}) {} {}#{}",
                     now.strftime("%s.%f").unwrap(),
@@ -137,7 +138,7 @@ pub fn tcp(addr: &Url) -> Result<LogStream, Error> {
     Ok(Box::new(s))
 }
 
-/// Start a process and stream it stdout
+/// Start logcat
 pub fn logcat(args: &ArgMatches) -> Result<LogStream, Error> {
     let mut cmd = vec![adb()?.display().to_string()];
 
@@ -178,6 +179,41 @@ pub fn logcat(args: &ArgMatches) -> Result<LogStream, Error> {
     }
 
     Ok(Box::new(Process::with_cmd(cmd, respawn)))
+}
+
+/// Start ffx log
+pub fn fuchsia(args: &ArgMatches) -> Result<LogStream, Error> {
+    let mut cmd = vec!["ffx", "log", "--no-color"];
+
+    if args.is_present("dump") {
+        cmd.push("--dump");
+    }
+
+    if let Some(tags) = args.values_of("tag") {
+        tags.for_each(|tag| {
+            cmd.push("--tag");
+            cmd.push(tag);
+        });
+    }
+
+    if let Some(level) = args.value_of("level") {
+        cmd.push("--severity");
+        let level = Level::from(level);
+        match level {
+            Level::Verbose | Level::Trace => cmd.push("trace"),
+            Level::None | Level::Debug => cmd.push("debug"),
+            Level::Info => cmd.push("info"),
+            Level::Warn => cmd.push("warn"),
+            Level::Error => cmd.push("error"),
+            Level::Fatal | Level::Assert => cmd.push("fatal"),
+        };
+    } else {
+        cmd.extend(["--severity", "debug"]);
+    }
+
+    let cmd = cmd.iter().map(ToString::to_string).collect();
+
+    Ok(Box::new(Process::with_cmd(cmd, false)))
 }
 
 /// Start a process and stream it stdout

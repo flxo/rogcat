@@ -21,7 +21,7 @@
 use failure::Error;
 use futures::{sync::oneshot, Future, Sink, Stream};
 use rogcat::{parser, record::Record};
-use std::{process::exit, str::FromStr};
+use std::{env, process::exit, str::FromStr};
 use tokio::runtime::Runtime;
 use tokio_signal::ctrl_c;
 use url::Url;
@@ -55,6 +55,8 @@ fn run() -> Result<(), Error> {
     let source = {
         if args.is_present("input") {
             reader::files(&args)?
+        } else if args.is_present("fuchsia") || env::args().next() == Some("ffxcat".into()) {
+            reader::fuchsia(&args)?
         } else {
             match args.value_of("COMMAND") {
                 Some(c) => {
@@ -96,8 +98,8 @@ fn run() -> Result<(), Error> {
 
     let f = source
         .map(move |a| match a {
-            StreamData::Line(l) => parser.parse(&l),
-            StreamData::Record(r) => r,
+            StreamData::Line(line) => parser.parse(line),
+            StreamData::Record(record) => record,
         })
         .filter(move |r| filter.filter(r))
         .take_while(move |_| {
