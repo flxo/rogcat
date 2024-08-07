@@ -1,50 +1,80 @@
-on:
-  workflow_dispatch:
-  push:
-    tags:
-      - v*
-
 name: Release
 
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write
+
 jobs:
-  check:
-    name: Release
+  build-and-upload:
+    name: Build and upload
     runs-on: ${{ matrix.os }}
+
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
+        include:
+          - build: linux
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+
+          - build: mac-x64
+            os: macos-latest
+            target: x86_64-apple-darwin
+
+          - build: mac-arm
+            os: macos-latest
+            target: aarch64-apple-darwin
+
+          - build: windows
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+
     steps:
-      - name: Install Dependencies
-        if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get install -y pkg-config libudev-dev
-      - name: Checkout sources
-        uses: actions/checkout@v2
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Get the release version from the tag
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
-          toolchain: stable
-          override: true
+          targets: ${{ matrix.target }}
 
-      - name: Cache
-        uses: Swatinem/rust-cache@v1
-
-      - name: Run cargo build
+      - name: Build
         uses: actions-rs/cargo@v1
         with:
+          use-cross: true
           command: build
-          args: --release
-      - name: Copy x86_64-unknown-linux-gnu
-        if: matrix.os == 'ubuntu-latest'
-        run: cp target/release/rogcat rogcat-x86-64-unknown-linux-gnu
-      - name: Copy x86_64-apple-darwin
-        if: matrix.os == 'macos-latest'
-        run: cp target/release/rogcat rogcat-x86_64-apple-darwin
-      - name: Copy x86_64-pc-windows-msvc.exe
-        if: matrix.os == 'windows-latest'
-        run: cp target/release/rogcat.exe rogcat-x86_64-pc-windows-msvc.exe
+          args: --release --target ${{ matrix.target }}
+
+      - name: Build archive
+        shell: bash
+        run: |
+          binary_name="rogcat"
+
+          dirname="$binary_name-${{ env.VERSION }}-${{ matrix.target }}"
+          mkdir "$dirname"
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            mv "target/${{ matrix.target }}/release/$binary_name.exe" "$dirname"
+          else
+            mv "target/${{ matrix.target }}/release/$binary_name" "$dirname"
+          fi
+
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            7z a "$dirname.zip" "$dirname"
+            echo "ASSET=$dirname.zip" >> $GITHUB_ENV
+          else
+            tar -czf "$dirname.tar.gz" "$dirname"
+            echo "ASSET=$dirname.tar.gz" >> $GITHUB_ENV
+          fi
+
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            rogcat-*
+            ${{ env.ASSET }}
