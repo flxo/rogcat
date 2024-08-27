@@ -31,7 +31,7 @@ use rogcat::record::{Format, Level, Record};
 use std::{
     cmp::{max, min},
     convert::Into,
-    io::{stdout, BufWriter, Write},
+    io::{self, stdout, BufWriter, Read, Write},
     str::FromStr,
 };
 use termcolor::{Buffer, BufferWriter, Color, ColorChoice, ColorSpec, WriteColor};
@@ -268,22 +268,28 @@ impl Human {
             } else {
                 let mut t = 0;
                 for tag in record.tags.iter() {
+                    let color = Self::hashed_color(tag);
                     let chars = tag.chars().count();
+                    buffer.set_color(spec.set_fg(Some(color)))?;
+
                     if t + 1 + chars <= tag_width {
-                        let color = Self::hashed_color(tag);
-                        buffer.set_color(spec.set_fg(Some(color)))?;
                         buffer.write_all(b" ")?;
                         buffer.write_all(tag.as_bytes())?;
                     } else {
+                        // The first tag already exeededs the tag width. Trim it to
+                        // the tag width and break.
+                        if t == 0 {
+                            buffer.write_all(b" ")?;
+                            buffer.write_all(tag.split_at(tag_width - 1).0.as_bytes())?;
+                            t += tag_width;
+                        }
                         break;
                     }
                     t += chars + 1;
                 }
-                buffer.set_color(spec.set_fg(None))?;
 
-                for _ in 0..(tag_width - t) {
-                    buffer.write_all(b" ")?;
-                }
+                buffer.set_color(spec.set_fg(None))?;
+                io::copy(&mut io::repeat(b' ').take((tag_width - t) as u64), buffer)?;
             }
 
             buffer.write_all(b" (")?;
