@@ -26,12 +26,13 @@ use crate::{
 use clap::{values_t, ArgMatches};
 use failure::{err_msg, format_err, Error};
 use futures::{Async, AsyncSink, Poll, Sink, StartSend};
+use itertools::intersperse;
 use regex::Regex;
 use rogcat::record::{Format, Level, Record};
 use std::{
     cmp::{max, min},
     convert::Into,
-    io::{self, stdout, BufWriter, Read, Write},
+    io::{stdout, BufWriter, Write},
     str::FromStr,
 };
 use termcolor::{Buffer, BufferWriter, Color, ColorChoice, ColorSpec, WriteColor};
@@ -255,66 +256,94 @@ impl Human {
             _ => self.dimm_color,
         };
 
-        let write_preamble = |buffer: &mut Buffer| -> Result<(), Error> {
+        let Record {
+            message,
+            level,
+            tags,
+            process,
+            thread,
+            ..
+        } = record;
+
+        // Collect as many tags as needed
+        let mut tags: Vec<_> = {
+            let tags = tags.into_iter().map(|t| {
+                let chars = t.chars().count();
+                let color = Self::hashed_color(&t);
+                (t, chars, Some(color))
+            });
+
+            // Add spaces between the tags
+            let tags = intersperse(tags, (" ".to_string(), 1, None));
+
+            let mut space_left = tag_width;
+            let space_left = &mut space_left;
+            let mut tags = tags
+                .into_iter()
+                .map_while(|(mut tag, chars, color)| {
+                    // Break condition
+                    if *space_left == 0 {
+                        return None;
+                    }
+
+                    let left = *space_left;
+                    *space_left = space_left.saturating_sub(chars);
+
+                    // Truncate tag if necessary
+                    if *space_left == 0 {
+                        format_trim(&mut tag, left);
+                    }
+                    Some((tag, color))
+                })
+                .collect::<Vec<_>>();
+
+            // If the tags do not fill up the tag space, add spaces
+            if *space_left > 0 {
+                tags.push((" ".repeat(*space_left), None));
+            }
+            tags
+        };
+
+        let mut write_preamble = |buffer: &mut Buffer| -> Result<(), Error> {
             let mut spec = ColorSpec::new();
+
+            // Timestamp
             buffer.set_color(spec.set_fg(timestamp_color))?;
             buffer.write_all(timestamp.as_bytes())?;
 
-            if record.tags.is_empty() {
-                // Plust extra space before tags
-                for _ in 0..tag_width {
-                    buffer.write_all(b" ")?;
-                }
-            } else {
-                let mut t = 0;
-                for tag in record.tags.iter() {
-                    let color = Self::hashed_color(tag);
-                    let chars = tag.chars().count();
-                    buffer.set_color(spec.set_fg(Some(color)))?;
-
-                    if t + 1 + chars <= tag_width {
-                        buffer.write_all(b" ")?;
-                        buffer.write_all(tag.as_bytes())?;
-                    } else {
-                        // The first tag already exeededs the tag width. Trim it to
-                        // the tag width and break.
-                        if t == 0 {
-                            buffer.write_all(b" ")?;
-                            buffer.write_all(tag.split_at(tag_width - 1).0.as_bytes())?;
-                            t += tag_width;
-                        }
-                        break;
-                    }
-                    t += chars + 1;
-                }
-
-                buffer.set_color(spec.set_fg(None))?;
-                io::copy(&mut io::repeat(b' ').take((tag_width - t) as u64), buffer)?;
+            // Tags
+            buffer.write_all(b" ")?;
+            for (tag, color) in &mut tags {
+                buffer.set_color(spec.set_fg(*color))?;
+                buffer.write_all(tag.as_bytes())?;
             }
 
+            // Process and thread
+            buffer.set_color(spec.set_fg(None))?;
             buffer.write_all(b" (")?;
             buffer.set_color(spec.set_fg(Some(process_color)))?;
-            buffer.write_all(record.process.as_bytes())?;
-            if !record.thread.is_empty() {
+            buffer.write_all(process.as_bytes())?;
+            if !thread.is_empty() {
                 buffer.set_color(spec.set_fg(Some(thread_color)))?;
                 buffer.write_all(b" ")?;
-                buffer.write_all(record.thread.as_bytes())?;
+                buffer.write_all(thread.as_bytes())?;
             }
             buffer.set_color(spec.set_fg(None))?;
             buffer.write_all(b") ")?;
 
+            // Level
             buffer.set_color(
                 spec.set_bg(level_color)
                     .set_fg(level_color.map(|_| Color::Black)), // Set fg only if bg is set
             )?;
-            write!(buffer, " {} ", record.level)?;
+            write!(buffer, " {} ", level)?;
             buffer.set_color(&ColorSpec::new())?;
 
             Ok(())
         };
 
         let payload_len = terminal_width().unwrap_or(usize::MAX) - preamble_width - 3;
-        let message = record.message.replace('\t', "<TAB>");
+        let message = message.replace('\t', "<TAB>");
         let message_len = message.chars().count();
         let chunks = message_len / payload_len + 1;
 
@@ -381,7 +410,7 @@ impl<T: Write> Sink for FormatSink<T> {
     fn start_send(&mut self, record: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
         self.sink
             .write_all(self.format.fmt_record(&record)?.as_bytes())?;
-        self.sink.write_all(&[b'\n'])?;
+        self.sink.write_all(b"\n")?;
         self.sink.flush()?;
         Ok(AsyncSink::Ready)
     }
