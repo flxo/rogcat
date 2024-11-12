@@ -113,7 +113,7 @@ impl<'a, T: Writer> FileWriter<T> {
             .map(PathBuf::from)
             .ok_or_else(|| err_msg("Invalid output filename!"))?;
 
-        let records_per_file = args.value_of("records_per_file").and_then(|l| {
+        let records_per_file = args.value_of("records-per-file").and_then(|l| {
             Regex::new(r"^(\d+)([kMG])$")
                 .unwrap()
                 .captures(l)
@@ -135,7 +135,7 @@ impl<'a, T: Writer> FileWriter<T> {
         let overwrite = args.is_present("overwrite");
 
         let records = records_per_file.unwrap_or(usize::MAX);
-        let filename_format = match args.value_of("filename_format") {
+        let filename_format = match args.value_of("filename-format") {
             Some("enumerate") => FilenameFormat::Enumerate(overwrite, records),
             Some("date") => FilenameFormat::Date(overwrite, records),
             // If records per file is set, default to enumerated even if

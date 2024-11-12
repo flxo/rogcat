@@ -189,13 +189,6 @@ pub fn fuchsia(args: &ArgMatches) -> Result<LogStream, Error> {
         cmd.push("--dump");
     }
 
-    if let Some(tags) = args.values_of("tag") {
-        tags.for_each(|tag| {
-            cmd.push("--tag");
-            cmd.push(tag);
-        });
-    }
-
     if let Some(level) = args.value_of("level") {
         cmd.push("--severity");
         let level = Level::from(level);

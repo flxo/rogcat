@@ -20,44 +20,98 @@
 
 use crate::profiles::Profile;
 use clap::ArgMatches;
-use failure::{format_err, Error};
-use regex::Regex;
+use failure::Error;
+use regex::{RegexSet, RegexSetBuilder};
 use rogcat::record::{Level, Record};
 
 /// Configured filters
 #[derive(Debug)]
 pub struct Filter {
     level: Option<Level>,
-    tag: FilterGroup,
-    tag_ignore_case: FilterGroup,
-    message: FilterGroup,
-    message_ignore_case: FilterGroup,
-    regex: FilterGroup,
+    has_positive: bool,
+    has_negative: bool,
+    filter: FilterSet,
+    filter_case_insensitive: FilterSet,
+    message: FilterSet,
+    message_case_insensitive: FilterSet,
+    tag: FilterSet,
+    tag_case_insensitive: FilterSet,
 }
 
-pub fn from_args_profile(args: &ArgMatches<'_>, profile: &Profile) -> Result<Filter, Error> {
-    let tag = profile.tag.iter().map(String::as_str);
-    let tag_ignorecase = profile.tag_ignore_case.iter().map(String::as_str);
-    let message = profile.message.iter().map(String::as_str);
-    let message_ignorecase = profile.message_ignore_case.iter().map(String::as_str);
-    let regex = profile.regex.iter().map(String::as_str);
+pub fn from_args_profile(args: &ArgMatches, profile: &Profile) -> Result<Filter, Error> {
     // Level is filtered by ffx in case of fuchsia.
     let level = (!args.is_present("fuchsia"))
         .then(|| args.value_of("level").map(Level::from))
         .flatten();
+
+    let filter = args
+        .values_of("filter")
+        .unwrap_or_default()
+        .chain(profile.filter.iter().map(String::as_str))
+        .collect::<Vec<_>>();
+    let filter_case_insensitive = args
+        .values_of("filter-case-insensitive")
+        .unwrap_or_default()
+        .chain(profile.filter_case_insensitive.iter().map(String::as_str))
+        .collect::<Vec<_>>();
+
+    let tag = args
+        .values_of("tag")
+        .unwrap_or_default()
+        .chain(filter.iter().map(|s| *s)) // Include the filter pattern as tag filter
+        .chain(profile.filter.iter().map(String::as_str)) // Include the filter pattern from the profile as tag filter
+        .chain(profile.tag.iter().map(String::as_str));
+    let tag_case_insensitive = args
+        .values_of("tag-case-insensitive")
+        .unwrap_or_default()
+        .chain(filter_case_insensitive.iter().map(|s| *s)) // Include the filter pattern as tag filter
+        .chain(profile.filter_case_insensitive.iter().map(String::as_str)) // Include the filter pattern from the profile as tag filter
+        .chain(profile.tag_case_insensitive.iter().map(String::as_str));
+
+    let message = args
+        .values_of("message")
+        .unwrap_or_default()
+        .chain(filter.iter().map(|s| *s)) // Include the filter pattern as message filter
+        .chain(profile.filter.iter().map(String::as_str)) // Include the filter pattern from the profile as message filter
+        .chain(profile.message.iter().map(String::as_str));
+    let message_case_insensitive = args
+        .values_of("message-case-insensitive")
+        .unwrap_or_default()
+        .chain(filter_case_insensitive.iter().map(|s| *s)) // Include the filter pattern as tag filter
+        .chain(profile.filter_case_insensitive.iter().map(String::as_str)) // Include the filter pattern from the profile as tag filter
+        .chain(profile.message_case_insensitive.iter().map(String::as_str));
+
+    let filter = FilterSet::new(filter.iter().map(|s| *s), true)?;
+    let filter_case_insensitive =
+        FilterSet::new(filter_case_insensitive.iter().map(|s| *s), false)?;
+    let tag = FilterSet::new(tag, true)?;
+    let tag_case_insensitive = FilterSet::new(tag_case_insensitive, false)?;
+    let message = FilterSet::new(message, true)?;
+    let message_case_insensitive = FilterSet::new(message_case_insensitive, false)?;
+
+    let has_positive = filter.has_positive()
+        || filter_case_insensitive.has_positive()
+        || tag.has_positive()
+        || tag_case_insensitive.has_positive()
+        || message.has_positive()
+        || message_case_insensitive.has_positive();
+    let has_negative = filter.has_negative()
+        || filter_case_insensitive.has_negative()
+        || tag.has_negative()
+        || tag_case_insensitive.has_negative()
+        || message.has_negative()
+        || message_case_insensitive.has_negative();
+
     let filter = Filter {
         level,
-        // TODO: Do not filter here on tag which is already done by fx in case of fuchsia.
-        tag: FilterGroup::from_args(args, "tag", tag, false)?,
-        tag_ignore_case: FilterGroup::from_args(args, "tag-ignore-case", tag_ignorecase, true)?,
-        message: FilterGroup::from_args(args, "message", message, false)?,
-        message_ignore_case: FilterGroup::from_args(
-            args,
-            "message-ignore-case",
-            message_ignorecase,
-            true,
-        )?,
-        regex: FilterGroup::from_args(args, "regex_filter", regex, false)?,
+        has_positive,
+        has_negative,
+        filter,
+        filter_case_insensitive,
+        message,
+        message_case_insensitive,
+        tag,
+        tag_case_insensitive,
     };
 
     Ok(filter)
@@ -71,95 +125,99 @@ impl Filter {
             }
         }
 
-        self.message.filter(&record.message)
-            && self.message_ignore_case.filter(&record.message)
-            && self.tag.filter_iter(record.tags.iter())
-            && self.tag_ignore_case.filter_iter(record.tags.iter())
-            && (self.regex.filter(&record.process)
-                || self.regex.filter(&record.thread)
-                || self.regex.filter_iter(record.tags.iter())
-                || self.regex.filter(&record.message))
+        if self.has_positive || self.has_negative {
+            let positive = !self.has_positive || self.matches_positive(record);
+            let negative = self.has_negative && self.matches_negative(record);
+            positive && !negative
+        } else {
+            true
+        }
+    }
+
+    fn matches_positive(&self, record: &Record) -> bool {
+        self.filter.match_positive(&record.process)
+            || self.filter.match_positive(&record.thread)
+            || self.filter_case_insensitive.match_positive(&record.process)
+            || self.filter_case_insensitive.match_positive(&record.thread)
+            || self.tag.match_positive_iter(record.tags.iter())
+            || self
+                .tag_case_insensitive
+                .match_positive_iter(record.tags.iter())
+            || self.message.match_positive(&record.message)
+            || self
+                .message_case_insensitive
+                .match_positive(&record.message)
+    }
+
+    fn matches_negative(&self, record: &Record) -> bool {
+        self.filter.match_negative(&record.process)
+            || self.filter.match_negative(&record.thread)
+            || self.filter_case_insensitive.match_negative(&record.process)
+            || self.filter_case_insensitive.match_negative(&record.thread)
+            || self.tag.match_negative_iter(record.tags.iter())
+            || self
+                .tag_case_insensitive
+                .match_negative_iter(record.tags.iter())
+            || self.message.match_negative(&record.message)
+            || self
+                .message_case_insensitive
+                .match_negative(&record.message)
     }
 }
 
 #[derive(Debug)]
-struct FilterGroup {
-    ignore_case: bool,
-    positive: Vec<Regex>,
-    negative: Vec<Regex>,
+struct FilterSet {
+    positive: RegexSet,
+    negative: RegexSet,
 }
 
-impl FilterGroup {
-    fn from_args<'a, T: Iterator<Item = &'a str>>(
-        args: &'a ArgMatches<'a>,
-        flag: &str,
-        merge: T,
-        ignore_case: bool,
-    ) -> Result<FilterGroup, Error> {
-        let mut filters: Vec<&str> = args
-            .values_of(flag)
-            .map(Iterator::collect)
-            .unwrap_or_default();
-        filters.extend(merge);
+impl FilterSet {
+    fn new<'a, T: Iterator<Item = &'a str>>(
+        regex: T,
+        case_sensitive: bool,
+    ) -> Result<FilterSet, Error> {
+        let mut positive = Vec::new();
+        let mut negative = Vec::new();
 
-        let mut positive = vec![];
-        let mut negative = vec![];
-        for r in filters.iter().map(|f| {
-            if ignore_case {
-                f.to_lowercase()
-            } else {
-                (*f).to_string()
-            }
-        }) {
+        for r in regex {
             if let Some(r) = r.strip_prefix('!') {
-                let r =
-                    Regex::new(r).map_err(|e| format_err!("Invalid regex string: {}: {}", r, e))?;
                 negative.push(r);
             } else {
-                let r = Regex::new(&r)
-                    .map_err(|e| format_err!("Invalid regex string: {}: {}", r, e))?;
                 positive.push(r);
             }
         }
 
-        Ok(FilterGroup {
-            ignore_case,
-            positive,
-            negative,
-        })
+        let positive = RegexSetBuilder::new(positive)
+            .case_insensitive(!case_sensitive)
+            .build()?;
+        let negative = RegexSetBuilder::new(negative)
+            .case_insensitive(!case_sensitive)
+            .build()?;
+
+        Ok(FilterSet { positive, negative })
     }
 
-    fn filter_iter<T: Iterator<Item = A>, A: AsRef<str>>(&self, item: T) -> bool {
-        for i in item {
-            if !self.filter(i.as_ref()) {
-                return false;
-            }
-        }
-
-        true
+    fn has_positive(&self) -> bool {
+        !self.positive.is_empty()
     }
 
-    fn filter(&self, item: &str) -> bool {
-        if !self.positive.is_empty() {
-            if self.ignore_case {
-                let item = item.to_lowercase();
-                if !self.positive.iter().any(|m| m.is_match(&item)) {
-                    return false;
-                }
-            } else if !self.positive.iter().any(|m| m.is_match(item)) {
-                return false;
-            }
-        }
+    fn has_negative(&self) -> bool {
+        !self.negative.is_empty()
+    }
 
-        if !self.negative.is_empty() {
-            if self.ignore_case {
-                let item = item.to_lowercase();
-                return !self.negative.iter().any(|m| m.is_match(&item));
-            } else {
-                return !self.negative.iter().any(|m| m.is_match(item));
-            }
-        }
+    fn match_positive<T: AsRef<str>>(&self, item: T) -> bool {
+        !self.positive.is_empty() && self.positive.is_match(item.as_ref())
+    }
 
-        true
+    fn match_positive_iter<I: Iterator<Item = T>, T: AsRef<str>>(&self, mut iter: I) -> bool {
+        !self.positive.is_empty() && iter.any(|i| self.positive.is_match(i.as_ref()))
+    }
+
+    fn match_negative<T: AsRef<str>>(&self, item: T) -> bool {
+        !self.negative.is_empty() && self.negative.is_match(item.as_ref())
+    }
+
+    fn match_negative_iter<I: Iterator<Item = T>, T: AsRef<str>>(&self, mut iter: I) -> bool {
+        !self.negative.is_empty() && iter.any(|i| self.negative.is_match(i.as_ref()))
     }
 }

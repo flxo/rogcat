@@ -193,7 +193,7 @@ Example:
 ```toml
 [profile.a]
 comment = "Messages starting with A or a"
-message_ignore_case = ["^A.*"]
+message_case_insensitive = ["^A.*"]
 
 [profile.B]
 comment = "Messages starting with B"
@@ -231,39 +231,42 @@ You can create a special profile named `default` which will be used when no othe
 ## Usage
 
 ```sh
-rogcat 0.4.3-alpha.0
+rogcat 0.4.8-pre
 Felix Obenhuber <felix@obenhuber.de>
-A 'adb logcat' wrapper and log processor. Your config directory is "/Users/felix/Library/Preferences/rogcat".
+A 'adb logcat' wrapper and log processor. Your config directory is "/home/felix/.config/rogcat".
 
 USAGE:
     rogcat [FLAGS] [OPTIONS] [COMMAND] [SUBCOMMAND]
 
 FLAGS:
+        --bright-colors     Use intense colors in terminal output
     -d, --dump              Dump the log and then exit (don't block)
+        --ffx               Use ffx log instead of adb logcat
         --help              Prints help information
         --hide-timestamp    Hide timestamp in terminal output
+    -L, --last              Dump the logs prior to the last reboot
         --no-dimm           Use white as dimm color
         --overwrite         Overwrite output file if present
         --restart           Restart command on exit
         --show-date         Show month and day in terminal output
-    -s, --skip              Skip records on a command restart until the last received last record is received again. Use
-                            with caution!
     -V, --version           Prints version information
 
 OPTIONS:
     -b, --buffer <buffer>...
             Select specific logd buffers. Defaults to main, events, kernel and crash
 
-        --color <color>                          Terminal coloring option [possible values: auto, always, never]
-    -a, --filename-format <filename_format>
+        --color <color>                            Terminal coloring option [possible values: auto, always, never]
+    -s, --serial <dev>                             Forwards the device selector to adb
+    -a, --filename-format <filename-format>
             Select a format for output file names. By passing 'single' the filename provided with the '-o' option is
             used (default).'enumerate' appends a file sequence number after the filename passed with '-o' option
             whenever a new file is created (see 'records-per-file' option). 'date' will prefix the output filename with
             the current local date when a new file is created [possible values: single, enumerate, date]
-    -f, --format <format>
+    -f, --filter <filter>...                       Regex filter on tag, pid, thread and message.
+        --format <format>
             Output format. Defaults to human on stdout and raw on file output [possible values: csv, html, human, json,
             raw]
-    -H, --head <head>                            Read n records and exit
+    -H, --head <head>                              Read n records and exit
     -h, --highlight <highlight>...
             Highlight messages that match this pattern in RE2. The prefix '!' inverts the match
 
@@ -273,16 +276,15 @@ OPTIONS:
     -l, --level <level>
             Minimum level [possible values: trace, debug, info, warn, error, fatal, assert, T, D, I, W, E, F, A]
 
-    -m, --message <message>...                   Message filters in RE2. The prefix '!' inverts the match
-    -M, --Message <message-ignore-case>...       Same as -m/--message but case insensitive
-    -o, --output <output>                        Write output to file
-    -p, --profile <profile>                      Select profile
-    -P, --profiles-path <profiles_path>          Manually specify profile file (overrules ROGCAT_PROFILES)
-    -n, --records-per-file <records_per_file>    Write n records per file. Use k, M, G suffixes or a plain number
-    -r, --regex <regex_filter>...                Regex filter on tag, pid, thread and message.
-    -t, --tag <tag>...                           Tag filters in RE2. The prefix '!' inverts the match
-    -T, --Tag <tag-ignore-case>...               Same as -t/--tag but case insensitive
-        --tail <tail>                            Dump only the most recent <COUNT> lines (implies --dump)
+    -m, --message <message>...                     Message filters in RE2. The prefix '!' inverts the match
+    -M, --Message <message-case-insensitive>...    Same as -m/--message but case insensitive
+    -o, --output <output>                          Write output to file
+    -p, --profile <profile>                        Select profile
+    -P, --profiles-path <profiles-path>            Manually specify profile file (overrules ROGCAT_PROFILES)
+    -n, --records-per-file <records-per-file>      Write n records per file. Use k, M, G suffixes or a plain number
+    -t, --tag <tag>...                             Tag filters in RE2. The prefix '!' inverts the match
+    -T, --Tag <tag-case-insensitive>...            Same as -t/--tag but case insensitive
+        --tail <tail>                              Dump only the most recent <COUNT> lines (implies --dump)
 
 ARGS:
     <COMMAND>    Optional command to run and capture stdout and stdderr from. Pass "-" to d capture stdin'. If

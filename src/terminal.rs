@@ -100,12 +100,12 @@ impl Human {
                 _ => ColorChoice::Auto,
             }
         };
-        let no_dimm = args.is_present("no_dimm") || config_get("terminal_no_dimm").unwrap_or(false);
+        let no_dimm = args.is_present("no-dimm") || config_get("terminal_no_dimm").unwrap_or(false);
         let tag_width = config_get("terminal_tag_width");
-        let hide_timestamp = args.is_present("hide_timestamp")
+        let hide_timestamp = args.is_present("hide-timestamp")
             || config_get("terminal_hide_timestamp").unwrap_or(false);
         let show_date =
-            args.is_present("show_date") || config_get("terminal_show_date").unwrap_or(false);
+            args.is_present("show-date") || config_get("terminal_show_date").unwrap_or(false);
         let date_format = if show_date {
             if hide_timestamp {
                 Some(("%m-%d", 5))

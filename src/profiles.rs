@@ -35,12 +35,13 @@ const DEFAULT_PROFILE_NAME: &str = "default";
 pub struct Profile {
     pub comment: Option<String>,
     pub extends: Vec<String>,
+    pub filter: Vec<String>,
+    pub filter_case_insensitive: Vec<String>,
     pub highlight: Vec<String>,
     pub message: Vec<String>,
-    pub message_ignore_case: Vec<String>,
-    pub regex: Vec<String>,
+    pub message_case_insensitive: Vec<String>,
     pub tag: Vec<String>,
-    pub tag_ignore_case: Vec<String>,
+    pub tag_case_insensitive: Vec<String>,
 }
 
 /// Create a new Profiles instance from a give configuration file
@@ -107,8 +108,8 @@ fn expand(n: &str, p: &mut Profile, a: &HashMap<String, Profile>) -> Result<(), 
 /// Return path to profile file by checking cli argument, env and default to configdir
 fn file(args: Option<&ArgMatches>) -> Result<PathBuf, Error> {
     if let Some(args) = args {
-        if args.is_present("profiles_path") {
-            let f = PathBuf::from(value_t!(args, "profiles_path", String)?);
+        if args.is_present("profiles-path") {
+            let f = PathBuf::from(value_t!(args, "profiles-path", String)?);
             if f.exists() {
                 return Ok(f);
             } else {
@@ -144,12 +145,13 @@ struct ConfigurationFile {
 struct ProfileFile {
     comment: Option<String>,
     extends: Option<Vec<String>>,
+    filter: Option<Vec<String>>,
+    filter_case_insensitive: Option<Vec<String>>,
     highlight: Option<Vec<String>>,
     message: Option<Vec<String>>,
-    message_ignore_case: Option<Vec<String>>,
-    regex: Option<Vec<String>>,
+    message_case_insensitive: Option<Vec<String>>,
     tag: Option<Vec<String>>,
-    tag_ignore_case: Option<Vec<String>>,
+    tag_case_insensitive: Option<Vec<String>>,
 }
 
 impl From<ProfileFile> for Profile {
@@ -157,12 +159,13 @@ impl From<ProfileFile> for Profile {
         Profile {
             comment: f.comment,
             extends: f.extends.unwrap_or_default(),
+            filter: f.filter.unwrap_or_default(),
+            filter_case_insensitive: f.filter_case_insensitive.unwrap_or_default(),
             highlight: f.highlight.unwrap_or_default(),
             message: f.message.unwrap_or_default(),
-            message_ignore_case: f.message_ignore_case.unwrap_or_default(),
-            regex: f.regex.unwrap_or_default(),
+            message_case_insensitive: f.message_case_insensitive.unwrap_or_default(),
             tag: f.tag.unwrap_or_default(),
-            tag_ignore_case: f.tag_ignore_case.unwrap_or_default(),
+            tag_case_insensitive: f.tag_case_insensitive.unwrap_or_default(),
         }
     }
 }
