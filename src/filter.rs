@@ -58,32 +58,31 @@ pub fn from_args_profile(args: &ArgMatches, profile: &Profile) -> Result<Filter,
     let tag = args
         .values_of("tag")
         .unwrap_or_default()
-        .chain(filter.iter().map(|s| *s)) // Include the filter pattern as tag filter
+        .chain(filter.iter().copied()) // Include the filter pattern as tag filter
         .chain(profile.filter.iter().map(String::as_str)) // Include the filter pattern from the profile as tag filter
         .chain(profile.tag.iter().map(String::as_str));
     let tag_case_insensitive = args
         .values_of("tag-case-insensitive")
         .unwrap_or_default()
-        .chain(filter_case_insensitive.iter().map(|s| *s)) // Include the filter pattern as tag filter
+        .chain(filter_case_insensitive.iter().copied()) // Include the filter pattern as tag filter
         .chain(profile.filter_case_insensitive.iter().map(String::as_str)) // Include the filter pattern from the profile as tag filter
         .chain(profile.tag_case_insensitive.iter().map(String::as_str));
 
     let message = args
         .values_of("message")
         .unwrap_or_default()
-        .chain(filter.iter().map(|s| *s)) // Include the filter pattern as message filter
+        .chain(filter.iter().copied()) // Include the filter pattern as message filter
         .chain(profile.filter.iter().map(String::as_str)) // Include the filter pattern from the profile as message filter
         .chain(profile.message.iter().map(String::as_str));
     let message_case_insensitive = args
         .values_of("message-case-insensitive")
         .unwrap_or_default()
-        .chain(filter_case_insensitive.iter().map(|s| *s)) // Include the filter pattern as tag filter
+        .chain(filter_case_insensitive.iter().copied()) // Include the filter pattern as tag filter
         .chain(profile.filter_case_insensitive.iter().map(String::as_str)) // Include the filter pattern from the profile as tag filter
         .chain(profile.message_case_insensitive.iter().map(String::as_str));
 
-    let filter = FilterSet::new(filter.iter().map(|s| *s), true)?;
-    let filter_case_insensitive =
-        FilterSet::new(filter_case_insensitive.iter().map(|s| *s), false)?;
+    let filter = FilterSet::new(filter.iter().copied(), true)?;
+    let filter_case_insensitive = FilterSet::new(filter_case_insensitive.iter().copied(), false)?;
     let tag = FilterSet::new(tag, true)?;
     let tag_case_insensitive = FilterSet::new(tag_case_insensitive, false)?;
     let message = FilterSet::new(message, true)?;
