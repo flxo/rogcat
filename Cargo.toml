@@ -60,3 +60,8 @@ itertools = "0.13.0"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 tokio-socketcan = "0.1.3"
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
