@@ -376,6 +376,63 @@ impl FormatParser for FuchsiaParser {
     }
 }
 
+// [2024-11-27T08:43:31Z INFO  crate::core::foo] hello hello
+fn parse_env_logger(line: &str) -> IResult<&str, Record> {
+    // Timestamp
+    let (rest, _) = char('[')(line)?;
+    let (rest, timestamp) = take_until1(" ")(rest)?;
+    let (rest, _) = char(' ')(rest)?;
+    let timestamp = time::strptime(timestamp, "%Y-%m-%dT%H:%M:%SZ")
+        .ok()
+        .map(Timestamp::new);
+
+    // Level
+    let (rest, level) = take_until1(" ")(rest)?;
+    let (rest, _) = char(' ')(rest)?;
+    let level = match level {
+        "TRACE" => Level::Trace,
+        "DEBUG" => Level::Debug,
+        "INFO" => Level::Info,
+        "WARN" => Level::Warn,
+        "ERROR" => Level::Error,
+        "FATAL" => Level::Fatal,
+        _ => unreachable!("unimplemented level: {}", level),
+    };
+
+    // Tags
+    let (rest, tags) = take_until1("]")(rest)?;
+    let (rest, _) = char(']')(rest)?;
+    let tags = tags
+        .split("::")
+        .map(|s| s.trim().to_owned())
+        .collect::<Vec<_>>();
+
+    let (rest, _) = char(' ')(rest)?;
+
+    let (_, message) = nom::combinator::rest(rest)?;
+
+    let record = Record {
+        timestamp,
+        message: message.trim().to_owned(),
+        level,
+        tags,
+        ..Default::default()
+    };
+
+    Ok(("", record))
+}
+
+#[derive(Default)]
+pub struct EnvLoggerParser;
+
+impl FormatParser for EnvLoggerParser {
+    fn try_parse_str(&self, line: &str) -> Result<Record, ParserError> {
+        parse_env_logger(line)
+            .map(|(_, record)| record)
+            .map_err(|e| ParserError(format!("{e}")))
+    }
+}
+
 pub struct Parser(Vec<Box<dyn FormatParser>>);
 
 impl Default for Parser {
@@ -386,6 +443,7 @@ impl Default for Parser {
             Box::new(CsvParser),
             Box::new(JsonParser),
             Box::new(FuchsiaParser),
+            Box::new(EnvLoggerParser),
         ])
     }
 }
@@ -647,4 +705,16 @@ fn test_parse_fuchsia() {
         r.message,
         "ignoring Reply to Information-Request: missing Server Id option"
     );
+}
+
+#[test]
+fn test_parse_env_logger() {
+    let p = EnvLoggerParser {};
+    let s = "[2024-11-27T08:43:31Z INFO  crate::core::foo] hello hello";
+    let r = p.try_parse_str(s).unwrap();
+    assert!(r.timestamp.is_some());
+    assert_eq!(r.level, Level::Info);
+    assert_eq!(r.process, "");
+    assert_eq!(r.tags, vec!("crate", "core", "foo"));
+    assert_eq!(r.message, "hello hello",);
 }
