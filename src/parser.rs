@@ -109,7 +109,7 @@ fn timestamp(line: &str) -> IResult<&str, Tm> {
             tm_min: minute,
             tm_hour: hour,
             tm_mday: day,
-            tm_mon: month,
+            tm_mon: month - 1, // Convert to 0-indexed (0=Jan, 11=Dec)
             tm_year: year.unwrap_or(0),
             tm_wday: 0,
             tm_yday: 0,
@@ -439,7 +439,7 @@ fn parser_year() {
 fn parse_timestamp() {
     let ts = timestamp("03-25 19:11:19.054211").unwrap();
     assert_eq!(00, ts.1.tm_year);
-    assert_eq!(3, ts.1.tm_mon);
+    assert_eq!(2, ts.1.tm_mon); // March is month 2 (0-indexed)
     assert_eq!(25, ts.1.tm_mday);
     assert_eq!(19, ts.1.tm_hour);
     assert_eq!(11, ts.1.tm_min);
@@ -469,6 +469,33 @@ fn parse_printable() {
         "mounted filesystem with ordered data mode. Opts: (null)"
     );
 
+    // Test December (month 12) - this was causing the panic in issue #51
+    let t = "12-02 13:06:31.413 22207 22207 E AndroidRuntime: FATAL EXCEPTION: main";
+    let r = p.try_parse_str(t).unwrap();
+    assert_eq!(r.level, Level::Error);
+    assert_eq!(r.tags, vec!("AndroidRuntime"));
+    assert_eq!(r.process, "22207");
+    assert_eq!(r.thread, "22207");
+    assert_eq!(r.message, "FATAL EXCEPTION: main");
+    assert_eq!(
+        r.timestamp,
+        Some(Timestamp {
+            tm: Tm {
+                tm_year: 0,
+                tm_mon: 11, // December is month 11 (0-indexed)
+                tm_mday: 2,
+                tm_hour: 13,
+                tm_min: 6,
+                tm_sec: 31,
+                tm_nsec: 413000000,
+                tm_wday: 0,
+                tm_yday: 0,
+                tm_isdst: 0,
+                tm_utcoff: 0,
+            }
+        })
+    );
+
     let t = "03-01 02:19:42.868     0     0 D /soc/aips-bus@02100000/usdhc@0219c000: \
              voltage-ranges unspecified";
     let r = p.try_parse_str(t).unwrap();
@@ -485,7 +512,7 @@ fn parse_printable() {
         Some(Timestamp {
             tm: Tm {
                 tm_year: 0,
-                tm_mon: 11,
+                tm_mon: 10, // November is month 10 (0-indexed)
                 tm_mday: 6,
                 tm_hour: 13,
                 tm_min: 58,
