@@ -18,6 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#![allow(non_local_definitions)]
+
 use crate::record::{Level, Record, Timestamp};
 use csv::ReaderBuilder;
 use failure::Fail;
