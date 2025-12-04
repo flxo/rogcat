@@ -162,8 +162,7 @@ impl Decoder for LossyLinesCodec {
                     // newline, return an error and start discarding on the
                     // next call.
                     self.is_discarding = true;
-                    Err(io::Error::new(
-                        io::ErrorKind::Other,
+                    Err(io::Error::other(
                         "line length limit exceeded",
                     ))
                 } else {

@@ -131,7 +131,7 @@ impl Display for Level {
     }
 }
 
-impl<'a> From<&'a str> for Level {
+impl From<&str> for Level {
     fn from(s: &str) -> Self {
         match s {
             "T" | "trace" => Level::Trace,
